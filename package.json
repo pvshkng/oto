@@ -46,6 +46,11 @@
 		"vitest-browser-svelte": "^2.0.1"
 	},
 	"dependencies": {
-		"tone": "^15.1.22"
+		"@coderline/alphatab": "^1.7.1",
+		"@coderline/alphatab-vite": "^1.7.1",
+		"install": "^0.13.0",
+		"tone": "^15.1.22",
+		"vexflow": "^5.0.0",
+		"vextab": "^3.0.6"
 	}
 }
