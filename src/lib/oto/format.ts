@@ -132,10 +132,15 @@ function normaliseMeasure(m: unknown): OtoMeasure {
 	const beats = Array.isArray(o.beats)
 		? (o.beats as unknown[]).map(normaliseBeat).filter(Boolean)
 		: [restBeat()];
+	const voice2 =
+		Array.isArray(o.voice2) && o.voice2.length
+			? (o.voice2 as unknown[]).map(normaliseBeat).filter(Boolean)
+			: undefined;
 	return {
 		timeSignature: isTimeSig(o.timeSignature) ? o.timeSignature : undefined,
 		tempo: typeof o.tempo === 'number' ? o.tempo : undefined,
-		beats: beats.length ? beats : [restBeat()]
+		beats: beats.length ? beats : [restBeat()],
+		voice2: voice2 && voice2.length ? voice2 : undefined
 	};
 }
 

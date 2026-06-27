@@ -48,6 +48,21 @@
 
 <div class="palette">
 	<div class="group">
+		<span class="lbl">Voice</span>
+		<div class="btns">
+			<button class="vbtn" class:on={store.cursor.voice === 0} onclick={() => store.setVoice(0)}
+				>1</button
+			>
+			<button
+				class="vbtn v2"
+				class:on={store.cursor.voice === 1}
+				title="Second voice — for notes of a different duration sounding at the same time"
+				onclick={() => store.setVoice(1)}>2</button
+			>
+		</div>
+	</div>
+
+	<div class="group">
 		<span class="lbl">Duration</span>
 		<div class="btns">
 			{#each DURATION_ORDER as d (d)}
@@ -129,7 +144,8 @@
 		max-width: 320px;
 	}
 	.dbtn,
-	.ebtn {
+	.ebtn,
+	.vbtn {
 		min-width: 30px;
 		height: 30px;
 		padding: 0 6px;
@@ -142,6 +158,19 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+	}
+	.vbtn {
+		font-weight: 700;
+		min-width: 34px;
+	}
+	.vbtn.on {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: #fff;
+	}
+	.vbtn.v2.on {
+		background: #1f6f6b;
+		border-color: #1f6f6b;
 	}
 	.dbtn .glyph {
 		font-size: 16px;
@@ -160,5 +189,19 @@
 	.dbtn:hover:not(.on),
 	.ebtn:hover:not(.on):not(.disabled) {
 		background: var(--panel-2);
+	}
+	@media (max-width: 720px) {
+		.palette {
+			gap: 12px;
+		}
+		.dbtn,
+		.ebtn,
+		.vbtn {
+			min-width: 40px;
+			height: 42px;
+		}
+		.btns.wrap {
+			max-width: none;
+		}
 	}
 </style>

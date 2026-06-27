@@ -100,11 +100,6 @@ function firstStringedStaff(track: AtTrack): AtStaff | null {
 	return null;
 }
 
-function pickVoice(bar: AtBar): AtVoice | null {
-	if (!bar.voices?.length) return null;
-	return bar.voices.find((v) => !v.isEmpty) ?? bar.voices[0];
-}
-
 function noteTechniques(note: AtNote, beat: AtBeat): Technique[] {
 	const t: Technique[] = [];
 	if (note.isPalmMute || beat.isPalmMute) t.push('palm-mute');
@@ -143,19 +138,18 @@ function convertTrack(
 	const instrument =
 		kind === 'bass'
 			? 'bass'
-			: program >= 24 && program <= 26
-				? 'acoustic'
-				: program >= 27 && program <= 31
-					? 'electric'
-					: 'clean';
+			: program === 24
+				? 'nylon'
+				: program === 25
+					? 'acoustic'
+					: program === 27 || program === 28
+						? 'clean'
+						: program >= 26 && program <= 31
+							? 'electric'
+							: 'clean';
 
-	const measures: OtoMeasure[] = staff.bars.map((bar) => {
-		const voice = pickVoice(bar);
-		const ts: [number, number] = [
-			bar.masterBar?.timeSignatureNumerator ?? fallbackTs[0],
-			bar.masterBar?.timeSignatureDenominator ?? fallbackTs[1]
-		];
-		const beats: OtoBeat[] = (voice?.beats ?? []).map((beat) => {
+	const convertBeats = (atBeats: AtBeat[] | undefined): OtoBeat[] =>
+		(atBeats ?? []).map((beat) => {
 			const notes: OtoNote[] = (beat.notes ?? []).map((n) => {
 				const otoString = Math.max(0, Math.min(stringCount - 1, stringCount - n.string));
 				const techniques = noteTechniques(n, beat);
@@ -174,9 +168,22 @@ function convertTrack(
 				rest: beat.isRest || notes.length === 0
 			};
 		});
+
+	const measures: OtoMeasure[] = staff.bars.map((bar) => {
+		const ts: [number, number] = [
+			bar.masterBar?.timeSignatureNumerator ?? fallbackTs[0],
+			bar.masterBar?.timeSignatureDenominator ?? fallbackTs[1]
+		];
+		// Voice 0 → beats; a second non-empty voice → voice2 (mixed durations).
+		const filled = (bar.voices ?? []).filter((v) => !v.isEmpty);
+		const primary = filled[0] ?? bar.voices?.[0];
+		const beats = convertBeats(primary?.beats);
+		const secondary = filled[1];
+		const voice2 = secondary ? convertBeats(secondary.beats) : undefined;
 		return {
 			timeSignature: ts,
-			beats: beats.length ? beats : [{ duration: 4, notes: [], rest: true }]
+			beats: beats.length ? beats : [{ duration: 4, notes: [], rest: true }],
+			voice2: voice2 && voice2.length ? voice2 : undefined
 		};
 	});
 

@@ -17,8 +17,9 @@
 
 	const INSTRUMENTS = [
 		{ value: 'electric', label: 'Electric Guitar' },
-		{ value: 'acoustic', label: 'Acoustic Guitar' },
-		{ value: 'clean', label: 'Clean / Nylon' },
+		{ value: 'clean', label: 'Clean Electric' },
+		{ value: 'acoustic', label: 'Acoustic (steel)' },
+		{ value: 'nylon', label: 'Nylon / Classical' },
 		{ value: 'bass', label: 'Bass' }
 	];
 
@@ -178,14 +179,16 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		padding: 6px 10px;
+		padding: 7px 12px;
 		background: var(--panel);
-		border-radius: 8px 8px 0 0;
+		border: 1px solid var(--border);
 		border-left: 4px solid var(--track-color);
+		border-radius: 8px 8px 0 0;
+		flex-wrap: wrap;
 	}
 	.header.active {
-		background: #fff;
-		box-shadow: inset 0 0 0 1px var(--accent-soft);
+		background: var(--paper);
+		box-shadow: inset 0 0 0 1px var(--border-strong);
 	}
 	.select-track {
 		display: flex;
@@ -219,8 +222,8 @@
 	}
 	.name:hover,
 	.name:focus {
-		border-color: var(--border);
-		background: #fff;
+		border-color: var(--border-strong);
+		background: var(--paper);
 		outline: none;
 	}
 	.views,
@@ -230,10 +233,10 @@
 	}
 	.vtab,
 	.ms-btn {
-		min-width: 30px;
-		height: 26px;
-		border: 1px solid var(--border);
-		background: #fff;
+		min-width: 32px;
+		height: 30px;
+		border: 1px solid var(--border-strong);
+		background: var(--paper);
 		border-radius: 6px;
 		font-size: 11px;
 		font-weight: 600;
@@ -255,22 +258,34 @@
 		border-color: #22c55e;
 	}
 	:global(.gear) {
-		width: 30px;
-		height: 26px;
-		border: 1px solid var(--border);
-		background: #fff;
+		width: 32px;
+		height: 30px;
+		border: 1px solid var(--border-strong);
+		background: var(--paper);
 		border-radius: 6px;
 		cursor: pointer;
 		font-size: 14px;
 	}
 	:global(.popover) {
 		z-index: 60;
-		background: #fff;
-		border: 1px solid var(--border);
+		background: var(--paper);
+		border: 1px solid var(--border-strong);
 		border-radius: 10px;
-		box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+		box-shadow: 0 12px 30px rgba(74, 56, 30, 0.18);
 		padding: 12px;
 		width: 260px;
+	}
+	@media (max-width: 720px) {
+		.vtab,
+		.ms-btn,
+		:global(.gear) {
+			height: 40px;
+			min-width: 40px;
+		}
+		.name {
+			flex-basis: 100%;
+			order: -1;
+		}
 	}
 	.pop h4 {
 		margin: 0 0 10px;

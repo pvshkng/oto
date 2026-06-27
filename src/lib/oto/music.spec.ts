@@ -85,6 +85,23 @@ describe('duration math', () => {
 		expect(a.remaining).toBe(0.5);
 	});
 
+	it('measures fill from the longest voice', () => {
+		const m: OtoMeasure = {
+			beats: [beat(2), beat(2)], // voice 1 = full bar
+			voice2: [beat(4)] // voice 2 = quarter only
+		};
+		expect(measureFilled(m)).toBe(1);
+		expect(analyzeMeasure(m, [4, 4]).overflow).toBe(false);
+	});
+
+	it('flags overflow when the second voice exceeds capacity', () => {
+		const m: OtoMeasure = {
+			beats: [beat(4)],
+			voice2: [beat(1), beat(1)] // two whole notes in voice 2
+		};
+		expect(analyzeMeasure(m, [4, 4]).overflow).toBe(true);
+	});
+
 	it('finds the overflow cutoff beat (skip the over part)', () => {
 		const m: OtoMeasure = { beats: [beat(4), beat(4), beat(4), beat(4), beat(4), beat(4)] };
 		// capacity is 4 quarters; the 5th beat (index 4) is the first to overflow

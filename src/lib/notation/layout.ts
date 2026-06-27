@@ -63,6 +63,8 @@ export interface LaidMeasure {
 	x: number;
 	width: number;
 	beats: LaidBeat[];
+	/** Optional second voice (stems down), laid on the same timeline. */
+	voice2?: LaidBeat[];
 	overflow: boolean;
 	showHeader: boolean;
 	timeSignature: [number, number] | null; // shown when it changes
@@ -158,62 +160,69 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 			const innerWidth = width - headerW - METRICS.measurePadStart - METRICS.measurePadEnd;
 			const fill = analyzeMeasure(measure, score.timeSignature);
 
-			// Position beats proportionally to their duration for readability.
-			const totalFrac = measure.beats.reduce((s, b) => s + beatFraction(b), 0) || 1;
-			let acc = 0;
-			const beats: LaidBeat[] = measure.beats.map((beat, bi) => {
-				const frac = beatFraction(beat);
-				const bx = innerStart + (acc / totalFrac) * innerWidth + 8;
-				const bw = (frac / totalFrac) * innerWidth;
-				acc += frac;
+			// Lay one voice's beats along the measure's inner width, positioned
+			// proportionally to duration. `forcedDir` pins stem direction for the
+			// two-voice case (voice 1 up, voice 2 down).
+			const layVoice = (vbeats: typeof measure.beats, forcedDir: 1 | -1 | null): LaidBeat[] => {
+				const totalFrac = vbeats.reduce((s, b) => s + beatFraction(b), 0) || 1;
+				let acc = 0;
+				const laid = vbeats.map((beat, bi): LaidBeat => {
+					const frac = beatFraction(beat);
+					const bx = innerStart + (acc / totalFrac) * innerWidth + 8;
+					const bw = (frac / totalFrac) * innerWidth;
+					acc += frac;
 
-				const notes: LaidNote[] = beat.notes.map((n) => {
-					const midi = frettedMidi(track.tuning, n.string, n.fret, {
-						capo: track.capo,
-						transpose: track.transpose
+					const notes: LaidNote[] = beat.notes.map((n) => {
+						const midi = frettedMidi(track.tuning, n.string, n.fret, {
+							capo: track.capo,
+							transpose: track.transpose
+						});
+						const { step, sharp } = midiToStaffStep(midi);
+						const tabY = bands.tab ? n.string * METRICS.tabLineGap + 14 : 0;
+						const stdY = standardNoteY(step);
+						return {
+							string: n.string,
+							fret: n.fret,
+							midi,
+							x: bx,
+							tabY,
+							stdY,
+							step,
+							sharp,
+							techniques: n.techniques ?? [],
+							bend: n.bend,
+							slideTo: n.slideTo,
+							ledgerLines: ledgerLinesFor(step)
+						};
 					});
-					const { step, sharp } = midiToStaffStep(midi);
-					const tabY = bands.tab ? n.string * METRICS.tabLineGap + 14 : 0;
-					// Standard: middle line (B4, step from C4 = 6) sits at staff middle.
-					const stdY = standardNoteY(step);
+
+					const stemDir: 1 | -1 = forcedDir ?? (avgStep(notes) > 6 ? -1 : 1);
+					const stdYs = notes.map((n) => n.stdY);
+					const top = stdYs.length ? Math.min(...stdYs) : standardNoteY(6);
+					const bottom = stdYs.length ? Math.max(...stdYs) : standardNoteY(6);
+					const stemLen = 26;
 					return {
-						string: n.string,
-						fret: n.fret,
-						midi,
+						index: bi,
 						x: bx,
-						tabY,
-						stdY,
-						step,
-						sharp,
-						techniques: n.techniques ?? [],
-						bend: n.bend,
-						slideTo: n.slideTo,
-						ledgerLines: ledgerLinesFor(step)
+						width: bw,
+						duration: beat.duration,
+						dotted: !!beat.dotted,
+						rest: !!beat.rest || beat.notes.length === 0,
+						notes,
+						stemDir,
+						beams: beamCount(beat.duration),
+						beamGroup: -1,
+						stdStemTop: stemDir === 1 ? top - stemLen : top,
+						stdStemBottom: stemDir === 1 ? bottom : bottom + stemLen
 					};
 				});
+				assignBeamGroups(laid);
+				return laid;
+			};
 
-				const stemDir: 1 | -1 = avgStep(notes) > 6 ? -1 : 1;
-				const stdYs = notes.map((n) => n.stdY);
-				const top = stdYs.length ? Math.min(...stdYs) : standardNoteY(6);
-				const bottom = stdYs.length ? Math.max(...stdYs) : standardNoteY(6);
-				const stemLen = 26;
-				return {
-					index: bi,
-					x: bx,
-					width: bw,
-					duration: beat.duration,
-					dotted: !!beat.dotted,
-					rest: !!beat.rest || beat.notes.length === 0,
-					notes,
-					stemDir,
-					beams: beamCount(beat.duration),
-					beamGroup: -1,
-					stdStemTop: stemDir === 1 ? top - stemLen : top,
-					stdStemBottom: stemDir === 1 ? bottom : bottom + stemLen
-				};
-			});
-
-			assignBeamGroups(beats);
+			const hasV2 = !!(measure.voice2 && measure.voice2.length);
+			const beats = layVoice(measure.beats, hasV2 ? 1 : null);
+			const voice2 = hasV2 ? layVoice(measure.voice2!, -1) : undefined;
 
 			const showTs =
 				mi === 0 ||
@@ -227,6 +236,7 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 				x: mx,
 				width,
 				beats,
+				voice2,
 				overflow: fill.overflow,
 				showHeader,
 				timeSignature: showTs ? (measure.timeSignature ?? score.timeSignature) : null

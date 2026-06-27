@@ -8,15 +8,30 @@
 	font-display: block;
 }
 
+/*
+ * Palette — "old paper": a white music sheet floating on warm beige interface
+ * chrome. Ink (warm near-black) is the only interactive accent; the ambers are
+ * used purely as surfaces and highlight fills. No terracotta, no cold grays.
+ */
 :root {
-	--accent: #2563eb;
-	--accent-soft: #dbeafe;
-	--paper: #ffffff;
-	--ink: #0f172a;
-	--panel: #f1f5f9;
-	--panel-2: #e2e8f0;
-	--border: #cbd5e1;
-	--muted: #64748b;
+	--paper: #ffffff; /* the music sheet */
+	--bg: #fffaf3; /* app background, lightest beige */
+	--panel: #fff2db; /* interface surfaces (bars, strips) */
+	--panel-2: #ffe5bf; /* raised / hovered / active surfaces */
+	--amber: #ffe5bf;
+	--ink: #2a2018; /* warm near-black text */
+	--muted: #8a7560; /* warm secondary text */
+	--border: #ecdcc0; /* warm hairline */
+	--border-strong: #ddc8a4;
+	--accent: #2a2018; /* primary = ink on paper */
+	--accent-ink: #fffaf3; /* text on accent */
+	--accent-soft: #ffe5bf; /* cursor / focus tint */
+	--sage: #1f6f6b; /* playback + voice 2 */
+	--brick: #b4452f; /* overflow / destructive */
+
+	--serif:
+		'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, 'Hoefler Text', Georgia, serif;
+	--sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 html {
@@ -26,18 +41,13 @@ html {
 
 body {
 	margin: 0;
-	background: #0b1220;
+	background: var(--bg);
 	color: var(--ink);
-	font-family:
-		ui-sans-serif,
-		system-ui,
-		-apple-system,
-		'Segoe UI',
-		sans-serif;
+	font-family: var(--sans);
 	overscroll-behavior: none;
+	-webkit-font-smoothing: antialiased;
 }
 
-/* Hide scrollbars on the staff scrollers but keep them functional */
 .scroll-x {
 	scrollbar-width: thin;
 }

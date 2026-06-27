@@ -82,46 +82,49 @@
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		padding: 8px 14px;
-		background: #0f172a;
-		color: #e2e8f0;
+		padding: 10px 16px;
+		background: var(--panel);
+		color: var(--ink);
+		border-bottom: 1px solid var(--border);
 		flex-wrap: wrap;
 	}
 	.logo {
-		font-weight: 800;
-		font-size: 20px;
-		letter-spacing: -1px;
-		color: #fff;
-		background: linear-gradient(135deg, #2563eb, #06b6d4);
-		padding: 2px 10px;
-		border-radius: 7px;
+		font-family: var(--serif);
+		font-weight: 700;
+		font-size: 22px;
+		letter-spacing: 0.5px;
+		color: var(--ink);
+		padding: 0 4px 0 0;
 	}
 	.titles {
 		display: flex;
 		flex-direction: column;
-		gap: 1px;
+		gap: 0;
+		min-width: 0;
 	}
 	.title,
 	.artist {
 		background: transparent;
 		border: 1px solid transparent;
-		color: #fff;
-		border-radius: 5px;
+		color: var(--ink);
+		border-radius: 6px;
 		padding: 2px 6px;
 	}
 	.title {
-		font-size: 15px;
-		font-weight: 700;
+		font-family: var(--serif);
+		font-size: 16px;
+		font-weight: 600;
 	}
 	.artist {
 		font-size: 11px;
-		color: #94a3b8;
+		color: var(--muted);
 	}
 	.title:hover,
 	.artist:hover,
 	.title:focus,
 	.artist:focus {
-		border-color: #334155;
+		border-color: var(--border-strong);
+		background: var(--paper);
 		outline: none;
 	}
 	.spacer {
@@ -132,41 +135,58 @@
 		align-items: center;
 		gap: 6px;
 		font-size: 11px;
-		color: #94a3b8;
+		color: var(--muted);
 	}
 	:global(.ts-trigger) {
-		background: #1e293b !important;
-		color: #fff !important;
-		border-color: #334155 !important;
+		background: var(--paper) !important;
+		color: var(--ink) !important;
+		border-color: var(--border-strong) !important;
 		width: auto !important;
 		font-weight: 600;
 	}
 	.actions {
 		display: flex;
-		gap: 4px;
+		gap: 5px;
 		align-items: center;
 	}
 	.actions button {
-		border: 1px solid #334155;
-		background: #1e293b;
-		color: #e2e8f0;
-		border-radius: 7px;
-		padding: 7px 11px;
+		border: 1px solid var(--border-strong);
+		background: var(--paper);
+		color: var(--ink);
+		border-radius: 8px;
+		padding: 8px 12px;
 		font-size: 13px;
 		cursor: pointer;
+		min-height: 38px;
 	}
 	.actions button:hover {
-		background: #334155;
+		background: var(--panel-2);
 	}
 	.actions .primary {
 		background: var(--accent);
 		border-color: var(--accent);
-		color: #fff;
+		color: var(--accent-ink);
+	}
+	.actions .primary:hover {
+		background: #3a2c20;
 	}
 	.vsep {
 		width: 1px;
-		height: 20px;
-		background: #334155;
-		margin: 0 2px;
+		height: 22px;
+		background: var(--border-strong);
+		margin: 0 3px;
+	}
+	@media (max-width: 720px) {
+		.toolbar {
+			gap: 8px;
+			padding: 8px 12px;
+		}
+		.actions button {
+			padding: 9px 12px;
+			min-height: 44px;
+		}
+		.title {
+			font-size: 15px;
+		}
 	}
 </style>

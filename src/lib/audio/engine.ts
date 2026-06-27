@@ -9,8 +9,8 @@
 
 import * as Tone from 'tone';
 import { frettedFreq } from '$lib/oto/pitch';
-import { beatFraction, overflowCutoff } from '$lib/oto/duration';
-import type { OtoScore, OtoTrack } from '$lib/oto/types';
+import { beatFraction, beatsCutoff } from '$lib/oto/duration';
+import { measureVoices, type OtoScore, type OtoTrack } from '$lib/oto/types';
 
 export interface ScheduledNote {
 	time: number; // seconds from start
@@ -61,46 +61,49 @@ export function compileScore(score: OtoScore): CompiledScore {
 			beatTimesSet.push(measureStart + b * (measureSeconds / timeSig[0]));
 		}
 
-		// schedule each track within this measure independently
+		// schedule each track's voices within this measure independently
+		const capacity = timeSig[0] / timeSig[1];
 		for (const track of score.tracks) {
 			const measure = track.measures[mi];
 			if (!measure) continue;
-			const cutoff = overflowCutoff(measure, score.timeSignature);
-			let local = 0;
-			for (let bi = 0; bi < measure.beats.length; bi++) {
-				if (bi >= cutoff) break; // skip overflow
-				const beat = measure.beats[bi];
-				const durSec = beatFraction(beat) * 4 * quarterSec;
-				const startT = measureStart + local;
-				if (!beat.rest) {
-					const palm = beat.notes.some((n) => n.techniques?.includes('palm-mute'));
-					for (const note of beat.notes) {
-						if (note.techniques?.includes('dead')) continue;
-						const freq = frettedFreq(track.tuning, note.string, note.fret, {
-							capo: track.capo,
-							transpose: track.transpose
-						});
-						const slideToFreq =
-							note.slideTo !== undefined
-								? frettedFreq(track.tuning, note.string, note.slideTo, {
-										capo: track.capo,
-										transpose: track.transpose
-									})
-								: undefined;
-						notes.push({
-							time: startT,
-							duration: durSec * (note.techniques?.includes('staccato') ? 0.4 : 0.95),
-							freq,
-							velocity: (note.techniques?.includes('ghost') ? 0.4 : 1) * track.volume,
-							trackId: track.id,
-							muted: track.muted || (anySolo && !track.soloed),
-							bend: note.techniques?.includes('bend') ? (note.bend ?? 1) : undefined,
-							slideToFreq,
-							palmMute: palm
-						});
+			for (const voice of measureVoices(measure)) {
+				const cutoff = beatsCutoff(voice, capacity);
+				let local = 0;
+				for (let bi = 0; bi < voice.length; bi++) {
+					if (bi >= cutoff) break; // skip overflow
+					const beat = voice[bi];
+					const durSec = beatFraction(beat) * 4 * quarterSec;
+					const startT = measureStart + local;
+					if (!beat.rest) {
+						const palm = beat.notes.some((n) => n.techniques?.includes('palm-mute'));
+						for (const note of beat.notes) {
+							if (note.techniques?.includes('dead')) continue;
+							const freq = frettedFreq(track.tuning, note.string, note.fret, {
+								capo: track.capo,
+								transpose: track.transpose
+							});
+							const slideToFreq =
+								note.slideTo !== undefined
+									? frettedFreq(track.tuning, note.string, note.slideTo, {
+											capo: track.capo,
+											transpose: track.transpose
+										})
+									: undefined;
+							notes.push({
+								time: startT,
+								duration: durSec * (note.techniques?.includes('staccato') ? 0.4 : 0.95),
+								freq,
+								velocity: (note.techniques?.includes('ghost') ? 0.4 : 1) * track.volume,
+								trackId: track.id,
+								muted: track.muted || (anySolo && !track.soloed),
+								bend: note.techniques?.includes('bend') ? (note.bend ?? 1) : undefined,
+								slideToFreq,
+								palmMute: palm
+							});
+						}
 					}
+					local += durSec;
 				}
-				local += durSec;
 			}
 		}
 
@@ -116,30 +119,107 @@ export function compileScore(score: OtoScore): CompiledScore {
 	};
 }
 
-type InstrumentFactory = () => Tone.PolySynth;
+/** Minimal interface every instrument exposes to the scheduler. */
+interface Instrument {
+	triggerAttackRelease(freq: number, dur: number, time?: number, velocity?: number): void;
+	releaseAll?(): void;
+	dispose(): void;
+}
 
-const INSTRUMENTS: Record<string, () => Tone.PolySynth> = {
-	electric: () =>
-		new Tone.PolySynth(Tone.Synth, {
-			oscillator: { type: 'sawtooth' },
-			envelope: { attack: 0.005, decay: 0.3, sustain: 0.4, release: 0.8 }
-		}),
-	acoustic: () =>
-		new Tone.PolySynth(Tone.Synth, {
-			oscillator: { type: 'triangle' },
-			envelope: { attack: 0.005, decay: 0.5, sustain: 0.2, release: 1.2 }
-		}),
-	clean: () =>
-		new Tone.PolySynth(Tone.Synth, {
-			oscillator: { type: 'sine' },
-			envelope: { attack: 0.01, decay: 0.4, sustain: 0.3, release: 1 }
-		}),
-	bass: () =>
-		new Tone.PolySynth(Tone.Synth, {
-			oscillator: { type: 'square' },
-			envelope: { attack: 0.01, decay: 0.2, sustain: 0.6, release: 0.4 }
-		})
-};
+/**
+ * Polyphonic Karplus–Strong plucked string. Tone's `PluckSynth` is monophonic and
+ * incompatible with `PolySynth`, so we pool a handful of voices and allocate them
+ * round-robin. This gives nylon/steel guitars a genuinely string-like timbre
+ * rather than a generic synth tone.
+ */
+class PluckPoly implements Instrument {
+	private voices: Tone.PluckSynth[];
+	private idx = 0;
+	constructor(
+		opts: ConstructorParameters<typeof Tone.PluckSynth>[0],
+		dest: Tone.InputNode,
+		count = 8
+	) {
+		this.voices = Array.from({ length: count }, () => new Tone.PluckSynth(opts).connect(dest));
+	}
+	triggerAttackRelease(freq: number, dur: number, time?: number) {
+		const v = this.voices[this.idx];
+		this.idx = (this.idx + 1) % this.voices.length;
+		v.triggerAttackRelease(freq, dur, time);
+	}
+	releaseAll() {
+		/* plucked strings decay naturally */
+	}
+	dispose() {
+		for (const v of this.voices) v.dispose();
+	}
+}
+
+/** Build an instrument and connect its full chain to `dest`. Returns the
+ * triggerable instrument plus any effect nodes so they can be disposed. */
+function buildInstrument(
+	name: string,
+	dest: Tone.InputNode
+): { instrument: Instrument; nodes: { dispose(): void }[] } {
+	switch (name) {
+		case 'nylon': {
+			// Classical/nylon: mellow, warm, quick damping, gentle ring.
+			const inst = new PluckPoly(
+				{ attackNoise: 0.7, dampening: 2400, resonance: 0.72, release: 0.9 },
+				dest
+			);
+			return { instrument: inst, nodes: [] };
+		}
+		case 'acoustic': {
+			// Steel-string acoustic: brighter attack, longer sustain.
+			const inst = new PluckPoly(
+				{ attackNoise: 1.4, dampening: 5200, resonance: 0.95, release: 1.4 },
+				dest
+			);
+			return { instrument: inst, nodes: [] };
+		}
+		case 'electric': {
+			// Electric: sawtooth body shaped by a low-pass + a touch of drive.
+			const filter = new Tone.Filter({ type: 'lowpass', frequency: 2800, Q: 0.8 });
+			const drive = new Tone.Distortion({ distortion: 0.16, wet: 0.5 });
+			const synth = new Tone.PolySynth(Tone.Synth, {
+				oscillator: { type: 'sawtooth' },
+				envelope: { attack: 0.004, decay: 0.22, sustain: 0.32, release: 0.7 }
+			});
+			synth.chain(filter, drive, dest as Tone.ToneAudioNode);
+			return { instrument: synth, nodes: [filter, drive] };
+		}
+		case 'bass': {
+			const filter = new Tone.Filter({ type: 'lowpass', frequency: 900, Q: 0.6 });
+			const synth = new Tone.PolySynth(Tone.Synth, {
+				oscillator: { type: 'triangle' },
+				envelope: { attack: 0.012, decay: 0.22, sustain: 0.62, release: 0.45 }
+			});
+			synth.chain(filter, dest as Tone.ToneAudioNode);
+			return { instrument: synth, nodes: [filter] };
+		}
+		case 'clean':
+		default: {
+			// Clean electric: soft pluck-like body via FM, with a hint of chorus.
+			const chorus = new Tone.Chorus({
+				frequency: 1.2,
+				delayTime: 3,
+				depth: 0.4,
+				wet: 0.25
+			}).start();
+			const synth = new Tone.PolySynth(Tone.FMSynth, {
+				harmonicity: 2,
+				modulationIndex: 4,
+				oscillator: { type: 'sine' },
+				envelope: { attack: 0.006, decay: 0.4, sustain: 0.25, release: 1 },
+				modulation: { type: 'triangle' },
+				modulationEnvelope: { attack: 0.01, decay: 0.3, sustain: 0, release: 0.4 }
+			});
+			synth.chain(chorus, dest as Tone.ToneAudioNode);
+			return { instrument: synth, nodes: [chorus] };
+		}
+	}
+}
 
 export interface PlayOptions {
 	metronome: boolean;
@@ -152,17 +232,27 @@ export interface PlayOptions {
 	onStop: () => void;
 }
 
+interface TrackVoice {
+	instrument: Instrument;
+	nodes: { dispose(): void }[];
+	/** instrument name the voice was built for, so we can rebuild on change. */
+	key: string;
+}
+
 export class AudioEngine {
-	private synths = new Map<string, Tone.PolySynth>();
+	private voices = new Map<string, TrackVoice>();
 	private metro: Tone.MembraneSynth | null = null;
 	private master: Tone.Gain | null = null;
+	private reverb: Tone.Reverb | null = null;
 	private started = false;
 	playing = false;
 
 	private async ensureStarted() {
 		if (!this.started) {
 			await Tone.start();
-			this.master = new Tone.Gain(0.9).toDestination();
+			// A small amount of room reverb gives the plucked strings body.
+			this.reverb = new Tone.Reverb({ decay: 1.4, preDelay: 0.01, wet: 0.14 }).toDestination();
+			this.master = new Tone.Gain(0.85).connect(this.reverb);
 			this.metro = new Tone.MembraneSynth({
 				pitchDecay: 0.008,
 				octaves: 2,
@@ -172,14 +262,17 @@ export class AudioEngine {
 		}
 	}
 
-	private synthFor(track: OtoTrack): Tone.PolySynth {
-		let s = this.synths.get(track.id);
-		if (!s) {
-			const make: InstrumentFactory = INSTRUMENTS[track.instrument] ?? INSTRUMENTS.electric;
-			s = make().connect(this.master!);
-			this.synths.set(track.id, s);
+	private instrumentFor(track: OtoTrack): Instrument {
+		const existing = this.voices.get(track.id);
+		if (existing && existing.key === track.instrument) return existing.instrument;
+		// Instrument changed (or first use) → (re)build the chain.
+		if (existing) {
+			existing.instrument.dispose();
+			for (const n of existing.nodes) n.dispose();
 		}
-		return s;
+		const { instrument, nodes } = buildInstrument(track.instrument, this.master!);
+		this.voices.set(track.id, { instrument, nodes, key: track.instrument });
+		return instrument;
 	}
 
 	/** Audition a single note immediately (used by the fretboard / note entry). */
@@ -189,7 +282,7 @@ export class AudioEngine {
 			capo: track.capo,
 			transpose: track.transpose
 		});
-		this.synthFor(track).triggerAttackRelease(freq, 0.6, undefined, 0.8 * track.volume);
+		this.instrumentFor(track).triggerAttackRelease(freq, 0.6, undefined, 0.8 * track.volume);
 	}
 
 	async play(score: OtoScore, compiled: CompiledScore, opts: PlayOptions) {
@@ -205,13 +298,11 @@ export class AudioEngine {
 		for (const ev of compiled.notes) {
 			if (ev.muted) continue;
 			if (ev.time < windowStart - 1e-6 || ev.time >= windowEnd - 1e-6) continue;
-			const synth =
-				this.synths.get(ev.trackId) ??
-				this.synthFor(score.tracks.find((t) => t.id === ev.trackId)!);
+			const instrument = this.instrumentFor(score.tracks.find((t) => t.id === ev.trackId)!);
 			const rel = ev.time - windowStart;
 			transport.schedule((time) => {
 				const dur = ev.palmMute ? Math.min(ev.duration, 0.12) : ev.duration;
-				synth.triggerAttackRelease(ev.freq, dur, time, ev.velocity);
+				instrument.triggerAttackRelease(ev.freq, dur, time, ev.velocity);
 			}, rel);
 		}
 
@@ -261,15 +352,19 @@ export class AudioEngine {
 		transport.cancel();
 		transport.loop = false;
 		transport.position = 0;
-		for (const s of this.synths.values()) s.releaseAll?.();
+		for (const v of this.voices.values()) v.instrument.releaseAll?.();
 	}
 
 	dispose() {
 		this.stop();
-		for (const s of this.synths.values()) s.dispose();
-		this.synths.clear();
+		for (const v of this.voices.values()) {
+			v.instrument.dispose();
+			for (const n of v.nodes) n.dispose();
+		}
+		this.voices.clear();
 		this.metro?.dispose();
 		this.master?.dispose();
+		this.reverb?.dispose();
 		this.started = false;
 	}
 }

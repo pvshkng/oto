@@ -92,41 +92,41 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 5px;
-		border: 1px solid var(--border);
-		background: #fff;
+		border: 1px solid var(--border-strong);
+		background: var(--paper);
 		border-radius: 8px;
 		cursor: pointer;
 		color: var(--ink);
 		fill: currentColor;
 	}
 	.play {
-		width: 42px;
-		height: 38px;
+		width: 46px;
+		height: 40px;
 		justify-content: center;
 		background: var(--accent);
 		border-color: var(--accent);
-		color: #fff;
-		fill: #fff;
+		color: var(--accent-ink);
+		fill: var(--accent-ink);
 	}
 	.play.playing {
-		background: #ef4444;
-		border-color: #ef4444;
+		background: var(--sage);
+		border-color: var(--sage);
 	}
 	.icon {
-		width: 36px;
-		height: 38px;
+		width: 40px;
+		height: 40px;
 		justify-content: center;
 	}
 	.toggle {
-		height: 38px;
-		padding: 0 10px;
+		height: 40px;
+		padding: 0 12px;
 		font-size: 12px;
 		font-weight: 600;
 	}
 	.toggle.on {
 		background: var(--accent);
 		border-color: var(--accent);
-		color: #fff;
+		color: var(--accent-ink);
 	}
 	.toggle.armed:not(.on) {
 		border-color: var(--accent);
@@ -134,7 +134,20 @@
 	.divider {
 		width: 1px;
 		height: 26px;
-		background: var(--border);
+		background: var(--border-strong);
+	}
+	@media (max-width: 720px) {
+		.play {
+			width: 50px;
+			height: 44px;
+		}
+		.icon {
+			width: 44px;
+			height: 44px;
+		}
+		.toggle {
+			height: 44px;
+		}
 	}
 	.tempo {
 		display: flex;
