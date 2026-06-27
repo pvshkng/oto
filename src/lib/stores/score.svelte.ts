@@ -5,11 +5,12 @@
 // directly (they're deep-reactive `$state`) and call methods to mutate.
 
 import { makeScore, makeTrack, parse, serialize, restBeat, emptyMeasure } from '$lib/oto/format';
-import { analyzeMeasure } from '$lib/oto/duration';
+import { analyzeMeasure, beatsFilled, measureCapacity } from '$lib/oto/duration';
 import { detuneTrack, transposeTrackFrets } from '$lib/oto/transpose';
 import type {
 	DurationValue,
 	OtoBeat,
+	OtoMeasure,
 	OtoScore,
 	OtoTrack,
 	ScorePosition,
@@ -29,12 +30,14 @@ export interface Selection {
 
 export class ScoreStore {
 	score = $state<OtoScore>(makeScore());
-	cursor = $state<ScorePosition>({ track: 0, measure: 0, beat: 0, string: 0 });
+	cursor = $state<ScorePosition>({ track: 0, measure: 0, beat: 0, string: 0, voice: 0 });
 	selection = $state<Selection | null>(null);
 
 	// Edit palette
 	activeDuration = $state<DurationValue>(4);
 	activeDotted = $state(false);
+	/** Auto-advance the cursor to the next beat after a note is committed. */
+	autoAdvance = $state(true);
 
 	// Playback
 	isPlaying = $state(false);
@@ -114,7 +117,7 @@ export class ScoreStore {
 	newScore() {
 		this.commit(() => {
 			this.score = makeScore();
-			this.cursor = { track: 0, measure: 0, beat: 0, string: 0 };
+			this.cursor = { track: 0, measure: 0, beat: 0, string: 0, voice: 0 };
 			this.selection = null;
 		});
 	}
@@ -123,7 +126,7 @@ export class ScoreStore {
 		const parsed = parse(text);
 		this.commit(() => {
 			this.score = parsed;
-			this.cursor = { track: 0, measure: 0, beat: 0, string: 0 };
+			this.cursor = { track: 0, measure: 0, beat: 0, string: 0, voice: 0 };
 			this.selection = null;
 		});
 	}
@@ -156,7 +159,13 @@ export class ScoreStore {
 				...partial
 			});
 			this.score.tracks.push(t);
-			this.cursor = { track: this.score.tracks.length - 1, measure: 0, beat: 0, string: 0 };
+			this.cursor = {
+				track: this.score.tracks.length - 1,
+				measure: 0,
+				beat: 0,
+				string: 0,
+				voice: 0
+			};
 		});
 	}
 
@@ -242,9 +251,17 @@ export class ScoreStore {
 		const track = this.score.tracks[t];
 		const m = Math.max(0, Math.min(this.cursor.measure, track.measures.length - 1));
 		const measure = track.measures[m];
-		const b = Math.max(0, Math.min(this.cursor.beat, measure.beats.length - 1));
+		const maxVoice = measure.voice2 && measure.voice2.length ? 1 : 0;
+		const voice = Math.max(0, Math.min(this.cursor.voice, maxVoice));
+		const beats = voice === 1 ? measure.voice2! : measure.beats;
+		const b = Math.max(0, Math.min(this.cursor.beat, beats.length - 1));
 		const s = Math.max(0, Math.min(this.cursor.string, track.tuning.length - 1));
-		this.cursor = { track: t, measure: m, beat: b, string: s };
+		this.cursor = { track: t, measure: m, beat: b, string: s, voice };
+	}
+
+	/** Beat list for a (measure, voice), read-only (no lazy creation). */
+	private beatsAt(measure: OtoMeasure, voice: number): OtoBeat[] {
+		return voice === 1 && measure.voice2 && measure.voice2.length ? measure.voice2 : measure.beats;
 	}
 
 	moveCursor(dir: 'left' | 'right' | 'up' | 'down', keepSelection = false) {
@@ -256,10 +273,10 @@ export class ScoreStore {
 			if (c.beat > 0) c.beat -= 1;
 			else if (c.measure > 0) {
 				c.measure -= 1;
-				c.beat = track.measures[c.measure].beats.length - 1;
+				c.beat = this.beatsAt(track.measures[c.measure], c.voice).length - 1;
 			}
 		} else if (dir === 'right') {
-			const beats = track.measures[c.measure].beats.length;
+			const beats = this.beatsAt(track.measures[c.measure], c.voice).length;
 			if (c.beat < beats - 1) c.beat += 1;
 			else if (c.measure < track.measures.length - 1) {
 				c.measure += 1;
@@ -329,23 +346,89 @@ export class ScoreStore {
 	// ---- note entry --------------------------------------------------------
 
 	private currentBeatRef(): OtoBeat | null {
-		return this.track.measures[this.cursor.measure]?.beats[this.cursor.beat] ?? null;
+		const m = this.track.measures[this.cursor.measure];
+		if (!m) return null;
+		const beats = this.cursor.voice === 1 ? m.voice2 : m.beats;
+		return beats?.[this.cursor.beat] ?? null;
+	}
+
+	/** Active voice's beat array, lazily creating voice 2 (with a rest) if needed. */
+	private editBeats(): OtoBeat[] {
+		const m = this.track.measures[this.cursor.measure];
+		if (this.cursor.voice === 1) {
+			if (!m.voice2 || m.voice2.length === 0) {
+				m.voice2 = [
+					{ duration: this.activeDuration, dotted: this.activeDotted, notes: [], rest: true }
+				];
+				this.cursor = { ...this.cursor, beat: 0 };
+			}
+			return m.voice2;
+		}
+		return m.beats;
+	}
+
+	// ---- voices ------------------------------------------------------------
+
+	setVoice(voice: number) {
+		this.cursor = { ...this.cursor, voice: voice === 1 ? 1 : 0, beat: 0 };
+		this.selection = null;
+	}
+
+	get hasVoice2(): boolean {
+		const m = this.track.measures[this.cursor.measure];
+		return !!(m?.voice2 && m.voice2.length);
 	}
 
 	/**
-	 * Type a fret digit at the cursor. Multi-digit entry is supported by passing
-	 * the full intended number; the editor accumulates digits and calls this.
+	 * Type a fret at the cursor. The first note dropped into an empty beat adopts
+	 * the active duration. If this is the last beat of the bar and capacity
+	 * remains, a fresh trailing beat is appended so entry can flow without the
+	 * user manually inserting beats ("auto-grow").
 	 */
 	setFretAtCursor(fret: number) {
 		this.commit(() => {
-			const beat = this.currentBeatRef();
+			const beats = this.editBeats();
+			const beat = beats[this.cursor.beat];
 			if (!beat) return;
+			if (beat.notes.length === 0) {
+				beat.duration = this.activeDuration;
+				beat.dotted = this.activeDotted;
+			}
 			beat.rest = false;
 			const existing = beat.notes.find((n) => n.string === this.cursor.string);
 			if (existing) existing.fret = fret;
 			else beat.notes.push({ string: this.cursor.string, fret });
 			beat.notes.sort((a, b) => a.string - b.string);
+			this.ensureTrailingBeat(beats);
 		});
+	}
+
+	/** Append an empty beat at the end of a voice when bar capacity remains. */
+	private ensureTrailingBeat(beats: OtoBeat[]) {
+		if (this.cursor.beat !== beats.length - 1) return;
+		const measure = this.track.measures[this.cursor.measure];
+		const capacity = measureCapacity(measure.timeSignature ?? this.score.timeSignature);
+		const remaining = capacity - beatsFilled(beats);
+		const newFrac = (this.activeDotted ? 1.5 : 1) / this.activeDuration;
+		if (remaining >= newFrac - 1e-9) {
+			beats.push({
+				duration: this.activeDuration,
+				dotted: this.activeDotted,
+				notes: [],
+				rest: true
+			});
+		}
+	}
+
+	/** Move to the next beat for entry, crossing into the next measure if needed. */
+	advanceForEntry() {
+		const beats = this.beatsAt(this.track.measures[this.cursor.measure], this.cursor.voice);
+		if (this.cursor.beat < beats.length - 1) {
+			this.cursor = { ...this.cursor, beat: this.cursor.beat + 1 };
+		} else if (this.cursor.measure < this.track.measures.length - 1) {
+			this.cursor = { ...this.cursor, measure: this.cursor.measure + 1, beat: 0 };
+		}
+		this.selection = null;
 	}
 
 	deleteNoteAtCursor() {
@@ -369,21 +452,33 @@ export class ScoreStore {
 	/** Insert a new beat after the cursor with the active duration, move into it. */
 	insertBeat() {
 		this.commit(() => {
-			const measure = this.track.measures[this.cursor.measure];
+			const beats = this.editBeats();
 			const nb: OtoBeat = {
 				duration: this.activeDuration,
 				dotted: this.activeDotted,
 				notes: [],
 				rest: true
 			};
-			measure.beats.splice(this.cursor.beat + 1, 0, nb);
-			this.cursor.beat += 1;
+			beats.splice(this.cursor.beat + 1, 0, nb);
+			this.cursor = { ...this.cursor, beat: this.cursor.beat + 1 };
 		});
 	}
 
 	deleteBeat() {
 		this.commit(() => {
 			const measure = this.track.measures[this.cursor.measure];
+			if (this.cursor.voice === 1) {
+				const v = measure.voice2;
+				if (!v) return;
+				v.splice(this.cursor.beat, 1);
+				if (v.length === 0) {
+					measure.voice2 = undefined;
+					this.cursor = { ...this.cursor, voice: 0, beat: 0 };
+				} else if (this.cursor.beat >= v.length) {
+					this.cursor = { ...this.cursor, beat: v.length - 1 };
+				}
+				return;
+			}
 			if (measure.beats.length <= 1) {
 				measure.beats[0] = restBeat(this.activeDuration);
 			} else {

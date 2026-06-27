@@ -32,6 +32,22 @@
 			.join('');
 	}
 
+	// Runs of consecutive beats that contain a let-ring note → drawn as a bracket.
+	function letRingSpans(beats: LaidBeat[]): { x1: number; x2: number }[] {
+		const spans: { x1: number; x2: number }[] = [];
+		let start = -1;
+		for (let i = 0; i < beats.length; i++) {
+			const has = beats[i].notes.some((n) => n.techniques.includes('let-ring'));
+			if (has && start < 0) start = i;
+			if (!has && start >= 0) {
+				spans.push({ x1: beats[start].x, x2: beats[i - 1].x });
+				start = -1;
+			}
+		}
+		if (start >= 0) spans.push({ x1: beats[start].x, x2: beats[beats.length - 1].x });
+		return spans;
+	}
+
 	function beamGroups(beats: LaidBeat[]): number[] {
 		const groups: number[] = [];
 		for (const b of beats)
@@ -91,9 +107,12 @@
 		return 0;
 	}
 
-	function isCursorBeat(measureIndex: number, beatIndex: number): boolean {
+	function isCursorBeat(measureIndex: number, beatIndex: number, voice = 0): boolean {
 		return (
-			isActiveTrack && store.cursor.measure === measureIndex && store.cursor.beat === beatIndex
+			isActiveTrack &&
+			store.cursor.voice === voice &&
+			store.cursor.measure === measureIndex &&
+			store.cursor.beat === beatIndex
 		);
 	}
 
@@ -117,6 +136,144 @@
 		return () => ro.disconnect();
 	});
 </script>
+
+<!-- One voice of the standard staff: beams, then per-beat rests/noteheads/stems. -->
+{#snippet stdVoice(beats: LaidBeat[], measureIndex: number, vIdx: number, bandHeight: number)}
+	{#each beamGroups(beats) as group (group)}
+		{@const members = beats.filter((b) => b.beamGroup === group)}
+		{@const by = beamY(beats, group)}
+		{@const dir = members[0].stemDir}
+		<line x1={members[0].x} y1={by} x2={members[members.length - 1].x} y2={by} class="beam" />
+		{#each members as m (m.index)}
+			<line
+				x1={m.x}
+				y1={dir === 1 ? m.stdStemBottom - 26 : m.stdStemTop + 26}
+				x2={m.x}
+				y2={by}
+				class="stem"
+			/>
+			{#if m.beams >= 2}
+				<line x1={m.x} y1={by + dir * 4} x2={m.x + 8} y2={by + dir * 4} class="beam" />
+			{/if}
+		{/each}
+	{/each}
+	{#each beats as beat (beat.index)}
+		{#if isCursorBeat(measureIndex, beat.index, vIdx)}
+			<rect x={beat.x - 9} y="2" width="18" height={bandHeight - 4} class="bg-cursor" />
+		{:else if vIdx === 0 && inSelection(measureIndex, beat.index)}
+			<rect x={beat.x - 9} y="2" width="18" height={bandHeight - 4} class="bg-sel" />
+		{/if}
+		{#if beat.rest}
+			<text x={beat.x - 4} y={12 + 3 * METRICS.staffLineGap} class="bravura rest"
+				>{restGlyph(beat.duration)}</text
+			>
+		{:else}
+			{#each beat.notes as n (n.string)}
+				{#each n.ledgerLines as ly (ly)}
+					<line x1={n.x - 9} y1={ly} x2={n.x + 9} y2={ly} class="ledger" />
+				{/each}
+			{/each}
+			{#if beat.duration !== 1 && beat.beamGroup === -1}
+				<line
+					x1={beat.stemDir === 1 ? beat.x + 6.5 : beat.x - 6.5}
+					y1={beat.stemDir === 1 ? beat.stdStemBottom : beat.stdStemTop}
+					x2={beat.stemDir === 1 ? beat.x + 6.5 : beat.x - 6.5}
+					y2={beat.stemDir === 1 ? beat.stdStemTop : beat.stdStemBottom}
+					class="stem"
+				/>
+				{#if beat.beams > 0}
+					<text
+						x={beat.stemDir === 1 ? beat.x + 6.5 : beat.x - 6.5}
+						y={beat.stemDir === 1 ? beat.stdStemTop : beat.stdStemBottom}
+						class="bravura flag"
+						>{beat.beams === 1
+							? GLYPH.flag8thUp
+							: beat.beams === 2
+								? GLYPH.flag16thUp
+								: GLYPH.flag32ndUp}</text
+					>
+				{/if}
+			{/if}
+			{#each beat.notes as n (n.string)}
+				{#if n.sharp}
+					<text x={n.x - 16} y={n.stdY + 4} class="accidental">♯</text>
+				{/if}
+				<ellipse
+					cx={n.x}
+					cy={n.stdY}
+					rx="6"
+					ry="4.4"
+					class="notehead"
+					class:hollow={beat.duration <= 2}
+					class:v2={vIdx === 1}
+					transform="rotate(-20 {n.x} {n.stdY})"
+				/>
+				{#if beat.dotted}
+					<circle cx={n.x + 11} cy={n.stdY} r="1.6" class="dot" />
+				{/if}
+			{/each}
+		{/if}
+	{/each}
+{/snippet}
+
+<!-- One voice of the tab band: frets + effect markers. -->
+{#snippet tabVoice(beats: LaidBeat[], measureIndex: number, vIdx: number, bandHeight: number)}
+	{#each letRingSpans(beats) as span (span.x1)}
+		<text x={span.x1 - 7} y={9} class="lr-label">let ring</text>
+		<line x1={span.x1 + 33} y1={6} x2={span.x2 + 7} y2={6} class="lr-line" />
+		<line x1={span.x2 + 7} y1={6} x2={span.x2 + 7} y2={12} class="lr-line" />
+	{/each}
+	{#each beats as beat (beat.index)}
+		{#if isCursorBeat(measureIndex, beat.index, vIdx)}
+			<rect x={beat.x - 9} y="6" width="18" height={bandHeight - 12} class="bg-cursor" />
+			{#if isActiveTrack}
+				<rect
+					x={beat.x - 9}
+					y={14 + store.cursor.string * METRICS.tabLineGap - 6}
+					width="18"
+					height="12"
+					class="bg-string"
+				/>
+			{/if}
+		{:else if vIdx === 0 && inSelection(measureIndex, beat.index)}
+			<rect x={beat.x - 9} y="6" width="18" height={bandHeight - 12} class="bg-sel" />
+		{/if}
+		{#each beat.notes as n (n.string)}
+			{@const isDead = n.techniques.includes('dead')}
+			<rect x={n.x - 7} y={n.tabY - 6} width="14" height="12" class="fret-bg" />
+			<text x={n.x} y={n.tabY + 4} class="fret" class:muted-note={isDead} class:v2={vIdx === 1}
+				>{isDead ? 'x' : n.fret}</text
+			>
+			{#if n.techniques.includes('palm-mute')}
+				<text x={n.x} y={n.tabY - 9} class="fx">P.M.</text>
+			{/if}
+			{#if n.techniques.includes('vibrato')}
+				<text x={n.x + 10} y={n.tabY + 4} class="fx-sym">∿</text>
+			{/if}
+			{#if n.techniques.includes('bend')}
+				<path d="M {n.x + 8} {n.tabY} q 10 -2 12 -14" class="bend-arrow" />
+				<text x={n.x + 20} y={n.tabY - 12} class="fx"
+					>{n.bend === 0.5 ? '½' : n.bend === 1 ? 'full' : (n.bend ?? 'full')}</text
+				>
+			{/if}
+			{#if n.techniques.includes('slide') && n.slideTo !== undefined}
+				<line
+					x1={n.x + 8}
+					y1={n.tabY + (n.slideTo > n.fret ? 3 : -3)}
+					x2={n.x + 24}
+					y2={n.tabY + (n.slideTo > n.fret ? -3 : 3)}
+					class="slide-line"
+				/>
+			{/if}
+			{#if n.techniques.includes('hammer') || n.techniques.includes('pull')}
+				<path d="M {n.x + 8} {n.tabY - 4} q 8 -8 16 0" class="legato" />
+			{/if}
+			{#if n.techniques.includes('harmonic')}
+				<text x={n.x} y={n.tabY - 9} class="fx">◇</text>
+			{/if}
+		{/each}
+	{/each}
+{/snippet}
 
 <div class="track-staff" bind:this={container} class:active={isActiveTrack}>
 	{#each layout.systems as system (system.y)}
@@ -189,93 +346,10 @@
 							>
 						{/if}
 
-						<!-- beams -->
-						{#each beamGroups(measure.beats) as group (group)}
-							{@const members = measure.beats.filter((b) => b.beamGroup === group)}
-							{@const by = beamY(measure.beats, group)}
-							{@const dir = members[0].stemDir}
-							<line
-								x1={members[0].x}
-								y1={by}
-								x2={members[members.length - 1].x}
-								y2={by}
-								class="beam"
-							/>
-							{#each members as m (m.index)}
-								<line
-									x1={m.x}
-									y1={dir === 1 ? m.stdStemBottom - 26 : m.stdStemTop + 26}
-									x2={m.x}
-									y2={by}
-									class="stem"
-								/>
-								{#if m.beams >= 2}
-									<line x1={m.x} y1={by + dir * 4} x2={m.x + 8} y2={by + dir * 4} class="beam" />
-								{/if}
-							{/each}
-						{/each}
-
-						{#each measure.beats as beat (beat.index)}
-							{#if isCursorBeat(measure.index, beat.index)}
-								<rect x={beat.x - 9} y="2" width="18" height={band.height - 4} class="bg-cursor" />
-							{:else if inSelection(measure.index, beat.index)}
-								<rect x={beat.x - 9} y="2" width="18" height={band.height - 4} class="bg-sel" />
-							{/if}
-
-							{#if beat.rest}
-								<text x={beat.x - 4} y={12 + 3 * METRICS.staffLineGap} class="bravura rest"
-									>{restGlyph(beat.duration)}</text
-								>
-							{:else}
-								<!-- ledger lines -->
-								{#each beat.notes as n (n.string)}
-									{#each n.ledgerLines as ly (ly)}
-										<line x1={n.x - 9} y1={ly} x2={n.x + 9} y2={ly} class="ledger" />
-									{/each}
-								{/each}
-								<!-- stem (single, for non-beamed) -->
-								{#if beat.duration !== 1 && beat.beamGroup === -1}
-									<line
-										x1={beat.stemDir === 1 ? beat.x + 6.5 : beat.x - 6.5}
-										y1={beat.stemDir === 1 ? beat.stdStemBottom : beat.stdStemTop}
-										x2={beat.stemDir === 1 ? beat.x + 6.5 : beat.x - 6.5}
-										y2={beat.stemDir === 1 ? beat.stdStemTop : beat.stdStemBottom}
-										class="stem"
-									/>
-									<!-- flag -->
-									{#if beat.beams > 0}
-										<text
-											x={beat.stemDir === 1 ? beat.x + 6.5 : beat.x - 6.5}
-											y={beat.stemDir === 1 ? beat.stdStemTop : beat.stdStemBottom}
-											class="bravura flag"
-											>{beat.beams === 1
-												? GLYPH.flag8thUp
-												: beat.beams === 2
-													? GLYPH.flag16thUp
-													: GLYPH.flag32ndUp}</text
-										>
-									{/if}
-								{/if}
-								<!-- noteheads -->
-								{#each beat.notes as n (n.string)}
-									{#if n.sharp}
-										<text x={n.x - 16} y={n.stdY + 4} class="accidental">♯</text>
-									{/if}
-									<ellipse
-										cx={n.x}
-										cy={n.stdY}
-										rx="6"
-										ry="4.4"
-										class="notehead"
-										class:hollow={beat.duration <= 2}
-										transform="rotate(-20 {n.x} {n.stdY})"
-									/>
-									{#if beat.dotted}
-										<circle cx={n.x + 11} cy={n.stdY} r="1.6" class="dot" />
-									{/if}
-								{/each}
-							{/if}
-						{/each}
+						{@render stdVoice(measure.beats, measure.index, 0, band.height)}
+						{#if measure.voice2}
+							{@render stdVoice(measure.voice2, measure.index, 1, band.height)}
+						{/if}
 					</g>
 				{/if}
 
@@ -338,62 +412,10 @@
 							>
 						{/if}
 
-						{#each measure.beats as beat (beat.index)}
-							{#if isCursorBeat(measure.index, beat.index)}
-								<rect x={beat.x - 9} y="6" width="18" height={band.height - 12} class="bg-cursor" />
-							{:else if inSelection(measure.index, beat.index)}
-								<rect x={beat.x - 9} y="6" width="18" height={band.height - 12} class="bg-sel" />
-							{/if}
-
-							{#if isActiveTrack && isCursorBeat(measure.index, beat.index)}
-								<rect
-									x={beat.x - 9}
-									y={14 + store.cursor.string * METRICS.tabLineGap - 6}
-									width="18"
-									height="12"
-									class="bg-string"
-								/>
-							{/if}
-
-							{#each beat.notes as n (n.string)}
-								{@const isDead = n.techniques.includes('dead')}
-								<rect x={n.x - 7} y={n.tabY - 6} width="14" height="12" class="fret-bg" />
-								<text x={n.x} y={n.tabY + 4} class="fret" class:muted-note={isDead}
-									>{isDead ? 'x' : n.fret}</text
-								>
-								<!-- effect markers -->
-								{#if n.techniques.includes('palm-mute')}
-									<text x={n.x} y={n.tabY - 9} class="fx">P.M.</text>
-								{/if}
-								{#if n.techniques.includes('let-ring')}
-									<text x={n.x} y={n.tabY - 9} class="fx">L.R.</text>
-								{/if}
-								{#if n.techniques.includes('vibrato')}
-									<text x={n.x + 10} y={n.tabY + 4} class="fx-sym">∿</text>
-								{/if}
-								{#if n.techniques.includes('bend')}
-									<path d="M {n.x + 8} {n.tabY} q 10 -2 12 -14" class="bend-arrow" />
-									<text x={n.x + 20} y={n.tabY - 12} class="fx"
-										>{n.bend === 0.5 ? '½' : n.bend === 1 ? 'full' : (n.bend ?? 'full')}</text
-									>
-								{/if}
-								{#if n.techniques.includes('slide') && n.slideTo !== undefined}
-									<line
-										x1={n.x + 8}
-										y1={n.tabY + (n.slideTo > n.fret ? 3 : -3)}
-										x2={n.x + 24}
-										y2={n.tabY + (n.slideTo > n.fret ? -3 : 3)}
-										class="slide-line"
-									/>
-								{/if}
-								{#if n.techniques.includes('hammer') || n.techniques.includes('pull')}
-									<path d="M {n.x + 8} {n.tabY - 4} q 8 -8 16 0" class="legato" />
-								{/if}
-								{#if n.techniques.includes('harmonic')}
-									<text x={n.x} y={n.tabY - 9} class="fx">◇</text>
-								{/if}
-							{/each}
-						{/each}
+						{@render tabVoice(measure.beats, measure.index, 0, band.height)}
+						{#if measure.voice2}
+							{@render tabVoice(measure.voice2, measure.index, 1, band.height)}
+						{/if}
 					</g>
 				{/if}
 
@@ -462,34 +484,41 @@
 		border-radius: 8px;
 	}
 	.track-staff.active {
-		box-shadow: inset 0 0 0 2px var(--accent-soft, #dbeafe);
+		box-shadow: inset 0 0 0 2px var(--accent-soft, #ffe5bf);
 	}
 	.system {
 		display: block;
 	}
 	.staff-line {
-		stroke: #9aa3b2;
+		stroke: #c9b89c;
 		stroke-width: 1;
 	}
 	.barline {
-		stroke: #3b4150;
+		stroke: #5a4a37;
 		stroke-width: 1.4;
 	}
 	.ledger {
-		stroke: #6b7280;
+		stroke: #8a7560;
 		stroke-width: 1;
 	}
 	.notehead {
-		fill: #111827;
+		fill: #2a2018;
 	}
 	.notehead.hollow {
 		fill: #fff;
-		stroke: #111827;
+		stroke: #2a2018;
 		stroke-width: 1.6;
+	}
+	.notehead.v2 {
+		fill: #1f6f6b;
+	}
+	.notehead.v2.hollow {
+		fill: #fff;
+		stroke: #1f6f6b;
 	}
 	.stem,
 	.beam {
-		stroke: #111827;
+		stroke: #2a2018;
 	}
 	.stem {
 		stroke-width: 1.4;
@@ -499,15 +528,15 @@
 		stroke-linecap: butt;
 	}
 	.dot {
-		fill: #111827;
+		fill: #2a2018;
 	}
 	.accidental {
 		font-size: 14px;
-		fill: #111827;
+		fill: #2a2018;
 	}
 	.bravura {
 		font-family: 'Bravura', serif;
-		fill: #111827;
+		fill: #2a2018;
 	}
 	.clef {
 		font-size: 40px;
@@ -536,11 +565,14 @@
 		font:
 			600 12px ui-monospace,
 			monospace;
-		fill: #111827;
+		fill: #2a2018;
 		text-anchor: middle;
 	}
 	.fret.muted-note {
 		fill: #6b7280;
+	}
+	.fret.v2 {
+		fill: #1f6f6b;
 	}
 	.fx {
 		font:
@@ -552,6 +584,17 @@
 	.fx-sym {
 		font-size: 12px;
 		fill: #b45309;
+	}
+	.lr-label {
+		font:
+			italic 600 8px ui-sans-serif,
+			sans-serif;
+		fill: #9a6b2f;
+	}
+	.lr-line {
+		stroke: #9a6b2f;
+		stroke-width: 1;
+		stroke-dasharray: 3 2;
 	}
 	.bend-arrow {
 		fill: none;
@@ -569,20 +612,20 @@
 		stroke-width: 1.3;
 	}
 	.bg-cursor {
-		fill: rgba(37, 99, 235, 0.16);
+		fill: rgba(214, 158, 74, 0.34);
 		rx: 3;
 	}
 	.bg-sel {
-		fill: rgba(37, 99, 235, 0.09);
+		fill: rgba(214, 158, 74, 0.16);
 	}
 	.bg-string {
-		fill: rgba(37, 99, 235, 0.28);
+		fill: rgba(42, 32, 24, 0.16);
 		rx: 2;
 	}
 	.bg-play {
-		fill: rgba(34, 197, 94, 0.14);
+		fill: rgba(31, 111, 107, 0.16);
 	}
 	.bg-overflow {
-		fill: rgba(239, 68, 68, 0.12);
+		fill: rgba(180, 69, 47, 0.13);
 	}
 </style>

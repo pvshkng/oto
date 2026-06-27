@@ -93,7 +93,19 @@ export interface OtoMeasure {
 	timeSignature?: [number, number];
 	/** Per-measure tempo override (BPM). */
 	tempo?: number;
+	/** Voice 1 (primary). Always present. */
 	beats: OtoBeat[];
+	/**
+	 * Optional voice 2. A second independent rhythm that sounds at the same time
+	 * as voice 1 — this is what lets, say, a sustained half note ring under a run
+	 * of eighth notes, instead of forcing every note to share one duration.
+	 */
+	voice2?: OtoBeat[];
+}
+
+/** All non-empty voices of a measure, voice 0 first. */
+export function measureVoices(m: OtoMeasure): OtoBeat[][] {
+	return m.voice2 && m.voice2.length ? [m.beats, m.voice2] : [m.beats];
 }
 
 export type TrackKind = 'guitar' | 'bass' | 'ukulele' | 'custom';
@@ -146,4 +158,6 @@ export interface ScorePosition {
 	beat: number;
 	/** String index, used when entering fret numbers. */
 	string: number;
+	/** Active voice (0 = primary, 1 = second voice). */
+	voice: number;
 }

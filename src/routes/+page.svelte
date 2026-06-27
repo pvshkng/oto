@@ -25,19 +25,30 @@
 		if (reset) digitBuffer = '';
 	}
 
+	/** Advance once the current fret can't grow into a longer valid number. */
+	function finishEntry() {
+		commitDigits();
+		if (store.autoAdvance) store.advanceForEntry();
+	}
+
 	function enterDigit(d: string) {
 		const next = digitBuffer + d;
 		const fret = parseInt(next, 10);
 		// frets above 24 are unrealistic — restart the buffer with the new digit.
-		if (fret > 24) {
-			digitBuffer = d;
-		} else {
-			digitBuffer = next;
-		}
-		store.setFretAtCursor(parseInt(digitBuffer, 10));
+		digitBuffer = fret > 24 ? d : next;
+		const value = parseInt(digitBuffer, 10);
+		store.setFretAtCursor(value);
 		auditionCursor();
 		if (digitTimer) clearTimeout(digitTimer);
-		digitTimer = setTimeout(() => (digitBuffer = ''), 900);
+
+		// A fret is "complete" (can't extend to another valid fret) when it has two
+		// digits, or a single digit that can't start a 2-digit fret (only 1x / 2x
+		// exist). Complete frets advance instantly; 1 and 2 wait briefly for a
+		// possible second digit. This keeps fast single-digit entry snappy while
+		// still allowing 10–24.
+		const complete = digitBuffer.length === 2 || !['1', '2'].includes(digitBuffer);
+		if (complete) finishEntry();
+		else digitTimer = setTimeout(finishEntry, 650);
 	}
 
 	function auditionCursor() {
@@ -246,17 +257,18 @@
 <style>
 	.app {
 		min-height: 100vh;
+		min-height: 100dvh;
 		display: flex;
 		flex-direction: column;
-		background: #0b1220;
+		background: var(--bg);
 	}
 	.control-strip {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 10px;
-		padding: 8px 14px;
-		background: #f8fafc;
+		padding: 8px 16px;
+		background: var(--panel);
 		border-bottom: 1px solid var(--border);
 		flex-wrap: wrap;
 		position: sticky;
@@ -272,82 +284,98 @@
 		font-size: 11px;
 		color: var(--muted);
 		font-variant-numeric: tabular-nums;
-		background: #fff;
+		background: var(--paper);
 		border: 1px solid var(--border);
-		padding: 4px 8px;
-		border-radius: 6px;
+		padding: 5px 9px;
+		border-radius: 7px;
 	}
 	.bar-meter.over {
-		color: #dc2626;
-		border-color: #fecaca;
-		background: #fef2f2;
+		color: var(--brick);
+		border-color: #e7b9ad;
+		background: #fbeae6;
 		font-weight: 600;
 	}
 	.chip {
-		border: 1px solid var(--border);
-		background: #fff;
+		border: 1px solid var(--border-strong);
+		background: var(--paper);
 		border-radius: 999px;
-		padding: 5px 12px;
+		padding: 7px 14px;
 		font-size: 12px;
 		cursor: pointer;
 		color: var(--ink);
+		min-height: 34px;
 	}
 	.chip.on {
 		background: var(--accent);
-		color: #fff;
+		color: var(--accent-ink);
 		border-color: var(--accent);
 	}
 	.palette-strip {
-		padding: 8px 14px;
-		background: #f8fafc;
+		padding: 8px 16px;
+		background: var(--panel);
 		border-bottom: 1px solid var(--border);
+		overflow-x: auto;
 	}
 	.score-area {
 		flex: 1;
 		overflow-y: auto;
-		padding: 18px;
+		padding: 22px 18px 64px;
 		display: flex;
 		justify-content: center;
 	}
 	.paper {
 		width: 100%;
-		max-width: 1100px;
-		background: #fff;
-		border-radius: 10px;
-		padding: 26px 28px 40px;
-		box-shadow: 0 6px 30px rgba(0, 0, 0, 0.25);
+		max-width: 1080px;
+		background: var(--paper);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		padding: 32px 34px 44px;
+		box-shadow:
+			0 1px 2px rgba(74, 56, 30, 0.06),
+			0 18px 40px rgba(74, 56, 30, 0.1);
 	}
 	.score-head {
 		text-align: center;
-		margin-bottom: 18px;
+		margin-bottom: 22px;
+		padding-bottom: 16px;
+		border-bottom: 1px solid var(--border);
 	}
 	.score-head h1 {
 		margin: 0;
-		font-size: 26px;
-		font-weight: 800;
+		font-family: var(--serif);
+		font-size: 28px;
+		font-weight: 600;
+		letter-spacing: 0.2px;
 		color: var(--ink);
 	}
 	.score-head p {
-		margin: 2px 0 0;
+		margin: 4px 0 0;
+		font-family: var(--serif);
+		font-style: italic;
 		color: var(--muted);
 	}
 	.track-block {
-		margin-bottom: 16px;
+		margin-bottom: 20px;
 	}
 	.add-row {
 		display: flex;
 		gap: 8px;
-		margin-top: 8px;
+		margin-top: 10px;
+		flex-wrap: wrap;
 	}
 	.add-row button {
-		border: 1px dashed var(--border);
-		background: #f8fafc;
-		border-radius: 7px;
-		padding: 8px 14px;
+		border: 1px dashed var(--border-strong);
+		background: var(--bg);
+		border-radius: 8px;
+		padding: 10px 16px;
 		font-size: 13px;
 		cursor: pointer;
-		color: var(--accent);
+		color: var(--ink);
 		font-weight: 600;
+		min-height: 42px;
+	}
+	.add-row button:hover {
+		background: var(--panel-2);
 	}
 	.add-row .ghost {
 		color: var(--muted);
@@ -355,9 +383,9 @@
 	.dock {
 		position: sticky;
 		bottom: 0;
-		background: #1a120b;
+		background: var(--panel);
 		padding: 8px 14px;
-		border-top: 1px solid #000;
+		border-top: 1px solid var(--border);
 		z-index: 30;
 	}
 	.keypad {
@@ -367,23 +395,30 @@
 		right: 0;
 		display: grid;
 		grid-template-columns: repeat(5, 1fr);
-		gap: 4px;
-		padding: 8px;
-		background: #0f172a;
+		gap: 6px;
+		padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+		background: var(--panel);
+		border-top: 1px solid var(--border-strong);
 		z-index: 50;
 	}
 	.keypad button {
-		padding: 14px 0;
-		font-size: 17px;
-		border: none;
-		border-radius: 8px;
-		background: #1e293b;
-		color: #fff;
+		padding: 0;
+		min-height: 52px;
+		font-size: 19px;
+		font-weight: 600;
+		border: 1px solid var(--border-strong);
+		border-radius: 10px;
+		background: var(--paper);
+		color: var(--ink);
 		cursor: pointer;
 	}
+	.keypad button:active {
+		background: var(--panel-2);
+	}
 	.keypad .k-wide {
-		grid-column: span 1;
-		background: #2563eb;
+		background: var(--accent);
+		color: var(--accent-ink);
+		border-color: var(--accent);
 	}
 	.mobile-only {
 		display: none;
@@ -392,11 +427,17 @@
 		.mobile-only {
 			display: inline-flex;
 		}
+		.score-area {
+			padding: 14px 8px 64px;
+		}
 		.paper {
-			padding: 16px 12px 28px;
+			padding: 18px 12px 30px;
 		}
 		.score-head h1 {
-			font-size: 20px;
+			font-size: 22px;
+		}
+		.chip {
+			min-height: 40px;
 		}
 	}
 	@media print {
@@ -410,6 +451,7 @@
 		}
 		.paper {
 			box-shadow: none;
+			border: none;
 			max-width: none;
 		}
 	}

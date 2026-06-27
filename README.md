@@ -17,6 +17,12 @@ runes, Tailwind, [bits-ui](https://github.com/huntabyte/bits-ui) and Tone.js.
 - **Bar-capacity awareness**: durations are summed against the time signature; over-filled bars
   turn **red** and the overflowing notes are skipped on playback.
 - **Note durations**: whole, half, quarter, eighth, sixteenth, thirty-second + dotted.
+- **Two voices per bar**: a second voice (stems down) can hold a different rhythm than
+  the first, so a sustained note can ring under a run of faster notes.
+- **Auto-grow entry**: typing a note extends the bar with a ready next beat and advances
+  the cursor automatically, so you can play in a part without inserting beats by hand.
+- **Distinct instrument voices**: nylon and steel-string acoustics use a Karplus–Strong
+  plucked-string model; electric/clean/bass have their own synth + effect chains.
 - **Effects**: hammer-on/pull-off, slide, bend (½/full/1½/2), vibrato, palm mute, let ring,
   harmonic, dead/ghost/staccato notes — all editable.
 - **Playback** with Tone.js: press **Space** to play from the cursor, again to stop.

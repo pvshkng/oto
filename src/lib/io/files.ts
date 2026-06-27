@@ -5,14 +5,19 @@ import { importGuitarProBytes, isGuitarProFile } from './guitarpro';
 
 export function downloadOto() {
 	const json = store.toJSON();
-	const blob = new Blob([json], { type: 'application/json' });
+	// Use a generic binary MIME so the browser never appends a `.json` extension
+	// based on content sniffing — the file is saved exactly as `<title>.oto`.
+	const blob = new Blob([json], { type: 'application/octet-stream' });
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement('a');
 	const safe = store.score.title.replace(/[^\w-]+/g, '_').slice(0, 40) || 'score';
 	a.href = url;
 	a.download = `${safe}.oto`;
+	a.rel = 'noopener';
+	document.body.appendChild(a);
 	a.click();
-	URL.revokeObjectURL(url);
+	a.remove();
+	setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /** Open a file picker accepting both .oto and Guitar Pro files. */

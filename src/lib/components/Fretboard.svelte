@@ -69,7 +69,8 @@
 <style>
 	.fretboard {
 		overflow-x: auto;
-		background: linear-gradient(#3a2a1c, #2a1d12);
+		background: linear-gradient(#e7d2ad, #dcc197);
+		border: 1px solid var(--border-strong);
 		border-radius: 8px;
 		padding: 8px;
 	}
@@ -83,48 +84,49 @@
 		font:
 			600 10px ui-monospace,
 			monospace;
-		color: #c9b79c;
+		color: #7a6347;
 		text-align: center;
 		padding-bottom: 4px;
 	}
 	.fret-num.inlay {
-		color: #f0d9b5;
+		color: #5a4631;
+		font-weight: 700;
 	}
 	.open,
 	.cell {
 		position: relative;
-		height: 30px;
+		height: 34px;
 		border: none;
 		background: transparent;
 		cursor: pointer;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		border-right: 2px solid #5a4631;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+		border-right: 2px solid #b89b72;
+		border-bottom: 1px solid rgba(90, 70, 49, 0.12);
 	}
 	.open {
-		background: #1c1209;
-		color: #e7d3b3;
+		background: #cdb588;
+		color: #4a3a26;
 		font:
 			700 11px ui-monospace,
 			monospace;
-		border-right: 4px solid #d8c7a8;
+		border-right: 4px solid #8a6f4a;
 	}
 	.cell:hover {
-		background: rgba(255, 255, 255, 0.07);
+		background: rgba(90, 70, 49, 0.1);
 	}
 	.cell.cursor-string,
 	.open.cursor-string {
-		background: rgba(37, 99, 235, 0.18);
+		background: rgba(214, 158, 74, 0.4);
 	}
 	.ghost {
 		font-size: 9px;
-		color: rgba(231, 211, 179, 0.35);
+		color: rgba(74, 58, 38, 0.4);
 	}
 	.note-dot {
-		width: 20px;
-		height: 20px;
+		width: 22px;
+		height: 22px;
 		border-radius: 50%;
 		color: #fff;
 		font:
@@ -133,12 +135,18 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+		box-shadow: 0 1px 3px rgba(74, 56, 30, 0.4);
 	}
 	.dot-bg.inlay-col {
 		position: absolute;
 		inset: 0;
-		background: radial-gradient(circle at center, rgba(240, 217, 181, 0.12) 30%, transparent 32%);
+		background: radial-gradient(circle at center, rgba(90, 70, 49, 0.18) 30%, transparent 32%);
 		pointer-events: none;
+	}
+	@media (max-width: 720px) {
+		.open,
+		.cell {
+			height: 40px;
+		}
 	}
 </style>

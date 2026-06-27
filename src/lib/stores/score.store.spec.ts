@@ -9,7 +9,7 @@ function freshStore(): ScoreStore {
 			makeTrack({ measures: [emptyMeasure(), emptyMeasure(), emptyMeasure(), emptyMeasure()] })
 		]
 	});
-	s.cursor = { track: 0, measure: 0, beat: 0, string: 0 };
+	s.cursor = { track: 0, measure: 0, beat: 0, string: 0, voice: 0 };
 	return s;
 }
 
@@ -93,6 +93,68 @@ describe('ScoreStore selection & loop', () => {
 		expect(s.selection).not.toBeNull();
 		s.moveCursor('right');
 		expect(s.selection).toBeNull();
+	});
+});
+
+describe('ScoreStore voices (mixed durations)', () => {
+	let s: ScoreStore;
+	beforeEach(() => (s = freshStore()));
+
+	it('creates a second voice on demand and keeps voice 1 intact', () => {
+		s.setCursor({ measure: 0, beat: 0, string: 0, voice: 0 });
+		s.setFretAtCursor(3); // voice 1
+		s.setVoice(1);
+		s.setFretAtCursor(7); // voice 2
+		const m = s.track.measures[0];
+		expect(m.beats[0].notes[0].fret).toBe(3);
+		expect(m.voice2).toBeDefined();
+		expect(m.voice2![0].notes[0].fret).toBe(7);
+	});
+
+	it('lets the two voices hold different durations at the same time', () => {
+		s.activeDuration = 2; // half note
+		s.setCursor({ voice: 0, beat: 0, string: 0 });
+		s.setFretAtCursor(0);
+		s.setVoice(1);
+		s.activeDuration = 8; // eighth note
+		s.setFretAtCursor(5);
+		const m = s.track.measures[0];
+		expect(m.beats[0].duration).toBe(2);
+		expect(m.voice2![0].duration).toBe(8);
+	});
+
+	it('removes voice 2 when all its beats are deleted', () => {
+		s.setVoice(1);
+		s.setFretAtCursor(4);
+		expect(s.track.measures[0].voice2).toBeDefined();
+		// delete every beat of voice 2 (the entered note + any auto-grown rest)
+		s.setCursor({ voice: 1, beat: 0 });
+		let guard = 10;
+		while (s.track.measures[0].voice2 && guard-- > 0) {
+			s.setCursor({ voice: 1, beat: 0 });
+			s.deleteBeat();
+		}
+		expect(s.track.measures[0].voice2).toBeUndefined();
+		expect(s.cursor.voice).toBe(0);
+	});
+});
+
+describe('ScoreStore auto-grow entry', () => {
+	let s: ScoreStore;
+	beforeEach(() => (s = freshStore()));
+
+	it('appends a trailing beat while the bar has room', () => {
+		s.activeDuration = 4; // quarter; a 4/4 bar holds four
+		s.setCursor({ measure: 0, beat: 0, string: 0 });
+		s.setFretAtCursor(0);
+		expect(s.track.measures[0].beats.length).toBeGreaterThanOrEqual(2);
+	});
+
+	it('stops growing once the bar is full', () => {
+		s.activeDuration = 1; // a whole note fills 4/4 entirely
+		s.setCursor({ measure: 0, beat: 0, string: 0 });
+		s.setFretAtCursor(0);
+		expect(s.track.measures[0].beats.length).toBe(1);
 	});
 });
 
