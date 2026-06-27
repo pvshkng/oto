@@ -48,6 +48,7 @@
 	"dependencies": {
 		"@coderline/alphatab": "^1.7.1",
 		"@coderline/alphatab-vite": "^1.7.1",
+		"bits-ui": "^2.18.1",
 		"install": "^0.13.0",
 		"tone": "^15.1.22",
 		"vexflow": "^5.0.0",

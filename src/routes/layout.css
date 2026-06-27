@@ -1,3 +1,43 @@
 @import 'tailwindcss';
-/* @plugin '@tailwindcss/forms';
-@plugin '@tailwindcss/typography'; */
+
+@font-face {
+	font-family: 'Bravura';
+	src:
+		url('/fonts/Bravura.woff2') format('woff2'),
+		url('/fonts/Bravura.woff') format('woff');
+	font-display: block;
+}
+
+:root {
+	--accent: #2563eb;
+	--accent-soft: #dbeafe;
+	--paper: #ffffff;
+	--ink: #0f172a;
+	--panel: #f1f5f9;
+	--panel-2: #e2e8f0;
+	--border: #cbd5e1;
+	--muted: #64748b;
+}
+
+html {
+	-webkit-text-size-adjust: 100%;
+	touch-action: manipulation;
+}
+
+body {
+	margin: 0;
+	background: #0b1220;
+	color: var(--ink);
+	font-family:
+		ui-sans-serif,
+		system-ui,
+		-apple-system,
+		'Segoe UI',
+		sans-serif;
+	overscroll-behavior: none;
+}
+
+/* Hide scrollbars on the staff scrollers but keep them functional */
+.scroll-x {
+	scrollbar-width: thin;
+}

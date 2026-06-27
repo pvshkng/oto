@@ -1,0 +1,588 @@
+<script lang="ts">
+	// Renders one track as crisp SVG: standard staff, tablature and/or rhythm.
+	// Click anywhere to move the edit cursor; shift-click extends the loop
+	// selection. Layout geometry comes from notation/layout.ts.
+
+	import { store } from '$lib/stores/score.svelte';
+	import { layoutTrack, METRICS, type LaidBeat, type LaidMeasure } from '$lib/notation/layout';
+	import { GLYPH, restGlyph } from '$lib/notation/glyphs';
+
+	let { trackIndex }: { trackIndex: number } = $props();
+
+	let containerWidth = $state(800);
+	let container: HTMLDivElement;
+
+	const track = $derived(store.score.tracks[trackIndex]);
+	const layout = $derived(
+		layoutTrack(store.score, track, {
+			containerWidth: containerWidth - 8,
+			showStandard: track.view.standard,
+			showTab: track.view.tab,
+			showRhythm: track.view.rhythm
+		})
+	);
+
+	const isActiveTrack = $derived(store.cursor.track === trackIndex);
+
+	const TS_DIGITS = '';
+	function tsGlyph(n: number): string {
+		return String(n)
+			.split('')
+			.map((d) => TS_DIGITS[+d])
+			.join('');
+	}
+
+	function beamGroups(beats: LaidBeat[]): number[] {
+		const groups: number[] = [];
+		for (const b of beats)
+			if (b.beamGroup >= 0 && !groups.includes(b.beamGroup)) groups.push(b.beamGroup);
+		return groups.sort((a, b) => a - b);
+	}
+
+	// Beam geometry per system: map beamGroup -> { y, dir }.
+	function beamY(beats: LaidBeat[], group: number): number {
+		const members = beats.filter((b) => b.beamGroup === group);
+		const dir = members[0]?.stemDir ?? 1;
+		if (dir === 1) return Math.min(...members.map((b) => b.stdStemTop));
+		return Math.max(...members.map((b) => b.stdStemBottom));
+	}
+
+	function handleClick(e: MouseEvent, measure: LaidMeasure, band: 'tab' | 'standard' | 'rhythm') {
+		const svg = (e.currentTarget as SVGGElement).ownerSVGElement!;
+		const rect = svg.getBoundingClientRect();
+		const px = e.clientX - rect.left;
+		const py = e.clientY - rect.top;
+
+		// nearest beat
+		let best = 0;
+		let bestD = Infinity;
+		measure.beats.forEach((b, i) => {
+			const d = Math.abs(b.x - px);
+			if (d < bestD) {
+				bestD = d;
+				best = i;
+			}
+		});
+
+		// nearest string (only meaningful in tab band)
+		let string = store.cursor.string;
+		if (band === 'tab' && layout.bands.tab) {
+			const localY = py - sysOffsetFor(measure) - layout.bands.tab.offsetY - 14;
+			string = Math.max(
+				0,
+				Math.min(track.tuning.length - 1, Math.round(localY / METRICS.tabLineGap))
+			);
+		}
+
+		if (e.shiftKey) {
+			store.setCursor({ track: trackIndex });
+			store.setSelectionTo(measure.index, best);
+		} else {
+			store.setCursor({ track: trackIndex, measure: measure.index, beat: best, string });
+			store.clearSelection();
+		}
+	}
+
+	// We render each system in its own translated <g>; track its y offset.
+	function sysOffsetFor(measure: LaidMeasure): number {
+		for (const s of layout.systems) {
+			if (s.measures.includes(measure)) return s.y;
+		}
+		return 0;
+	}
+
+	function isCursorBeat(measureIndex: number, beatIndex: number): boolean {
+		return (
+			isActiveTrack && store.cursor.measure === measureIndex && store.cursor.beat === beatIndex
+		);
+	}
+
+	function inSelection(measureIndex: number, beatIndex: number): boolean {
+		const b = store.loopBounds;
+		if (!b || store.selection?.track !== trackIndex) return false;
+		const key = measureIndex * 1000 + beatIndex;
+		return key >= b.startMeasure * 1000 + b.startBeat && key <= b.endMeasure * 1000 + b.endBeat;
+	}
+
+	function isPlayingMeasure(measureIndex: number): boolean {
+		return store.playhead?.measure === measureIndex;
+	}
+
+	$effect(() => {
+		if (!container) return;
+		const ro = new ResizeObserver((entries) => {
+			containerWidth = entries[0].contentRect.width;
+		});
+		ro.observe(container);
+		return () => ro.disconnect();
+	});
+</script>
+
+<div class="track-staff" bind:this={container} class:active={isActiveTrack}>
+	{#each layout.systems as system (system.y)}
+		<svg
+			class="system"
+			width={Math.max(system.width, containerWidth - 8)}
+			height={system.height}
+			role="presentation"
+		>
+			{#each system.measures as measure (measure.index)}
+				<!-- ===== Standard staff band ===== -->
+				{#if layout.bands.standard}
+					{@const band = layout.bands.standard}
+					<g
+						transform="translate(0,{band.offsetY})"
+						onclick={(e) => handleClick(e, measure, 'standard')}
+						role="presentation"
+					>
+						<!-- playhead / selection / cursor backgrounds -->
+						{#if isPlayingMeasure(measure.index)}
+							<rect
+								x={measure.x}
+								y="0"
+								width={measure.width}
+								height={band.height}
+								class="bg-play"
+							/>
+						{/if}
+						<!-- 5 staff lines -->
+						{#each [0, 1, 2, 3, 4] as i (i)}
+							<line
+								x1={measure.x + (measure.showHeader ? 4 : 0)}
+								y1={12 + METRICS.staffLineGap + i * METRICS.staffLineGap}
+								x2={measure.x + measure.width}
+								y2={12 + METRICS.staffLineGap + i * METRICS.staffLineGap}
+								class="staff-line"
+							/>
+						{/each}
+						<!-- barlines -->
+						<line
+							x1={measure.x}
+							y1={12 + METRICS.staffLineGap}
+							x2={measure.x}
+							y2={12 + 5 * METRICS.staffLineGap}
+							class="barline"
+						/>
+						<line
+							x1={measure.x + measure.width}
+							y1={12 + METRICS.staffLineGap}
+							x2={measure.x + measure.width}
+							y2={12 + 5 * METRICS.staffLineGap}
+							class="barline"
+						/>
+
+						{#if measure.showHeader}
+							<text x={measure.x + 8} y={12 + 3.4 * METRICS.staffLineGap} class="bravura clef"
+								>{GLYPH.trebleClef}</text
+							>
+						{/if}
+						{#if measure.timeSignature}
+							<text
+								x={measure.x + (measure.showHeader ? 34 : 6)}
+								y={12 + 2 * METRICS.staffLineGap + 1}
+								class="bravura tsig">{tsGlyph(measure.timeSignature[0])}</text
+							>
+							<text
+								x={measure.x + (measure.showHeader ? 34 : 6)}
+								y={12 + 4 * METRICS.staffLineGap + 1}
+								class="bravura tsig">{tsGlyph(measure.timeSignature[1])}</text
+							>
+						{/if}
+
+						<!-- beams -->
+						{#each beamGroups(measure.beats) as group (group)}
+							{@const members = measure.beats.filter((b) => b.beamGroup === group)}
+							{@const by = beamY(measure.beats, group)}
+							{@const dir = members[0].stemDir}
+							<line
+								x1={members[0].x}
+								y1={by}
+								x2={members[members.length - 1].x}
+								y2={by}
+								class="beam"
+							/>
+							{#each members as m (m.index)}
+								<line
+									x1={m.x}
+									y1={dir === 1 ? m.stdStemBottom - 26 : m.stdStemTop + 26}
+									x2={m.x}
+									y2={by}
+									class="stem"
+								/>
+								{#if m.beams >= 2}
+									<line x1={m.x} y1={by + dir * 4} x2={m.x + 8} y2={by + dir * 4} class="beam" />
+								{/if}
+							{/each}
+						{/each}
+
+						{#each measure.beats as beat (beat.index)}
+							{#if isCursorBeat(measure.index, beat.index)}
+								<rect x={beat.x - 9} y="2" width="18" height={band.height - 4} class="bg-cursor" />
+							{:else if inSelection(measure.index, beat.index)}
+								<rect x={beat.x - 9} y="2" width="18" height={band.height - 4} class="bg-sel" />
+							{/if}
+
+							{#if beat.rest}
+								<text x={beat.x - 4} y={12 + 3 * METRICS.staffLineGap} class="bravura rest"
+									>{restGlyph(beat.duration)}</text
+								>
+							{:else}
+								<!-- ledger lines -->
+								{#each beat.notes as n (n.string)}
+									{#each n.ledgerLines as ly (ly)}
+										<line x1={n.x - 9} y1={ly} x2={n.x + 9} y2={ly} class="ledger" />
+									{/each}
+								{/each}
+								<!-- stem (single, for non-beamed) -->
+								{#if beat.duration !== 1 && beat.beamGroup === -1}
+									<line
+										x1={beat.stemDir === 1 ? beat.x + 6.5 : beat.x - 6.5}
+										y1={beat.stemDir === 1 ? beat.stdStemBottom : beat.stdStemTop}
+										x2={beat.stemDir === 1 ? beat.x + 6.5 : beat.x - 6.5}
+										y2={beat.stemDir === 1 ? beat.stdStemTop : beat.stdStemBottom}
+										class="stem"
+									/>
+									<!-- flag -->
+									{#if beat.beams > 0}
+										<text
+											x={beat.stemDir === 1 ? beat.x + 6.5 : beat.x - 6.5}
+											y={beat.stemDir === 1 ? beat.stdStemTop : beat.stdStemBottom}
+											class="bravura flag"
+											>{beat.beams === 1
+												? GLYPH.flag8thUp
+												: beat.beams === 2
+													? GLYPH.flag16thUp
+													: GLYPH.flag32ndUp}</text
+										>
+									{/if}
+								{/if}
+								<!-- noteheads -->
+								{#each beat.notes as n (n.string)}
+									{#if n.sharp}
+										<text x={n.x - 16} y={n.stdY + 4} class="accidental">♯</text>
+									{/if}
+									<ellipse
+										cx={n.x}
+										cy={n.stdY}
+										rx="6"
+										ry="4.4"
+										class="notehead"
+										class:hollow={beat.duration <= 2}
+										transform="rotate(-20 {n.x} {n.stdY})"
+									/>
+									{#if beat.dotted}
+										<circle cx={n.x + 11} cy={n.stdY} r="1.6" class="dot" />
+									{/if}
+								{/each}
+							{/if}
+						{/each}
+					</g>
+				{/if}
+
+				<!-- ===== Tablature band ===== -->
+				{#if layout.bands.tab}
+					{@const band = layout.bands.tab}
+					<g
+						transform="translate(0,{band.offsetY})"
+						onclick={(e) => handleClick(e, measure, 'tab')}
+						role="presentation"
+					>
+						{#if isPlayingMeasure(measure.index)}
+							<rect
+								x={measure.x}
+								y="0"
+								width={measure.width}
+								height={band.height}
+								class="bg-play"
+							/>
+						{/if}
+						{#if measure.overflow}
+							<rect
+								x={measure.x}
+								y="0"
+								width={measure.width}
+								height={band.height}
+								class="bg-overflow"
+							/>
+						{/if}
+						<!-- string lines -->
+						{#each track.tuning as _, i (i)}
+							<line
+								x1={measure.x + (measure.showHeader ? 4 : 0)}
+								y1={14 + i * METRICS.tabLineGap}
+								x2={measure.x + measure.width}
+								y2={14 + i * METRICS.tabLineGap}
+								class="staff-line"
+							/>
+						{/each}
+						<line
+							x1={measure.x}
+							y1={14}
+							x2={measure.x}
+							y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
+							class="barline"
+						/>
+						<line
+							x1={measure.x + measure.width}
+							y1={14}
+							x2={measure.x + measure.width}
+							y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
+							class="barline"
+						/>
+
+						{#if measure.showHeader}
+							<text
+								x={measure.x + 8}
+								y={14 + ((track.tuning.length - 1) * METRICS.tabLineGap) / 2 + 4}
+								class="tab-label">TAB</text
+							>
+						{/if}
+
+						{#each measure.beats as beat (beat.index)}
+							{#if isCursorBeat(measure.index, beat.index)}
+								<rect x={beat.x - 9} y="6" width="18" height={band.height - 12} class="bg-cursor" />
+							{:else if inSelection(measure.index, beat.index)}
+								<rect x={beat.x - 9} y="6" width="18" height={band.height - 12} class="bg-sel" />
+							{/if}
+
+							{#if isActiveTrack && isCursorBeat(measure.index, beat.index)}
+								<rect
+									x={beat.x - 9}
+									y={14 + store.cursor.string * METRICS.tabLineGap - 6}
+									width="18"
+									height="12"
+									class="bg-string"
+								/>
+							{/if}
+
+							{#each beat.notes as n (n.string)}
+								{@const isDead = n.techniques.includes('dead')}
+								<rect x={n.x - 7} y={n.tabY - 6} width="14" height="12" class="fret-bg" />
+								<text x={n.x} y={n.tabY + 4} class="fret" class:muted-note={isDead}
+									>{isDead ? 'x' : n.fret}</text
+								>
+								<!-- effect markers -->
+								{#if n.techniques.includes('palm-mute')}
+									<text x={n.x} y={n.tabY - 9} class="fx">P.M.</text>
+								{/if}
+								{#if n.techniques.includes('let-ring')}
+									<text x={n.x} y={n.tabY - 9} class="fx">L.R.</text>
+								{/if}
+								{#if n.techniques.includes('vibrato')}
+									<text x={n.x + 10} y={n.tabY + 4} class="fx-sym">∿</text>
+								{/if}
+								{#if n.techniques.includes('bend')}
+									<path d="M {n.x + 8} {n.tabY} q 10 -2 12 -14" class="bend-arrow" />
+									<text x={n.x + 20} y={n.tabY - 12} class="fx"
+										>{n.bend === 0.5 ? '½' : n.bend === 1 ? 'full' : (n.bend ?? 'full')}</text
+									>
+								{/if}
+								{#if n.techniques.includes('slide') && n.slideTo !== undefined}
+									<line
+										x1={n.x + 8}
+										y1={n.tabY + (n.slideTo > n.fret ? 3 : -3)}
+										x2={n.x + 24}
+										y2={n.tabY + (n.slideTo > n.fret ? -3 : 3)}
+										class="slide-line"
+									/>
+								{/if}
+								{#if n.techniques.includes('hammer') || n.techniques.includes('pull')}
+									<path d="M {n.x + 8} {n.tabY - 4} q 8 -8 16 0" class="legato" />
+								{/if}
+								{#if n.techniques.includes('harmonic')}
+									<text x={n.x} y={n.tabY - 9} class="fx">◇</text>
+								{/if}
+							{/each}
+						{/each}
+					</g>
+				{/if}
+
+				<!-- ===== Rhythm-only band ===== -->
+				{#if layout.bands.rhythm}
+					{@const band = layout.bands.rhythm}
+					<g
+						transform="translate(0,{band.offsetY})"
+						onclick={(e) => handleClick(e, measure, 'rhythm')}
+						role="presentation"
+					>
+						<line
+							x1={measure.x}
+							y1={band.height / 2}
+							x2={measure.x + measure.width}
+							y2={band.height / 2}
+							class="staff-line"
+						/>
+						<line
+							x1={measure.x}
+							y1={band.height / 2 - 8}
+							x2={measure.x}
+							y2={band.height / 2 + 8}
+							class="barline"
+						/>
+						{#each measure.beats as beat (beat.index)}
+							{#if beat.rest}
+								<text x={beat.x - 3} y={band.height / 2 + 4} class="bravura rest"
+									>{restGlyph(beat.duration)}</text
+								>
+							{:else}
+								<line
+									x1={beat.x}
+									y1={band.height / 2}
+									x2={beat.x}
+									y2={band.height / 2 - 18}
+									class="stem"
+								/>
+								<ellipse
+									cx={beat.x}
+									cy={band.height / 2}
+									rx="4.5"
+									ry="3.4"
+									class="notehead"
+									class:hollow={beat.duration <= 2}
+								/>
+								{#if beat.beams > 0}
+									<text x={beat.x} y={band.height / 2 - 18} class="bravura flag"
+										>{beat.beams === 1 ? GLYPH.flag8thUp : GLYPH.flag16thUp}</text
+									>
+								{/if}
+							{/if}
+						{/each}
+					</g>
+				{/if}
+			{/each}
+		</svg>
+	{/each}
+</div>
+
+<style>
+	.track-staff {
+		width: 100%;
+		overflow-x: auto;
+		background: var(--paper, #fff);
+		border-radius: 8px;
+	}
+	.track-staff.active {
+		box-shadow: inset 0 0 0 2px var(--accent-soft, #dbeafe);
+	}
+	.system {
+		display: block;
+	}
+	.staff-line {
+		stroke: #9aa3b2;
+		stroke-width: 1;
+	}
+	.barline {
+		stroke: #3b4150;
+		stroke-width: 1.4;
+	}
+	.ledger {
+		stroke: #6b7280;
+		stroke-width: 1;
+	}
+	.notehead {
+		fill: #111827;
+	}
+	.notehead.hollow {
+		fill: #fff;
+		stroke: #111827;
+		stroke-width: 1.6;
+	}
+	.stem,
+	.beam {
+		stroke: #111827;
+	}
+	.stem {
+		stroke-width: 1.4;
+	}
+	.beam {
+		stroke-width: 3.4;
+		stroke-linecap: butt;
+	}
+	.dot {
+		fill: #111827;
+	}
+	.accidental {
+		font-size: 14px;
+		fill: #111827;
+	}
+	.bravura {
+		font-family: 'Bravura', serif;
+		fill: #111827;
+	}
+	.clef {
+		font-size: 40px;
+	}
+	.tsig {
+		font-size: 26px;
+	}
+	.rest {
+		font-size: 26px;
+	}
+	.flag {
+		font-size: 26px;
+		dominant-baseline: middle;
+	}
+	.tab-label {
+		font:
+			700 9px ui-sans-serif,
+			sans-serif;
+		fill: #6b7280;
+		letter-spacing: 1px;
+	}
+	.fret-bg {
+		fill: var(--paper, #fff);
+	}
+	.fret {
+		font:
+			600 12px ui-monospace,
+			monospace;
+		fill: #111827;
+		text-anchor: middle;
+	}
+	.fret.muted-note {
+		fill: #6b7280;
+	}
+	.fx {
+		font:
+			600 8px ui-sans-serif,
+			sans-serif;
+		fill: #b45309;
+		text-anchor: middle;
+	}
+	.fx-sym {
+		font-size: 12px;
+		fill: #b45309;
+	}
+	.bend-arrow {
+		fill: none;
+		stroke: #b45309;
+		stroke-width: 1.3;
+		marker-end: none;
+	}
+	.slide-line {
+		stroke: #2563eb;
+		stroke-width: 1.6;
+	}
+	.legato {
+		fill: none;
+		stroke: #7c3aed;
+		stroke-width: 1.3;
+	}
+	.bg-cursor {
+		fill: rgba(37, 99, 235, 0.16);
+		rx: 3;
+	}
+	.bg-sel {
+		fill: rgba(37, 99, 235, 0.09);
+	}
+	.bg-string {
+		fill: rgba(37, 99, 235, 0.28);
+		rx: 2;
+	}
+	.bg-play {
+		fill: rgba(34, 197, 94, 0.14);
+	}
+	.bg-overflow {
+		fill: rgba(239, 68, 68, 0.12);
+	}
+</style>
