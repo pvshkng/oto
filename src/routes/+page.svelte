@@ -11,11 +11,19 @@
 	import TrackControlDrawer from '$lib/components/TrackControlDrawer.svelte';
 	import TracksPanel from '$lib/components/TracksPanel.svelte';
 	import StatusBanner from '$lib/components/StatusBanner.svelte';
+	import { fly } from 'svelte/transition';
+	import { cubicOut } from 'svelte/easing';
+
+	// Drawer-like slide/fade for the bottom dock's note editor and tracks
+	// panel — they're not modal (the score below stays editable), so unlike a
+	// real Drawer there's no overlay/blur, just the entrance/exit motion.
+	const dockTransition = { y: '100%', opacity: 0.5, duration: 260, easing: cubicOut };
 
 	// Height of the fixed bottom dock, so the sheet can scroll clear of it.
 	let dockHeight = $state(56);
 	let trackEditIndex = $state(-1);
 	let trackEditOpen = $state(false);
+	let scoreAreaEl: HTMLElement;
 
 	function addTrack() {
 		store.addTrack();
@@ -122,6 +130,20 @@
 
 	const fill = $derived(store.currentMeasureFill);
 
+	// React to scroll requests (back-to-start, jump to a track section) raised
+	// from the bottom bar / tracks panel.
+	$effect(() => {
+		const req = store.scrollRequest;
+		if (!req || !scoreAreaEl) return;
+		if (req.kind === 'start') {
+			scoreAreaEl.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+		} else if (req.kind === 'track' && req.trackId) {
+			document
+				.getElementById(`track-${req.trackId}`)
+				?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		}
+	});
+
 	onMount(() => {
 		store.loadFromStorage();
 		window.addEventListener('keydown', onKeydown);
@@ -142,7 +164,7 @@
 
 <div class="app">
 	<StatusBanner />
-	<main class="score-area" style="padding-bottom: {dockHeight + 28}px">
+	<main class="score-area" bind:this={scoreAreaEl} style="padding-bottom: {dockHeight + 28}px">
 		<div class="paper">
 			<button
 				class="score-head"
@@ -168,7 +190,7 @@
 			{/if}
 
 			{#each store.score.tracks as track, i (track.id)}
-				<section class="track-block">
+				<section class="track-block" id="track-{track.id}">
 					<div class="no-print"><TrackHeader index={i} /></div>
 					{#if !store.isCollapsed(i)}
 						<div class="sheet">
@@ -194,9 +216,14 @@
 
 	<div class="bottom-dock no-print" bind:clientHeight={dockHeight}>
 		{#if store.editMode}
-			<EditPanel />
-		{:else if store.mixerOpen}
-			<TracksPanel />
+			<div transition:fly={dockTransition}>
+				<EditPanel />
+			</div>
+		{/if}
+		{#if store.mixerOpen}
+			<div transition:fly={dockTransition}>
+				<TracksPanel />
+			</div>
 		{/if}
 		<BottomBar />
 	</div>

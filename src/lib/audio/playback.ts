@@ -56,21 +56,39 @@ export async function togglePlayback() {
 	store.isPlaying = true;
 	store.playhead = { measure: bounds?.startMeasure ?? store.cursor.measure, beat: 0 };
 
-	await audio.play(store.score, compiled, {
-		metronome: store.metronomeOn,
-		window,
-		repeat,
-		onMarker: () => {},
-		onBeatMarker: (measure, beat) => {
-			store.playhead = { measure, beat };
-		},
-		onBeat: () => {},
-		onStop: () => stopPlayback()
-	});
+	try {
+		await audio.play(store.score, compiled, {
+			metronome: store.metronomeOn,
+			metronomeSound: store.metronomeSound,
+			window,
+			repeat,
+			onMarker: () => {},
+			onBeatMarker: (measure, beat) => {
+				store.playhead = { measure, beat };
+			},
+			onBeat: () => {},
+			onStop: () => stopPlayback()
+		});
+		store.audioError = null;
+	} catch {
+		// Most commonly a blocked autoplay policy (the click didn't count as a
+		// direct user gesture in this browser) — revert to a clean stopped state
+		// and let the user know, instead of silently producing no sound.
+		store.isPlaying = false;
+		store.playhead = null;
+		store.audioError = "Audio couldn't start — tap Play again.";
+	}
 }
 
 export function stopPlayback() {
 	audio.stop();
 	store.isPlaying = false;
 	store.playhead = null;
+}
+
+/** Stop playback (if running), rewind the cursor to bar 1 and scroll the score back up. */
+export function goToStart() {
+	if (store.isPlaying) stopPlayback();
+	store.setCursor({ measure: 0, beat: 0 });
+	store.scrollToStart();
 }
