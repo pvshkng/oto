@@ -123,8 +123,8 @@
 		return key >= b.startMeasure * 1000 + b.startBeat && key <= b.endMeasure * 1000 + b.endBeat;
 	}
 
-	function isPlayingMeasure(measureIndex: number): boolean {
-		return store.playhead?.measure === measureIndex;
+	function isPlayingBeat(measureIndex: number, beatIndex: number): boolean {
+		return store.playhead?.measure === measureIndex && store.playhead?.beat === beatIndex;
 	}
 
 	$effect(() => {
@@ -158,7 +158,9 @@
 		{/each}
 	{/each}
 	{#each beats as beat (beat.index)}
-		{#if isCursorBeat(measureIndex, beat.index, vIdx)}
+		{#if vIdx === 0 && isPlayingBeat(measureIndex, beat.index)}
+			<rect x={beat.x - 9} y="2" width="18" height={bandHeight - 4} class="bg-play" />
+		{:else if isCursorBeat(measureIndex, beat.index, vIdx)}
 			<rect x={beat.x - 9} y="2" width="18" height={bandHeight - 4} class="bg-cursor" />
 		{:else if vIdx === 0 && inSelection(measureIndex, beat.index)}
 			<rect x={beat.x - 9} y="2" width="18" height={bandHeight - 4} class="bg-sel" />
@@ -224,7 +226,9 @@
 		<line x1={span.x2 + 7} y1={6} x2={span.x2 + 7} y2={12} class="lr-line" />
 	{/each}
 	{#each beats as beat (beat.index)}
-		{#if isCursorBeat(measureIndex, beat.index, vIdx)}
+		{#if vIdx === 0 && isPlayingBeat(measureIndex, beat.index)}
+			<rect x={beat.x - 9} y="6" width="18" height={bandHeight - 12} class="bg-play" />
+		{:else if isCursorBeat(measureIndex, beat.index, vIdx)}
 			<rect x={beat.x - 9} y="6" width="18" height={bandHeight - 12} class="bg-cursor" />
 			{#if isActiveTrack}
 				<rect
@@ -292,16 +296,6 @@
 						onclick={(e) => handleClick(e, measure, 'standard')}
 						role="presentation"
 					>
-						<!-- playhead / selection / cursor backgrounds -->
-						{#if isPlayingMeasure(measure.index)}
-							<rect
-								x={measure.x}
-								y="0"
-								width={measure.width}
-								height={band.height}
-								class="bg-play"
-							/>
-						{/if}
 						<!-- 5 staff lines -->
 						{#each [0, 1, 2, 3, 4] as i (i)}
 							<line
@@ -361,15 +355,6 @@
 						onclick={(e) => handleClick(e, measure, 'tab')}
 						role="presentation"
 					>
-						{#if isPlayingMeasure(measure.index)}
-							<rect
-								x={measure.x}
-								y="0"
-								width={measure.width}
-								height={band.height}
-								class="bg-play"
-							/>
-						{/if}
 						{#if measure.overflow}
 							<rect
 								x={measure.x}
@@ -623,7 +608,8 @@
 		rx: 2;
 	}
 	.bg-play {
-		fill: rgba(31, 111, 107, 0.16);
+		fill: rgba(31, 111, 107, 0.3);
+		rx: 3;
 	}
 	.bg-overflow {
 		fill: rgba(180, 69, 47, 0.13);

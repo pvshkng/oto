@@ -32,6 +32,18 @@
 	--serif:
 		'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, 'Hoefler Text', Georgia, serif;
 	--sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+	/* Radius scale — tight by default for a crisp, modern feel. */
+	--r-xs: 4px; /* buttons, chips, inputs */
+	--r-sm: 6px;
+	--r-md: 10px; /* panels, cards */
+	--r-lg: 16px; /* sheets, modals */
+	--r-pill: 999px;
+
+	/* Elevation */
+	--shadow-1: 0 1px 2px rgba(74, 56, 30, 0.06);
+	--shadow-2: 0 6px 24px rgba(74, 56, 30, 0.12);
+	--shadow-3: 0 -6px 28px rgba(74, 56, 30, 0.12);
 }
 
 html {

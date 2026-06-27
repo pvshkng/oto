@@ -60,8 +60,9 @@ export async function togglePlayback() {
 		metronome: store.metronomeOn,
 		window,
 		repeat,
-		onMarker: (measure) => {
-			store.playhead = { measure, beat: 0 };
+		onMarker: () => {},
+		onBeatMarker: (measure, beat) => {
+			store.playhead = { measure, beat };
 		},
 		onBeat: () => {},
 		onStop: () => stopPlayback()

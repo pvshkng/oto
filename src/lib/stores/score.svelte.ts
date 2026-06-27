@@ -39,6 +39,11 @@ export class ScoreStore {
 	/** Auto-advance the cursor to the next beat after a note is committed. */
 	autoAdvance = $state(true);
 
+	// Bottom edit panel UI
+	editMode = $state(false);
+	editTool = $state<'keypad' | 'fretboard'>('keypad');
+	songModalOpen = $state(false);
+
 	// Playback
 	isPlaying = $state(false);
 	playhead = $state<{ measure: number; beat: number } | null>(null);
@@ -237,6 +242,30 @@ export class ScoreStore {
 			}
 			this.clampCursor();
 		});
+	}
+
+	/**
+	 * Change the time signature of a single measure (and therefore every measure
+	 * after it, until the next explicit change). Applied to every track so the
+	 * grid stays aligned. This is how a real score changes metre mid-song.
+	 */
+	setMeasureTimeSignature(measureIndex: number, num: number, den: number) {
+		this.commit(() => {
+			for (const t of this.score.tracks) {
+				const m = t.measures[measureIndex];
+				if (m) m.timeSignature = [num, den];
+			}
+		});
+	}
+
+	/** Time signature in effect at a measure (nearest explicit one at or before it). */
+	timeSignatureAt(measureIndex: number): [number, number] {
+		const measures = this.track.measures;
+		for (let i = Math.min(measureIndex, measures.length - 1); i >= 0; i--) {
+			const ts = measures[i].timeSignature;
+			if (ts) return ts;
+		}
+		return this.score.timeSignature;
 	}
 
 	// ---- cursor / selection -----------------------------------------------
@@ -453,15 +482,22 @@ export class ScoreStore {
 	insertBeat() {
 		this.commit(() => {
 			const beats = this.editBeats();
-			const nb: OtoBeat = {
-				duration: this.activeDuration,
-				dotted: this.activeDotted,
-				notes: [],
-				rest: true
-			};
-			beats.splice(this.cursor.beat + 1, 0, nb);
+			beats.splice(this.cursor.beat + 1, 0, this.#newBeat());
 			this.cursor = { ...this.cursor, beat: this.cursor.beat + 1 };
 		});
+	}
+
+	/** Insert a new beat *before* the cursor, pushing the current beat right. */
+	insertBeatBefore() {
+		this.commit(() => {
+			const beats = this.editBeats();
+			beats.splice(this.cursor.beat, 0, this.#newBeat());
+			// cursor stays on the same index, now the new empty beat
+		});
+	}
+
+	#newBeat(): OtoBeat {
+		return { duration: this.activeDuration, dotted: this.activeDotted, notes: [], rest: true };
 	}
 
 	deleteBeat() {

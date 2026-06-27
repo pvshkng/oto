@@ -2,59 +2,15 @@
 	import { onMount } from 'svelte';
 	import { store } from '$lib/stores/score.svelte';
 	import { togglePlayback, stopPlayback } from '$lib/audio/playback';
-	import { audio } from '$lib/audio/engine';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import TransportBar from '$lib/components/TransportBar.svelte';
+	import { enterDigit, resetEntry } from '$lib/editing/entry';
 	import TrackHeader from '$lib/components/TrackHeader.svelte';
 	import TrackStaff from '$lib/components/TrackStaff.svelte';
-	import EditPalette from '$lib/components/EditPalette.svelte';
-	import Fretboard from '$lib/components/Fretboard.svelte';
+	import BottomBar from '$lib/components/BottomBar.svelte';
+	import EditPanel from '$lib/components/EditPanel.svelte';
+	import SongModal from '$lib/components/SongModal.svelte';
 
-	let showFretboard = $state(true);
-	let showKeypad = $state(false);
-
-	// Multi-digit fret entry buffer.
-	let digitBuffer = '';
-	let digitTimer: ReturnType<typeof setTimeout> | null = null;
-
-	function commitDigits(reset = true) {
-		if (digitTimer) {
-			clearTimeout(digitTimer);
-			digitTimer = null;
-		}
-		if (reset) digitBuffer = '';
-	}
-
-	/** Advance once the current fret can't grow into a longer valid number. */
-	function finishEntry() {
-		commitDigits();
-		if (store.autoAdvance) store.advanceForEntry();
-	}
-
-	function enterDigit(d: string) {
-		const next = digitBuffer + d;
-		const fret = parseInt(next, 10);
-		// frets above 24 are unrealistic — restart the buffer with the new digit.
-		digitBuffer = fret > 24 ? d : next;
-		const value = parseInt(digitBuffer, 10);
-		store.setFretAtCursor(value);
-		auditionCursor();
-		if (digitTimer) clearTimeout(digitTimer);
-
-		// A fret is "complete" (can't extend to another valid fret) when it has two
-		// digits, or a single digit that can't start a 2-digit fret (only 1x / 2x
-		// exist). Complete frets advance instantly; 1 and 2 wait briefly for a
-		// possible second digit. This keeps fast single-digit entry snappy while
-		// still allowing 10–24.
-		const complete = digitBuffer.length === 2 || !['1', '2'].includes(digitBuffer);
-		if (complete) finishEntry();
-		else digitTimer = setTimeout(finishEntry, 650);
-	}
-
-	function auditionCursor() {
-		const n = store.currentNote;
-		if (n) audio.pluck(store.track, n.string, n.fret);
-	}
+	// Height of the fixed bottom dock, so the sheet can scroll clear of it.
+	let dockHeight = $state(56);
 
 	function onKeydown(e: KeyboardEvent) {
 		const target = e.target as HTMLElement;
@@ -93,17 +49,17 @@
 			enterDigit(e.key);
 			return;
 		}
-		commitDigits();
+		resetEntry();
 
 		switch (e.key) {
 			case 'ArrowLeft':
 				e.preventDefault();
-				if (e.shiftKey) extendSelection('left');
+				if (e.shiftKey) store.extendSelection('left');
 				else store.moveCursor('left');
 				break;
 			case 'ArrowRight':
 				e.preventDefault();
-				if (e.shiftKey) extendSelection('right');
+				if (e.shiftKey) store.extendSelection('right');
 				else store.moveCursor('right');
 				break;
 			case 'ArrowUp':
@@ -126,7 +82,6 @@
 			case '-':
 				store.deleteBeat();
 				break;
-			// duration shortcuts (Guitar Pro style: 1..6 with no note in buffer)
 			case 'w':
 				store.setBeatDuration(1, false);
 				store.activeDuration = 1;
@@ -154,9 +109,7 @@
 		}
 	}
 
-	function extendSelection(dir: 'left' | 'right') {
-		store.extendSelection(dir);
-	}
+	const fill = $derived(store.currentMeasureFill);
 
 	onMount(() => {
 		store.loadFromStorage();
@@ -166,8 +119,6 @@
 			stopPlayback();
 		};
 	});
-
-	const fill = $derived(store.currentMeasureFill);
 </script>
 
 <svelte:head>
@@ -179,38 +130,23 @@
 </svelte:head>
 
 <div class="app">
-	<Toolbar />
-
-	<div class="control-strip no-print">
-		<TransportBar />
-		<div class="strip-right">
-			{#if fill}
-				<span class="bar-meter" class:over={fill.overflow}>
-					Bar {store.cursor.measure + 1}: {Math.round(fill.filled * 100) / 100}/{fill.capacity}
-					{#if fill.overflow}· overflow{/if}
-				</span>
-			{/if}
-			<button class="chip" class:on={showFretboard} onclick={() => (showFretboard = !showFretboard)}
-				>Fretboard</button
-			>
-			<button
-				class="chip mobile-only"
-				class:on={showKeypad}
-				onclick={() => (showKeypad = !showKeypad)}>Keypad</button
-			>
-		</div>
-	</div>
-
-	<div class="palette-strip no-print">
-		<EditPalette />
-	</div>
-
-	<main class="score-area">
+	<main class="score-area" style="padding-bottom: {dockHeight + 28}px">
 		<div class="paper">
-			<div class="score-head">
-				<h1>{store.score.title}</h1>
-				<p>{store.score.artist}</p>
-			</div>
+			<button
+				class="score-head"
+				onclick={() => (store.songModalOpen = true)}
+				title="Edit song details"
+			>
+				<h1>{store.score.title || 'Untitled Score'}</h1>
+				<p>{store.score.artist || 'Unknown'}</p>
+				<span class="edit-hint">edit ✎</span>
+			</button>
+
+			{#if fill?.overflow}
+				<div class="overflow-note">
+					Bar {store.cursor.measure + 1} is over-full — extra notes won't play.
+				</div>
+			{/if}
 
 			{#each store.score.tracks as track, i (track.id)}
 				<section class="track-block">
@@ -220,132 +156,73 @@
 			{/each}
 
 			<div class="add-row no-print">
-				<button onclick={() => store.addMeasureToAll()}>+ Measure</button>
+				<button onclick={() => store.addMeasureToAll()}>+ Bar</button>
 				<button onclick={() => store.addTrack()}>+ Track</button>
 				{#if store.score.tracks[0].measures.length > 1}
 					<button
 						class="ghost"
 						onclick={() => store.removeMeasureFromAll(store.score.tracks[0].measures.length - 1)}
-						>− Measure</button
+						>− Bar</button
 					>
 				{/if}
 			</div>
 		</div>
 	</main>
 
-	{#if showFretboard}
-		<div class="dock no-print">
-			<Fretboard />
-		</div>
-	{/if}
+	<div class="bottom-dock no-print" bind:clientHeight={dockHeight}>
+		{#if store.editMode}
+			<EditPanel />
+		{/if}
+		<BottomBar />
+	</div>
 
-	{#if showKeypad}
-		<div class="keypad no-print">
-			{#each ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as d (d)}
-				<button onclick={() => enterDigit(d)}>{d}</button>
-			{/each}
-			<button class="k-wide" onclick={() => store.deleteNoteAtCursor()}>⌫</button>
-			<button onclick={() => store.moveCursor('up')}>▲</button>
-			<button onclick={() => store.moveCursor('down')}>▼</button>
-			<button onclick={() => store.moveCursor('left')}>◀</button>
-			<button onclick={() => store.moveCursor('right')}>▶</button>
-			<button class="k-wide" onclick={() => store.insertBeat()}>+ Beat</button>
-		</div>
-	{/if}
+	<SongModal />
 </div>
 
 <style>
 	.app {
-		min-height: 100vh;
-		min-height: 100dvh;
+		height: 100vh;
+		height: 100dvh;
+		overflow: hidden;
 		display: flex;
 		flex-direction: column;
 		background: var(--bg);
 	}
-	.control-strip {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 10px;
-		padding: 8px 16px;
-		background: var(--panel);
-		border-bottom: 1px solid var(--border);
-		flex-wrap: wrap;
-		position: sticky;
-		top: 0;
-		z-index: 40;
-	}
-	.strip-right {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-	.bar-meter {
-		font-size: 11px;
-		color: var(--muted);
-		font-variant-numeric: tabular-nums;
-		background: var(--paper);
-		border: 1px solid var(--border);
-		padding: 5px 9px;
-		border-radius: 7px;
-	}
-	.bar-meter.over {
-		color: var(--brick);
-		border-color: #e7b9ad;
-		background: #fbeae6;
-		font-weight: 600;
-	}
-	.chip {
-		border: 1px solid var(--border-strong);
-		background: var(--paper);
-		border-radius: 999px;
-		padding: 7px 14px;
-		font-size: 12px;
-		cursor: pointer;
-		color: var(--ink);
-		min-height: 34px;
-	}
-	.chip.on {
-		background: var(--accent);
-		color: var(--accent-ink);
-		border-color: var(--accent);
-	}
-	.palette-strip {
-		padding: 8px 16px;
-		background: var(--panel);
-		border-bottom: 1px solid var(--border);
-		overflow-x: auto;
-	}
 	.score-area {
-		flex: 1;
+		flex: 1 1 0;
+		min-height: 0;
 		overflow-y: auto;
-		padding: 22px 18px 64px;
+		padding: 20px 18px 0;
 		display: flex;
 		justify-content: center;
 	}
 	.paper {
 		width: 100%;
 		max-width: 1080px;
+		height: fit-content;
 		background: var(--paper);
 		border: 1px solid var(--border);
-		border-radius: 4px;
-		padding: 32px 34px 44px;
-		box-shadow:
-			0 1px 2px rgba(74, 56, 30, 0.06),
-			0 18px 40px rgba(74, 56, 30, 0.1);
+		border-radius: var(--r-md);
+		padding: 28px 30px 36px;
+		box-shadow: var(--shadow-1), var(--shadow-2);
 	}
 	.score-head {
+		position: relative;
+		display: block;
+		width: 100%;
 		text-align: center;
-		margin-bottom: 22px;
-		padding-bottom: 16px;
+		margin: 0 0 22px;
+		padding: 0 0 16px;
+		border: none;
 		border-bottom: 1px solid var(--border);
+		background: transparent;
+		cursor: pointer;
 	}
 	.score-head h1 {
 		margin: 0;
 		font-family: var(--serif);
-		font-size: 28px;
+		font-size: 27px;
 		font-weight: 600;
-		letter-spacing: 0.2px;
 		color: var(--ink);
 	}
 	.score-head p {
@@ -354,25 +231,49 @@
 		font-style: italic;
 		color: var(--muted);
 	}
+	.edit-hint {
+		position: absolute;
+		top: 0;
+		right: 0;
+		font-size: 10px;
+		color: var(--muted);
+		opacity: 0;
+		transition: opacity 0.15s;
+		border: 1px solid var(--border-strong);
+		border-radius: var(--r-xs);
+		padding: 2px 6px;
+	}
+	.score-head:hover .edit-hint {
+		opacity: 1;
+	}
+	.overflow-note {
+		margin: 0 0 14px;
+		font-size: 12px;
+		color: var(--brick);
+		background: #fbeae6;
+		border: 1px solid #e7b9ad;
+		border-radius: var(--r-xs);
+		padding: 7px 10px;
+		text-align: center;
+	}
 	.track-block {
-		margin-bottom: 20px;
+		margin-bottom: 18px;
 	}
 	.add-row {
 		display: flex;
-		gap: 8px;
-		margin-top: 10px;
+		gap: 7px;
+		margin-top: 8px;
 		flex-wrap: wrap;
 	}
 	.add-row button {
 		border: 1px dashed var(--border-strong);
 		background: var(--bg);
-		border-radius: 8px;
-		padding: 10px 16px;
-		font-size: 13px;
+		border-radius: var(--r-xs);
+		padding: 7px 13px;
+		font-size: 12px;
 		cursor: pointer;
 		color: var(--ink);
 		font-weight: 600;
-		min-height: 42px;
 	}
 	.add-row button:hover {
 		background: var(--panel-2);
@@ -380,64 +281,26 @@
 	.add-row .ghost {
 		color: var(--muted);
 	}
-	.dock {
-		position: sticky;
-		bottom: 0;
-		background: var(--panel);
-		padding: 8px 14px;
-		border-top: 1px solid var(--border);
-		z-index: 30;
-	}
-	.keypad {
+	.bottom-dock {
 		position: fixed;
-		bottom: 0;
 		left: 0;
 		right: 0;
-		display: grid;
-		grid-template-columns: repeat(5, 1fr);
-		gap: 6px;
-		padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
-		background: var(--panel);
-		border-top: 1px solid var(--border-strong);
+		bottom: 0;
 		z-index: 50;
-	}
-	.keypad button {
-		padding: 0;
-		min-height: 52px;
-		font-size: 19px;
-		font-weight: 600;
-		border: 1px solid var(--border-strong);
-		border-radius: 10px;
-		background: var(--paper);
-		color: var(--ink);
-		cursor: pointer;
-	}
-	.keypad button:active {
-		background: var(--panel-2);
-	}
-	.keypad .k-wide {
-		background: var(--accent);
-		color: var(--accent-ink);
-		border-color: var(--accent);
-	}
-	.mobile-only {
-		display: none;
+		box-shadow: var(--shadow-3);
 	}
 	@media (max-width: 720px) {
-		.mobile-only {
-			display: inline-flex;
-		}
 		.score-area {
-			padding: 14px 8px 64px;
+			padding: 12px 8px 0;
 		}
 		.paper {
-			padding: 18px 12px 30px;
+			padding: 18px 12px 26px;
 		}
 		.score-head h1 {
 			font-size: 22px;
 		}
-		.chip {
-			min-height: 40px;
+		.edit-hint {
+			opacity: 1;
 		}
 	}
 	@media print {
@@ -448,6 +311,7 @@
 		.score-area {
 			background: #fff !important;
 			padding: 0;
+			overflow: visible;
 		}
 		.paper {
 			box-shadow: none;
