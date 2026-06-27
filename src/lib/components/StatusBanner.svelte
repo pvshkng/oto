@@ -2,6 +2,11 @@
 	// Sticky top banner that surfaces "hidden" playback state: muted/soloed
 	// tracks and focus mode are easy to forget about once set. Dismissible, but
 	// reappears the moment the underlying mute/solo/focus state changes again.
+	//
+	// Also doubles as the app's audio-health surface: a heavy-arrangement
+	// caution (shown *before* anything has actually glitched, so it's a real
+	// preventative measure) and an actual audio-start failure (shown reactively
+	// if the engine couldn't start, e.g. a blocked autoplay policy).
 
 	import { store } from '$lib/stores/score.svelte';
 	import X from 'phosphor-svelte/lib/X';
@@ -10,9 +15,22 @@
 	const soloedNames = $derived(store.score.tracks.filter((t) => t.soloed).map((t) => t.name));
 	const focusedName = $derived(store.isFocusMode ? store.focusedTrackName : null);
 
-	const signature = $derived(JSON.stringify({ m: mutedNames, s: soloedNames, f: focusedName }));
+	// Many simultaneously-audible tracks compound CPU load (each has its own
+	// always-running EQ/pan/gain chain, on top of whatever instrument it plays),
+	// which is the kind of thing that turns into "choppy" audio on slower
+	// devices. Flagging it before that happens — not after — is the point.
+	const anySolo = $derived(store.score.tracks.some((t) => t.soloed));
+	const activeTrackCount = $derived(
+		store.score.tracks.filter((t) => !t.muted && (!anySolo || t.soloed)).length
+	);
+	const HEAVY_TRACK_THRESHOLD = 7;
+	const heavyLoad = $derived(activeTrackCount >= HEAVY_TRACK_THRESHOLD);
+
+	const signature = $derived(
+		JSON.stringify({ m: mutedNames, s: soloedNames, f: focusedName, h: heavyLoad })
+	);
 	const isActive = $derived(
-		mutedNames.length > 0 || soloedNames.length > 0 || focusedName !== null
+		mutedNames.length > 0 || soloedNames.length > 0 || focusedName !== null || heavyLoad
 	);
 
 	let dismissedSignature = $state<string | null>(null);
@@ -22,6 +40,22 @@
 		dismissedSignature = signature;
 	}
 </script>
+
+{#if store.audioError}
+	<div class="banner error no-print" role="alert">
+		<div class="text">
+			<span class="chip">{store.audioError}</span>
+		</div>
+		<button
+			class="close"
+			onclick={() => (store.audioError = null)}
+			title="Dismiss"
+			aria-label="Dismiss audio error"
+		>
+			<X class="size-3.5" weight="bold" />
+		</button>
+	</div>
+{/if}
 
 {#if visible}
 	<div class="banner no-print" role="status">
@@ -34,6 +68,9 @@
 			{/if}
 			{#if focusedName}
 				<span class="chip">Focusing “{focusedName}”</span>
+			{/if}
+			{#if heavyLoad}
+				<span class="chip">{activeTrackCount} tracks playing — may stutter on slower devices</span>
 			{/if}
 		</div>
 		<button class="close" onclick={dismiss} title="Hide" aria-label="Hide banner">
@@ -56,6 +93,9 @@
 		color: var(--accent-ink);
 		font-size: 12px;
 		font-weight: 600;
+	}
+	.banner.error {
+		background: var(--brick);
 	}
 	.text {
 		display: flex;

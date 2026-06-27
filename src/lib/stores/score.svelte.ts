@@ -15,6 +15,7 @@ import {
 } from '$lib/oto/format';
 import { analyzeMeasure, beatsFilled, measureCapacity } from '$lib/oto/duration';
 import { detuneTrack, transposeTrackFrets } from '$lib/oto/transpose';
+import type { MetronomeSound } from '$lib/audio/engine';
 import type {
 	DurationValue,
 	OtoBeat,
@@ -85,8 +86,12 @@ export class ScoreStore {
 	isPlaying = $state(false);
 	playhead = $state<{ measure: number; beat: number } | null>(null);
 	metronomeOn = $state(false);
+	metronomeSound = $state<MetronomeSound>('click');
 	loopEnabled = $state(false);
 	countInOn = $state(false);
+	/** Set when the audio engine failed to start (e.g. blocked autoplay), so the
+	 *  UI can surface a clear, actionable message instead of silent no-sound. */
+	audioError = $state<string | null>(null);
 
 	// Score-area scroll requests (UI only). The main view listens for these to
 	// scroll itself back to the top of the song or to a specific track/measure;

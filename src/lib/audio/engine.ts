@@ -12,6 +12,21 @@ import { frettedFreq } from '$lib/oto/pitch';
 import { beatFraction, beatsCutoff } from '$lib/oto/duration';
 import { measureVoices, type OtoScore, type OtoTrack } from '$lib/oto/types';
 
+// Tone's default context uses latencyHint "interactive" (the browser's smallest
+// safe buffer) with a 100ms scheduling look-ahead. That's tuned for things like
+// live instruments, not a pre-composed multitrack player — under any main-thread
+// jank (GC pause, layout, a burst of scheduled notes) there's barely any margin
+// before the audio thread runs out of queued work, which is exactly what reads as
+// "laggy / choppy / glitchy" playback. Swapping to "playback" (a larger hardware
+// buffer) and tripling the look-ahead trades a little extra output latency for a
+// much wider safety margin. This must run before any other Tone API call/import
+// touches the global context, so it happens at module load, here.
+if (typeof window !== 'undefined') {
+	Tone.setContext(new Tone.Context({ latencyHint: 'playback', lookAhead: 0.3 }));
+}
+
+export type MetronomeSound = 'click' | 'beep' | 'wood' | 'bell';
+
 export interface ScheduledNote {
 	time: number; // seconds from start
 	duration: number; // seconds
@@ -130,9 +145,11 @@ export function compileScore(score: OtoScore): CompiledScore {
 	};
 }
 
-/** Minimal interface every instrument exposes to the scheduler. */
+/** Minimal interface every instrument exposes to the scheduler. Frequency
+ *  accepts a note name too (e.g. "C2") since the metronome voices trigger by
+ *  name rather than a computed fretboard frequency. */
 interface Instrument {
-	triggerAttackRelease(freq: number, dur: number, time?: number, velocity?: number): void;
+	triggerAttackRelease(freq: number | string, dur: number, time?: number, velocity?: number): void;
 	releaseAll?(): void;
 	dispose(): void;
 }
@@ -257,6 +274,10 @@ function buildInstrument(
 				oscillator: { type: 'sawtooth' },
 				envelope: { attack: 0.004, decay: 0.22, sustain: 0.32, release: 0.7 }
 			});
+			// Cap voices per track: each track gets its own synth instance, so an
+			// unbounded default (32) lets one dense/looping track alone load the
+			// audio thread. 24 is far more than any real chord needs.
+			synth.maxPolyphony = 24;
 			synth.chain(filter, drive, dest as Tone.ToneAudioNode);
 			return { instrument: synth, nodes: [filter, drive] };
 		}
@@ -266,6 +287,8 @@ function buildInstrument(
 				oscillator: { type: 'triangle' },
 				envelope: { attack: 0.012, decay: 0.22, sustain: 0.62, release: 0.45 }
 			});
+			// Bass parts are rarely more than a couple of notes at once.
+			synth.maxPolyphony = 12;
 			synth.chain(filter, dest as Tone.ToneAudioNode);
 			return { instrument: synth, nodes: [filter] };
 		}
@@ -286,14 +309,91 @@ function buildInstrument(
 				modulation: { type: 'triangle' },
 				modulationEnvelope: { attack: 0.01, decay: 0.3, sustain: 0, release: 0.4 }
 			});
+			// FMSynth runs two oscillators + two envelopes per voice, noticeably
+			// heavier than a plain Synth voice, so it gets a tighter cap.
+			synth.maxPolyphony = 16;
 			synth.chain(chorus, dest as Tone.ToneAudioNode);
 			return { instrument: synth, nodes: [chorus] };
 		}
 	}
 }
 
+/**
+ * Build a metronome click voice. Like `buildInstrument`, but the four sounds
+ * here all ignore the frequency they're triggered with — each one is voiced at
+ * whatever pitch reads best for that timbre, so the click stays clearly
+ * audible (and distinct from the instruments) at any tempo.
+ */
+function buildMetronomeVoice(
+	sound: MetronomeSound,
+	dest: Tone.InputNode
+): { instrument: Instrument; nodes: { dispose(): void }[] } {
+	switch (sound) {
+		case 'beep': {
+			const synth = new Tone.Synth({
+				oscillator: { type: 'square' },
+				envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.02 }
+			}).connect(dest);
+			return {
+				instrument: {
+					triggerAttackRelease: (_freq, dur, time, velocity) =>
+						synth.triggerAttackRelease('A5', dur, time, velocity),
+					dispose: () => synth.dispose()
+				},
+				nodes: []
+			};
+		}
+		case 'wood': {
+			// A short, filtered noise burst reads as a woodblock/claves tap.
+			const filter = new Tone.Filter({ type: 'bandpass', frequency: 1100, Q: 1.4 });
+			const noise = new Tone.NoiseSynth({
+				noise: { type: 'brown' },
+				envelope: { attack: 0.001, decay: 0.045, sustain: 0 }
+			});
+			noise.chain(filter, dest as Tone.ToneAudioNode);
+			return {
+				instrument: {
+					triggerAttackRelease: (_freq, dur, time, velocity) =>
+						noise.triggerAttackRelease(Math.min(dur, 0.05), time, velocity),
+					dispose: () => {
+						noise.dispose();
+						filter.dispose();
+					}
+				},
+				nodes: []
+			};
+		}
+		case 'bell': {
+			const synth = new Tone.MetalSynth({
+				envelope: { attack: 0.001, decay: 0.18, release: 0.05 },
+				harmonicity: 4.2,
+				resonance: 2200,
+				octaves: 1
+			}).connect(dest);
+			return {
+				instrument: {
+					triggerAttackRelease: (_freq, dur, time, velocity) =>
+						synth.triggerAttackRelease('G5', dur, time, velocity),
+					dispose: () => synth.dispose()
+				},
+				nodes: []
+			};
+		}
+		case 'click':
+		default: {
+			const synth = new Tone.MembraneSynth({
+				pitchDecay: 0.008,
+				octaves: 2,
+				envelope: { attack: 0.001, decay: 0.1, sustain: 0 }
+			}).connect(dest);
+			return { instrument: synth, nodes: [] };
+		}
+	}
+}
+
 export interface PlayOptions {
 	metronome: boolean;
+	metronomeSound: MetronomeSound;
 	/** Time window to play. null = whole piece from the start. */
 	window: { start: number; end: number } | null;
 	/** Loop the window indefinitely (used for loop-selection playback). */
@@ -321,25 +421,49 @@ interface TrackVoice {
 
 export class AudioEngine {
 	private voices = new Map<string, TrackVoice>();
-	private metro: Tone.MembraneSynth | null = null;
+	private metro: Instrument | null = null;
+	private metroNodes: { dispose(): void }[] = [];
+	private metroSound: MetronomeSound = 'click';
 	private master: Tone.Gain | null = null;
 	private reverb: Tone.Reverb | null = null;
 	private started = false;
 	playing = false;
+	/** Set when ensureStarted() fails (e.g. blocked autoplay policy), so callers
+	 *  can surface a UX warning instead of silently producing no sound. */
+	lastStartError: unknown = null;
 
 	private async ensureStarted() {
-		if (!this.started) {
+		if (this.started) return;
+		try {
 			await Tone.start();
 			// A small amount of room reverb gives the plucked strings body.
 			this.reverb = new Tone.Reverb({ decay: 1.4, preDelay: 0.01, wet: 0.14 }).toDestination();
 			this.master = new Tone.Gain(0.85).connect(this.reverb);
-			this.metro = new Tone.MembraneSynth({
-				pitchDecay: 0.008,
-				octaves: 2,
-				envelope: { attack: 0.001, decay: 0.1, sustain: 0 }
-			}).connect(this.master);
+			const { instrument, nodes } = buildMetronomeVoice(this.metroSound, this.master);
+			this.metro = instrument;
+			this.metroNodes = nodes;
 			this.started = true;
+			this.lastStartError = null;
+		} catch (err) {
+			// Most commonly a blocked autoplay policy (no user gesture yet) or an
+			// unsupported/locked-down AudioContext. Record it instead of throwing
+			// into a generic catch elsewhere, so the UI can show a clear message.
+			this.lastStartError = err;
+			throw err;
 		}
+	}
+
+	/** Switch the metronome's timbre. Safe to call before the engine has
+	 *  started — the choice is remembered and applied on first `ensureStarted()`. */
+	setMetronomeSound(sound: MetronomeSound) {
+		if (sound === this.metroSound && this.metro) return;
+		this.metroSound = sound;
+		if (!this.master) return;
+		this.metro?.dispose();
+		for (const n of this.metroNodes) n.dispose();
+		const { instrument, nodes } = buildMetronomeVoice(sound, this.master);
+		this.metro = instrument;
+		this.metroNodes = nodes;
 	}
 
 	private instrumentFor(track: OtoTrack): Instrument {
@@ -392,6 +516,13 @@ export class AudioEngine {
 		if (this.master) this.master.gain.value = Math.max(0, Math.min(1, v));
 	}
 
+	/** Play one metronome click immediately (used by the sound picker, so picking
+	 *  a variant gives instant audible feedback without starting playback). */
+	async previewMetronome() {
+		await this.ensureStarted();
+		this.metro?.triggerAttackRelease('C2', 0.05, undefined, 0.6);
+	}
+
 	/** Audition a single note immediately (used by the fretboard / note entry). */
 	async pluck(track: OtoTrack, stringIndex: number, fret: number) {
 		await this.ensureStarted();
@@ -407,6 +538,7 @@ export class AudioEngine {
 		await this.ensureStarted();
 		this.stop();
 		this.playing = true;
+		this.setMetronomeSound(opts.metronomeSound);
 
 		// Apply master level and refresh every track's pan/EQ before scheduling.
 		this.setMasterVolume(score.masterVolume ?? 0.85);
@@ -497,6 +629,7 @@ export class AudioEngine {
 		}
 		this.voices.clear();
 		this.metro?.dispose();
+		for (const n of this.metroNodes) n.dispose();
 		this.master?.dispose();
 		this.reverb?.dispose();
 		this.started = false;

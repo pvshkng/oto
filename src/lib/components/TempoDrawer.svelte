@@ -3,6 +3,7 @@
 	// for fast scrubbing, replacing the old tempo popover.
 
 	import { store } from '$lib/stores/score.svelte';
+	import { audio, type MetronomeSound } from '$lib/audio/engine';
 	import * as Drawer from '$lib/components/ui/drawer';
 	import { Button } from '$lib/components/ui/button';
 	import Minus from 'phosphor-svelte/lib/Minus';
@@ -13,8 +14,22 @@
 	const MIN = 20;
 	const MAX = 400;
 
+	const sounds: { id: MetronomeSound; label: string }[] = [
+		{ id: 'click', label: 'Click' },
+		{ id: 'beep', label: 'Beep' },
+		{ id: 'wood', label: 'Wood' },
+		{ id: 'bell', label: 'Bell' }
+	];
+
 	function step(delta: number) {
 		store.setTempo(store.score.tempo + delta);
+	}
+
+	function pickSound(id: MetronomeSound) {
+		store.metronomeSound = id;
+		// Apply immediately, even mid-playback, instead of waiting for the next play().
+		audio.setMetronomeSound(id);
+		audio.previewMetronome();
 	}
 </script>
 
@@ -66,6 +81,25 @@
 				oninput={(e) => store.setTempo(+e.currentTarget.value)}
 				aria-label="Tempo slider"
 			/>
+
+			<div class="flex w-full flex-col items-center gap-2">
+				<span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+					Metronome sound
+				</span>
+				<div class="flex w-full gap-2" role="group" aria-label="Metronome sound">
+					{#each sounds as s (s.id)}
+						<Button
+							variant={store.metronomeSound === s.id ? 'default' : 'outline'}
+							size="sm"
+							class="h-9 flex-1"
+							aria-pressed={store.metronomeSound === s.id}
+							onclick={() => pickSound(s.id)}
+						>
+							{s.label}
+						</Button>
+					{/each}
+				</div>
+			</div>
 		</div>
 	</Drawer.Content>
 </Drawer.Root>
