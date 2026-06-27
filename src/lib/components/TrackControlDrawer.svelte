@@ -14,6 +14,7 @@
 	import { cn } from '$lib/utils';
 	import { INSTRUMENTS, presetFor, type InstrumentPreset } from '$lib/oto/instruments';
 	import { TUNINGS } from '$lib/oto/pitch';
+	import { TRACK_COLOR_SWATCHES } from '$lib/oto/format';
 	import Check from 'phosphor-svelte/lib/Check';
 	import CaretUpDown from 'phosphor-svelte/lib/CaretUpDown';
 	import Trash from 'phosphor-svelte/lib/Trash';
@@ -24,7 +25,7 @@
 		index = -1
 	}: { open: boolean; mode?: 'add' | 'edit'; index?: number } = $props();
 
-	const PALETTE = ['#404040', '#525252', '#737373', '#a3a3a3', '#262626', '#8c8c8c', '#d4d4d4'];
+	const PALETTE = TRACK_COLOR_SWATCHES.map((c) => c.hex);
 	const TUNING_NAMES = Object.keys(TUNINGS);
 
 	let name = $state('');
@@ -227,16 +228,17 @@
 			<div class="grid gap-2">
 				<Label>Colour</Label>
 				<div class="flex flex-wrap gap-2">
-					{#each PALETTE as c, ci (ci)}
+					{#each TRACK_COLOR_SWATCHES as c (c.hex)}
 						<button
 							type="button"
-							aria-label={`Colour ${c}`}
+							aria-label={`Colour ${c.name}`}
+							title={c.name}
 							class={cn(
 								'size-7 rounded-full border-2 transition-all',
-								color === c ? 'border-foreground scale-110' : 'border-border'
+								color === c.hex ? 'border-foreground scale-110' : 'border-border'
 							)}
-							style="background:{c}"
-							onclick={() => (color = c)}
+							style="background:{c.hex}"
+							onclick={() => (color = c.hex)}
 						></button>
 					{/each}
 				</div>

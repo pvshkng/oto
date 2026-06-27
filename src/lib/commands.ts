@@ -183,9 +183,9 @@ export function fileCommands(): Cmd[] {
 					store.newScore();
 			}
 		},
-		{ id: 'file-open', label: 'Open / Import', icon: FolderOpen, run: () => void openFile() },
 		{ id: 'file-save', label: 'Save .oto', icon: FloppyDisk, run: () => downloadOto() },
-		{ id: 'file-pdf', label: 'Export PDF', icon: FilePdf, run: () => exportPdf() }
+		{ id: 'file-pdf', label: 'Export PDF', icon: FilePdf, run: () => exportPdf() },
+		{ id: 'file-open', label: 'Open / Import', icon: FolderOpen, run: () => void openFile() }
 	];
 }
 

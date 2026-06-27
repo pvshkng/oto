@@ -1,10 +1,12 @@
 <script lang="ts">
 	// Song configuration: title, composer, tempo and the starting time signature.
-	// Opened from the bottom bar cog or the score title.
+	// A bottom drawer (consistent with the rest of the app's mobile-first sheets),
+	// opened from the bottom bar cog or the score title.
 
 	import { store } from '$lib/stores/score.svelte';
-	import * as Dialog from '$lib/components/ui/dialog';
+	import * as Drawer from '$lib/components/ui/drawer';
 	import * as Popover from '$lib/components/ui/popover';
+	import { buttonVariants } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { cn } from '$lib/utils';
@@ -18,12 +20,14 @@
 	}
 </script>
 
-<Dialog.Root bind:open={store.songModalOpen}>
-	<Dialog.Content class="sm:max-w-md">
-		<Dialog.Title>Song details</Dialog.Title>
-		<Dialog.Description>Title, composer, tempo and starting time signature.</Dialog.Description>
+<Drawer.Root bind:open={store.songModalOpen} direction="bottom">
+	<Drawer.Content class="mx-auto w-full max-w-md rounded-t-2xl border outline-none">
+		<Drawer.Header>
+			<Drawer.Title>Song details</Drawer.Title>
+			<Drawer.Description>Title, composer, tempo and starting time signature.</Drawer.Description>
+		</Drawer.Header>
 
-		<div class="grid gap-4 py-2">
+		<div class="grid gap-4 overflow-y-auto p-4 pt-0">
 			<div class="grid gap-2">
 				<Label for="song-title">Title</Label>
 				<Input
@@ -87,5 +91,9 @@
 				Tip: change the time signature of a single bar from the staff right-click menu.
 			</p>
 		</div>
-	</Dialog.Content>
-</Dialog.Root>
+
+		<Drawer.Footer class="flex-row justify-end border-t">
+			<Drawer.Close class={buttonVariants({ variant: 'outline' })}>Done</Drawer.Close>
+		</Drawer.Footer>
+	</Drawer.Content>
+</Drawer.Root>

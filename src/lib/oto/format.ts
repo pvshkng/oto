@@ -11,8 +11,17 @@ export function uid(prefix = 'id'): string {
 	return `${prefix}-${Date.now().toString(36)}-${idCounter.toString(36)}`;
 }
 
-// Monochrome track accents, distinguished by lightness, not hue (no pure black).
-const TRACK_COLORS = ['#404040', '#525252', '#737373', '#a3a3a3', '#262626', '#8c8c8c', '#d4d4d4'];
+// Track accents: Tailwind's -200 swatch of each hue only, so they stay light
+// and legible as both fills and text-on-color (note dots, fretboard markers).
+export const TRACK_COLOR_SWATCHES: { name: string; hex: string }[] = [
+	{ name: 'red', hex: '#fecaca' },
+	{ name: 'emerald', hex: '#a7f3d0' },
+	{ name: 'cyan', hex: '#a5f3fc' },
+	{ name: 'indigo', hex: '#c7d2fe' },
+	{ name: 'purple', hex: '#e9d5ff' },
+	{ name: 'rose', hex: '#fecdd3' }
+];
+const TRACK_COLORS = TRACK_COLOR_SWATCHES.map((c) => c.hex);
 
 export function emptyMeasure(): OtoMeasure {
 	return { beats: [restBeat(4)] };

@@ -9,6 +9,7 @@
 	import EditPanel from '$lib/components/EditPanel.svelte';
 	import SongModal from '$lib/components/SongModal.svelte';
 	import TrackControlDrawer from '$lib/components/TrackControlDrawer.svelte';
+	import StatusBanner from '$lib/components/StatusBanner.svelte';
 
 	// Height of the fixed bottom dock, so the sheet can scroll clear of it.
 	let dockHeight = $state(56);
@@ -132,6 +133,7 @@
 </svelte:head>
 
 <div class="app">
+	<StatusBanner />
 	<main class="score-area" style="padding-bottom: {dockHeight + 28}px">
 		<div class="paper">
 			<button

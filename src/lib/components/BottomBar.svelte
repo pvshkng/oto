@@ -1,18 +1,21 @@
 <script lang="ts">
-	// Bottom control bar. A minimal, horizontally scrollable strip: an omni command
-	// button (dots) opens the command palette, a compact Menubar holds File and
-	// Edit (with Insert nested inside Edit), the note-editor toggle sits at the top
-	// level, and the transport / metronome / loop / tempo controls follow.
+	// Bottom control bar. A minimal, horizontally scrollable strip: an omni
+	// command button (dots) opens the command palette, a File combobox and
+	// direct undo/redo/add-remove controls replace the old File/Edit dropdown
+	// menus (dropdowns don't work well on touch), the note-editor toggle sits
+	// at the top level, and the transport / metronome / loop / tempo controls
+	// follow.
 
 	import { store } from '$lib/stores/score.svelte';
 	import { togglePlayback, stopPlayback } from '$lib/audio/playback';
 	import { downloadOto, openFile, exportPdf } from '$lib/io/files';
-	import * as Menubar from '$lib/components/ui/menubar';
 	import * as Popover from '$lib/components/ui/popover';
+	import * as Command from '$lib/components/ui/command';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { cn } from '$lib/utils';
 	import OmniCommand from './OmniCommand.svelte';
-	import TrackControlDrawer from './TrackControlDrawer.svelte';
+	import AddRemoveDrawer from './AddRemoveDrawer.svelte';
+	import TempoDrawer from './TempoDrawer.svelte';
 
 	import DotsThreeVertical from 'phosphor-svelte/lib/DotsThreeVertical';
 	import Play from 'phosphor-svelte/lib/Play';
@@ -22,15 +25,26 @@
 	import Repeat from 'phosphor-svelte/lib/Repeat';
 	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
 	import GearSix from 'phosphor-svelte/lib/GearSix';
+	import File from 'phosphor-svelte/lib/File';
+	import FilePlus from 'phosphor-svelte/lib/FilePlus';
+	import FloppyDisk from 'phosphor-svelte/lib/FloppyDisk';
+	import FilePdf from 'phosphor-svelte/lib/FilePdf';
+	import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
+	import ArrowCounterClockwise from 'phosphor-svelte/lib/ArrowCounterClockwise';
+	import ArrowClockwise from 'phosphor-svelte/lib/ArrowClockwise';
+	import PlusMinus from 'phosphor-svelte/lib/PlusMinus';
 
 	let omniOpen = $state(false);
-	let addTrackOpen = $state(false);
+	let fileOpen = $state(false);
+	let addRemoveOpen = $state(false);
+	let tempoOpen = $state(false);
 
 	function confirmNew() {
 		if (confirm('Start a new score? Your current one stays in the last save.')) store.newScore();
 	}
-	function open() {
-		void openFile();
+	function runFile(fn: () => void) {
+		fn();
+		fileOpen = false;
 	}
 </script>
 
@@ -50,41 +64,75 @@
 		<DotsThreeVertical class="size-5" weight="bold" />
 	</Button>
 
-	<Menubar.Root class="h-9 shrink-0 gap-0.5 border-none bg-transparent p-0 shadow-none">
-		<Menubar.Menu>
-			<Menubar.Trigger>File</Menubar.Trigger>
-			<Menubar.Content side="top" align="start" sideOffset={8}>
-				<Menubar.Item onSelect={confirmNew}>New</Menubar.Item>
-				<Menubar.Item onSelect={open}>Open / Import</Menubar.Item>
-				<Menubar.Separator />
-				<Menubar.Item onSelect={() => downloadOto()}>Save .oto</Menubar.Item>
-				<Menubar.Item onSelect={() => exportPdf()}>Export PDF</Menubar.Item>
-			</Menubar.Content>
-		</Menubar.Menu>
+	<!-- File combobox: New / Save / Export on top, Open below -->
+	<Popover.Root bind:open={fileOpen}>
+		<Popover.Trigger
+			class={cn(buttonVariants({ variant: 'outline', size: 'icon' }), 'size-9 shrink-0')}
+			title="File"
+			aria-label="File"
+		>
+			<File class="size-4" />
+		</Popover.Trigger>
+		<Popover.Content side="top" align="start" class="w-56 p-0">
+			<Command.Root>
+				<Command.List>
+					<Command.Group>
+						<Command.Item onSelect={() => runFile(confirmNew)}>
+							<FilePlus class="size-4" /> New
+						</Command.Item>
+						<Command.Item onSelect={() => runFile(() => downloadOto())}>
+							<FloppyDisk class="size-4" /> Save .oto
+						</Command.Item>
+						<Command.Item onSelect={() => runFile(() => exportPdf())}>
+							<FilePdf class="size-4" /> Export PDF
+						</Command.Item>
+					</Command.Group>
+					<Command.Separator />
+					<Command.Group>
+						<Command.Item onSelect={() => runFile(() => void openFile())}>
+							<FolderOpen class="size-4" /> Open / Import
+						</Command.Item>
+					</Command.Group>
+				</Command.List>
+			</Command.Root>
+		</Popover.Content>
+	</Popover.Root>
 
-		<Menubar.Menu>
-			<Menubar.Trigger>Edit</Menubar.Trigger>
-			<Menubar.Content side="top" align="start" sideOffset={8}>
-				<Menubar.Item onSelect={() => store.undo()}>Undo</Menubar.Item>
-				<Menubar.Item onSelect={() => store.redo()}>Redo</Menubar.Item>
-				<Menubar.Separator />
-				<Menubar.Sub>
-					<Menubar.SubTrigger>Insert</Menubar.SubTrigger>
-					<Menubar.SubContent>
-						<Menubar.Item onSelect={() => store.addMeasureToAll()}>Add bar</Menubar.Item>
-						<Menubar.Item onSelect={() => store.insertMeasureAt(store.cursor.measure)}>
-							Insert bar at cursor
-						</Menubar.Item>
-						<Menubar.Item onSelect={() => store.duplicateMeasureAt(store.cursor.measure)}>
-							Duplicate current bar
-						</Menubar.Item>
-						<Menubar.Separator />
-						<Menubar.Item onSelect={() => (addTrackOpen = true)}>Add track</Menubar.Item>
-					</Menubar.SubContent>
-				</Menubar.Sub>
-			</Menubar.Content>
-		</Menubar.Menu>
-	</Menubar.Root>
+	<!-- Undo / redo, promoted out of the old Edit dropdown -->
+	<Button
+		variant="outline"
+		size="icon"
+		class="size-9 shrink-0"
+		title="Undo"
+		aria-label="Undo"
+		disabled={!store.canUndo}
+		onclick={() => store.undo()}
+	>
+		<ArrowCounterClockwise class="size-4" />
+	</Button>
+	<Button
+		variant="outline"
+		size="icon"
+		class="size-9 shrink-0"
+		title="Redo"
+		aria-label="Redo"
+		disabled={!store.canRedo}
+		onclick={() => store.redo()}
+	>
+		<ArrowClockwise class="size-4" />
+	</Button>
+
+	<!-- Add / remove bars and tracks, opens a drawer (not a dropdown) -->
+	<Button
+		variant="outline"
+		size="icon"
+		class="size-9 shrink-0"
+		title="Add or remove"
+		aria-label="Add or remove bars and tracks"
+		onclick={() => (addRemoveOpen = true)}
+	>
+		<PlusMinus class="size-4" />
+	</Button>
 
 	<!-- Note editor toggle, kept at the top level for one-tap access -->
 	<Button
@@ -144,27 +192,17 @@
 		<Repeat class="size-5" />
 	</Button>
 
-	<!-- Tempo -->
-	<Popover.Root>
-		<Popover.Trigger
-			class={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'h-9 shrink-0 tabular-nums')}
-		>
-			{store.score.tempo}<span class="text-muted-foreground text-[10px] font-semibold">bpm</span>
-		</Popover.Trigger>
-		<Popover.Content side="top" class="w-56">
-			<div class="flex flex-col gap-2">
-				<span class="text-sm font-semibold">{store.score.tempo} BPM</span>
-				<input
-					type="range"
-					min="40"
-					max="240"
-					class="accent-primary w-full"
-					value={store.score.tempo}
-					oninput={(e) => store.setTempo(+e.currentTarget.value)}
-				/>
-			</div>
-		</Popover.Content>
-	</Popover.Root>
+	<!-- Tempo, opens the BPM drawer -->
+	<Button
+		variant="outline"
+		size="sm"
+		class="h-9 shrink-0 tabular-nums"
+		title="Tempo"
+		aria-label="Open tempo settings"
+		onclick={() => (tempoOpen = true)}
+	>
+		{store.score.tempo}<span class="text-muted-foreground text-[10px] font-semibold">bpm</span>
+	</Button>
 
 	<Button
 		variant="ghost"
@@ -179,4 +217,5 @@
 </div>
 
 <OmniCommand bind:open={omniOpen} />
-<TrackControlDrawer bind:open={addTrackOpen} mode="add" />
+<AddRemoveDrawer bind:open={addRemoveOpen} />
+<TempoDrawer bind:open={tempoOpen} />
