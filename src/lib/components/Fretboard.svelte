@@ -69,9 +69,9 @@
 <style>
 	.fretboard {
 		overflow-x: auto;
-		background: linear-gradient(#e7d2ad, #dcc197);
+		background: var(--panel);
 		border: 1px solid var(--border-strong);
-		border-radius: 8px;
+		border-radius: var(--r-sm);
 		padding: 8px;
 	}
 	.neck {
@@ -84,12 +84,12 @@
 		font:
 			600 10px ui-monospace,
 			monospace;
-		color: #7a6347;
+		color: var(--muted);
 		text-align: center;
 		padding-bottom: 4px;
 	}
 	.fret-num.inlay {
-		color: #5a4631;
+		color: var(--ink);
 		font-weight: 700;
 	}
 	.open,
@@ -102,27 +102,27 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		border-right: 2px solid #b89b72;
-		border-bottom: 1px solid rgba(90, 70, 49, 0.12);
+		border-right: 2px solid var(--border-strong);
+		border-bottom: 1px solid var(--border);
 	}
 	.open {
-		background: #cdb588;
-		color: #4a3a26;
+		background: var(--panel-2);
+		color: var(--ink);
 		font:
 			700 11px ui-monospace,
 			monospace;
-		border-right: 4px solid #8a6f4a;
+		border-right: 4px solid var(--faint);
 	}
 	.cell:hover {
-		background: rgba(90, 70, 49, 0.1);
+		background: var(--panel-2);
 	}
 	.cell.cursor-string,
 	.open.cursor-string {
-		background: rgba(214, 158, 74, 0.4);
+		background: var(--accent-soft);
 	}
 	.ghost {
 		font-size: 9px;
-		color: rgba(74, 58, 38, 0.4);
+		color: var(--faint);
 	}
 	.note-dot {
 		width: 22px;
@@ -135,12 +135,12 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		box-shadow: 0 1px 3px rgba(74, 56, 30, 0.4);
+		box-shadow: var(--shadow-1);
 	}
 	.dot-bg.inlay-col {
 		position: absolute;
 		inset: 0;
-		background: radial-gradient(circle at center, rgba(90, 70, 49, 0.18) 30%, transparent 32%);
+		background: radial-gradient(circle at center, rgba(24, 24, 27, 0.12) 30%, transparent 32%);
 		pointer-events: none;
 	}
 	@media (max-width: 720px) {

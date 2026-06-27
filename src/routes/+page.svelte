@@ -8,9 +8,11 @@
 	import BottomBar from '$lib/components/BottomBar.svelte';
 	import EditPanel from '$lib/components/EditPanel.svelte';
 	import SongModal from '$lib/components/SongModal.svelte';
+	import TrackDialog from '$lib/components/TrackDialog.svelte';
 
 	// Height of the fixed bottom dock, so the sheet can scroll clear of it.
 	let dockHeight = $state(56);
+	let addTrackOpen = $state(false);
 
 	function onKeydown(e: KeyboardEvent) {
 		const target = e.target as HTMLElement;
@@ -144,20 +146,29 @@
 
 			{#if fill?.overflow}
 				<div class="overflow-note">
-					Bar {store.cursor.measure + 1} is over-full — extra notes won't play.
+					Bar {store.cursor.measure + 1} is over-full, extra notes won't play.
+				</div>
+			{/if}
+
+			{#if store.isFocusMode}
+				<div class="focus-bar no-print">
+					<span>Focusing <strong>{store.focusedTrackName}</strong></span>
+					<button onclick={() => store.clearFocus()}>Show all tracks</button>
 				</div>
 			{/if}
 
 			{#each store.score.tracks as track, i (track.id)}
 				<section class="track-block">
 					<div class="no-print"><TrackHeader index={i} /></div>
-					<TrackStaff trackIndex={i} />
+					{#if !store.isCollapsed(i)}
+						<TrackStaff trackIndex={i} />
+					{/if}
 				</section>
 			{/each}
 
 			<div class="add-row no-print">
 				<button onclick={() => store.addMeasureToAll()}>+ Bar</button>
-				<button onclick={() => store.addTrack()}>+ Track</button>
+				<button onclick={() => (addTrackOpen = true)}>+ Track</button>
 				{#if store.score.tracks[0].measures.length > 1}
 					<button
 						class="ghost"
@@ -177,6 +188,7 @@
 	</div>
 
 	<SongModal />
+	<TrackDialog bind:open={addTrackOpen} mode="add" />
 </div>
 
 <style>
@@ -250,11 +262,40 @@
 		margin: 0 0 14px;
 		font-size: 12px;
 		color: var(--brick);
-		background: #fbeae6;
-		border: 1px solid #e7b9ad;
+		background: var(--brick-soft);
+		border: 1px solid var(--brick-border);
 		border-radius: var(--r-xs);
-		padding: 7px 10px;
+		padding: 8px 10px;
 		text-align: center;
+	}
+	.focus-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+		margin: 0 0 16px;
+		padding: 8px 12px;
+		font-size: 13px;
+		color: var(--ink);
+		background: var(--panel);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--r-sm);
+	}
+	.focus-bar strong {
+		font-weight: 700;
+	}
+	.focus-bar button {
+		border: 1px solid var(--border-strong);
+		background: var(--paper);
+		color: var(--ink);
+		border-radius: var(--r-xs);
+		padding: 6px 12px;
+		font-size: 12px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.focus-bar button:hover {
+		background: var(--panel-2);
 	}
 	.track-block {
 		margin-bottom: 18px;

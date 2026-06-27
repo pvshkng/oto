@@ -236,13 +236,13 @@
 	}
 	.ctl,
 	.fx {
-		min-width: 30px;
-		height: 32px;
-		padding: 0 7px;
+		min-width: 34px;
+		height: 36px;
+		padding: 0 9px;
 		border: 1px solid var(--border-strong);
 		background: var(--paper);
 		border-radius: var(--r-xs);
-		font-size: 12px;
+		font-size: 14px;
 		font-weight: 600;
 		color: var(--ink);
 		cursor: pointer;
@@ -252,7 +252,7 @@
 		justify-content: center;
 	}
 	.ctl.gl {
-		font-size: 15px;
+		font-size: 19px;
 		line-height: 1;
 	}
 	.ctl.on,
@@ -262,8 +262,8 @@
 		color: var(--accent-ink);
 	}
 	.ctl.v2.on {
-		background: var(--sage);
-		border-color: var(--sage);
+		background: var(--accent-2);
+		border-color: var(--accent-2);
 	}
 	.fx:disabled {
 		opacity: 0.4;
@@ -280,8 +280,8 @@
 		font-weight: 700;
 	}
 	:global(.ts-trig) {
-		height: 32px;
-		padding: 0 10px !important;
+		height: 36px;
+		padding: 0 12px !important;
 		width: auto !important;
 		font-weight: 700 !important;
 		border-radius: var(--r-xs) !important;

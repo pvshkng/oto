@@ -80,7 +80,7 @@
 	:global(.dlg-overlay) {
 		position: fixed;
 		inset: 0;
-		background: rgba(42, 32, 24, 0.32);
+		background: rgba(24, 24, 27, 0.4);
 		backdrop-filter: blur(2px);
 		z-index: 80;
 	}

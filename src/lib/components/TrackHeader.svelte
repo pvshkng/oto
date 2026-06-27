@@ -1,35 +1,34 @@
 <script lang="ts">
 	import { store } from '$lib/stores/score.svelte';
-	import { Popover, Select } from 'bits-ui';
-	import { TUNINGS } from '$lib/oto/pitch';
+	import { ToggleGroup } from 'bits-ui';
+	import TrackDialog from './TrackDialog.svelte';
 
 	let { index }: { index: number } = $props();
 	const track = $derived(store.score.tracks[index]);
 	const isActive = $derived(store.cursor.track === index);
+	const collapsed = $derived(store.isCollapsed(index));
+	const focused = $derived(store.focusedTrackId === track.id);
 
-	const tuningNames = Object.keys(TUNINGS);
-	function matchTuning(): string {
-		for (const [name, t] of Object.entries(TUNINGS)) {
-			if (t.length === track.tuning.length && t.every((n, i) => n === track.tuning[i])) return name;
-		}
-		return 'Custom';
-	}
+	let editOpen = $state(false);
 
-	const INSTRUMENTS = [
-		{ value: 'electric', label: 'Electric Guitar' },
-		{ value: 'clean', label: 'Clean Electric' },
-		{ value: 'acoustic', label: 'Acoustic (steel)' },
-		{ value: 'nylon', label: 'Nylon / Classical' },
-		{ value: 'bass', label: 'Bass' }
-	];
-
-	function applyTuning(name: string) {
-		if (name === 'Custom' || !TUNINGS[name]) return;
-		store.updateTrack(index, { tuning: [...TUNINGS[name]] });
-	}
+	const activeViews = $derived(
+		(['standard', 'tab', 'rhythm'] as const).filter((k) => track.view[k])
+	);
+	const muteSolo = $derived([...(track.muted ? ['mute'] : []), ...(track.soloed ? ['solo'] : [])]);
 </script>
 
-<div class="header" class:active={isActive} style="--track-color:{track.color}">
+<div class="header" class:active={isActive} class:collapsed style="--track-color:{track.color}">
+	<button
+		class="chev"
+		onclick={() => store.toggleCollapsed(index)}
+		title={collapsed ? 'Expand track' : 'Collapse track'}
+		aria-label={collapsed ? 'Expand track' : 'Collapse track'}
+	>
+		<svg viewBox="0 0 24 24" width="18" height="18" class:rot={collapsed} aria-hidden="true">
+			<path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" />
+		</svg>
+	</button>
+
 	<button
 		class="select-track"
 		onclick={() => store.setCursor({ track: index, measure: 0, beat: 0 })}
@@ -45,162 +44,163 @@
 		onchange={(e) => store.updateTrack(index, { name: e.currentTarget.value })}
 	/>
 
-	<div class="views">
-		<button
-			class="vtab"
-			class:on={track.view.standard}
-			onclick={() => store.toggleTrackView(index, 'standard')}
-			title="Standard notation">𝄞</button
-		>
-		<button
-			class="vtab"
-			class:on={track.view.tab}
-			onclick={() => store.toggleTrackView(index, 'tab')}
-			title="Tablature">TAB</button
-		>
-		<button
-			class="vtab"
-			class:on={track.view.rhythm}
-			onclick={() => store.toggleTrackView(index, 'rhythm')}
-			title="Rhythm slashes">♪/</button
-		>
-	</div>
+	{#if !collapsed}
+		<ToggleGroup.Root type="multiple" value={activeViews} class="views">
+			<ToggleGroup.Item
+				class="vtab"
+				value="standard"
+				title="Standard notation"
+				onclick={() => store.toggleTrackView(index, 'standard')}
+			>
+				<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"
+					><path
+						d="M9 18V5l9-2v13"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/><circle cx="6" cy="18" r="3" fill="currentColor" /><circle
+						cx="15"
+						cy="16"
+						r="3"
+						fill="currentColor"
+					/></svg
+				>
+			</ToggleGroup.Item>
+			<ToggleGroup.Item
+				class="vtab txt"
+				value="tab"
+				title="Tablature"
+				onclick={() => store.toggleTrackView(index, 'tab')}>TAB</ToggleGroup.Item
+			>
+			<ToggleGroup.Item
+				class="vtab"
+				value="rhythm"
+				title="Rhythm slashes"
+				onclick={() => store.toggleTrackView(index, 'rhythm')}
+			>
+				<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"
+					><path
+						d="M6 19L18 5"
+						stroke="currentColor"
+						stroke-width="2.4"
+						stroke-linecap="round"
+					/><path
+						d="M10 19L22 5"
+						stroke="currentColor"
+						stroke-width="2.4"
+						stroke-linecap="round"
+					/></svg
+				>
+			</ToggleGroup.Item>
+		</ToggleGroup.Root>
+	{/if}
 
-	<div class="ms">
-		<button
+	<ToggleGroup.Root type="multiple" value={muteSolo} class="ms">
+		<ToggleGroup.Item
 			class="ms-btn"
-			class:on={track.muted}
-			onclick={() => store.toggleMute(index)}
-			title="Mute">M</button
+			value="mute"
+			title="Mute"
+			onclick={() => store.toggleMute(index)}>M</ToggleGroup.Item
 		>
-		<button
+		<ToggleGroup.Item
 			class="ms-btn solo"
-			class:on={track.soloed}
-			onclick={() => store.toggleSolo(index)}
-			title="Solo">S</button
+			value="solo"
+			title="Solo"
+			onclick={() => store.toggleSolo(index)}>S</ToggleGroup.Item
 		>
-	</div>
+	</ToggleGroup.Root>
 
-	<Popover.Root>
-		<Popover.Trigger class="gear" title="Track settings">⚙</Popover.Trigger>
-		<Popover.Portal>
-			<Popover.Content class="popover" sideOffset={6} align="end">
-				<div class="pop">
-					<h4>Track settings</h4>
+	<button
+		class="icon-btn"
+		class:on={focused}
+		title={focused ? 'Exit focus' : 'Focus this track'}
+		aria-label={focused ? 'Exit focus' : 'Focus this track'}
+		onclick={() => (focused ? store.clearFocus() : store.focusTrack(index))}
+	>
+		{#if focused}
+			<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"
+				><path
+					d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.4 5.2A9 9 0 0112 5c5 0 9 7 9 7a14 14 0 01-2 2.8M6 6a14 14 0 00-3 6s4 7 9 7a8 8 0 003-.6"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+				/></svg
+			>
+		{:else}
+			<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"
+				><path
+					d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+				/><circle cx="12" cy="12" r="3" fill="currentColor" /></svg
+			>
+		{/if}
+	</button>
 
-					<label class="field">
-						<span>Instrument</span>
-						<Select.Root
-							type="single"
-							value={track.instrument}
-							onValueChange={(v) => store.updateTrack(index, { instrument: v })}
-						>
-							<Select.Trigger class="sel-trigger">
-								{INSTRUMENTS.find((i) => i.value === track.instrument)?.label ?? 'Instrument'}
-							</Select.Trigger>
-							<Select.Portal>
-								<Select.Content class="sel-content" sideOffset={4}>
-									{#each INSTRUMENTS as it (it.value)}
-										<Select.Item class="sel-item" value={it.value} label={it.label}
-											>{it.label}</Select.Item
-										>
-									{/each}
-								</Select.Content>
-							</Select.Portal>
-						</Select.Root>
-					</label>
-
-					<label class="field">
-						<span>Tuning</span>
-						<Select.Root type="single" value={matchTuning()} onValueChange={applyTuning}>
-							<Select.Trigger class="sel-trigger"
-								>{matchTuning()} ({track.tuning
-									.map((t) => t.replace(/\d/, ''))
-									.join(' ')})</Select.Trigger
-							>
-							<Select.Portal>
-								<Select.Content class="sel-content" sideOffset={4}>
-									{#each tuningNames as name (name)}
-										<Select.Item class="sel-item" value={name} label={name}>{name}</Select.Item>
-									{/each}
-								</Select.Content>
-							</Select.Portal>
-						</Select.Root>
-					</label>
-
-					<div class="row3">
-						<label class="field small">
-							<span>Capo</span>
-							<input
-								type="number"
-								min="0"
-								max="12"
-								value={track.capo}
-								onchange={(e) => store.setCapo(index, +e.currentTarget.value)}
-							/>
-						</label>
-						<label class="field small">
-							<span>Transpose</span>
-							<input
-								type="number"
-								min="-24"
-								max="24"
-								value={track.transpose}
-								onchange={(e) => store.setDisplayTranspose(index, +e.currentTarget.value)}
-							/>
-						</label>
-					</div>
-
-					<div class="detune">
-						<span>Detune frets (rewrites tuning)</span>
-						<div class="detune-row">
-							<button onclick={() => store.detune(index, -1)}>−½</button>
-							<button onclick={() => store.detune(index, 1)}>+½</button>
-							<button onclick={() => store.transpose(index, -12)}>Oct −</button>
-							<button onclick={() => store.transpose(index, 12)}>Oct +</button>
-						</div>
-					</div>
-
-					<button
-						class="danger"
-						onclick={() => store.removeTrack(index)}
-						disabled={store.score.tracks.length <= 1}
-					>
-						Delete track
-					</button>
-				</div>
-			</Popover.Content>
-		</Popover.Portal>
-	</Popover.Root>
+	<button
+		class="icon-btn"
+		title="Track settings"
+		aria-label="Track settings"
+		onclick={() => (editOpen = true)}
+	>
+		<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"
+			><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2" /><path
+				d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+			/></svg
+		>
+	</button>
 </div>
+
+<TrackDialog bind:open={editOpen} mode="edit" {index} />
 
 <style>
 	.header {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		padding: 7px 12px;
+		padding: 8px 12px;
 		background: var(--panel);
 		border: 1px solid var(--border);
-		border-left: 4px solid var(--track-color);
-		border-radius: 8px 8px 0 0;
+		border-left: 3px solid var(--track-color);
+		border-radius: var(--r-sm) var(--r-sm) 0 0;
 		flex-wrap: wrap;
+	}
+	.header.collapsed {
+		border-radius: var(--r-sm);
 	}
 	.header.active {
 		background: var(--paper);
 		box-shadow: inset 0 0 0 1px var(--border-strong);
 	}
+	.chev,
 	.select-track {
-		display: flex;
-		align-items: center;
-		gap: 5px;
 		border: none;
 		background: transparent;
 		cursor: pointer;
+		color: var(--muted);
+		display: inline-flex;
+		align-items: center;
+		padding: 0;
+	}
+	.chev svg {
+		transition: transform 0.15s ease;
+	}
+	.chev svg.rot {
+		transform: rotate(-90deg);
+	}
+	.select-track {
+		gap: 6px;
 	}
 	.swatch {
-		width: 10px;
-		height: 10px;
+		width: 11px;
+		height: 11px;
 		border-radius: 50%;
 		background: var(--track-color);
 	}
@@ -208,17 +208,18 @@
 		font-weight: 700;
 		font-size: 12px;
 		color: var(--muted);
+		font-variant-numeric: tabular-nums;
 	}
 	.name {
 		flex: 1;
 		min-width: 60px;
 		border: 1px solid transparent;
 		background: transparent;
-		font-size: 13px;
+		font-size: 14px;
 		font-weight: 600;
 		color: var(--ink);
-		padding: 4px 6px;
-		border-radius: 6px;
+		padding: 5px 7px;
+		border-radius: var(--r-xs);
 	}
 	.name:hover,
 	.name:focus {
@@ -226,157 +227,66 @@
 		background: var(--paper);
 		outline: none;
 	}
-	.views,
-	.ms {
-		display: flex;
+	:global(.views),
+	:global(.ms) {
+		display: inline-flex;
 		gap: 3px;
 	}
-	.vtab,
-	.ms-btn {
-		min-width: 32px;
-		height: 30px;
+	:global(.vtab),
+	:global(.ms-btn),
+	.icon-btn {
+		min-width: 36px;
+		height: 34px;
 		border: 1px solid var(--border-strong);
 		background: var(--paper);
-		border-radius: 6px;
-		font-size: 11px;
-		font-weight: 600;
+		border-radius: var(--r-xs);
+		font-size: 12px;
+		font-weight: 700;
 		cursor: pointer;
 		color: var(--muted);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 6px;
 	}
-	.vtab.on {
+	.icon-btn {
+		min-width: 34px;
+	}
+	.icon-btn:hover,
+	:global(.vtab:hover),
+	:global(.ms-btn:hover) {
+		background: var(--panel-2);
+		color: var(--ink);
+	}
+	:global(.vtab[data-state='on']) {
 		background: var(--accent);
 		border-color: var(--accent);
-		color: #fff;
+		color: var(--accent-ink);
 	}
-	.ms-btn.on {
-		background: #f59e0b;
-		border-color: #f59e0b;
-		color: #fff;
+	:global(.ms-btn[data-state='on']) {
+		background: var(--ink-soft);
+		border-color: var(--ink-soft);
+		color: var(--accent-ink);
 	}
-	.ms-btn.solo.on {
-		background: #22c55e;
-		border-color: #22c55e;
+	:global(.ms-btn.solo[data-state='on']) {
+		background: var(--accent);
+		border-color: var(--accent);
 	}
-	:global(.gear) {
-		width: 32px;
-		height: 30px;
-		border: 1px solid var(--border-strong);
-		background: var(--paper);
-		border-radius: 6px;
-		cursor: pointer;
-		font-size: 14px;
-	}
-	:global(.popover) {
-		z-index: 60;
-		background: var(--paper);
-		border: 1px solid var(--border-strong);
-		border-radius: 10px;
-		box-shadow: 0 12px 30px rgba(74, 56, 30, 0.18);
-		padding: 12px;
-		width: 260px;
+	.icon-btn.on {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--accent-ink);
 	}
 	@media (max-width: 720px) {
-		.vtab,
-		.ms-btn,
-		:global(.gear) {
+		:global(.vtab),
+		:global(.ms-btn),
+		.icon-btn {
 			height: 40px;
 			min-width: 40px;
 		}
 		.name {
 			flex-basis: 100%;
-			order: -1;
+			order: 1;
 		}
-	}
-	.pop h4 {
-		margin: 0 0 10px;
-		font-size: 13px;
-	}
-	.field {
-		display: flex;
-		flex-direction: column;
-		gap: 3px;
-		margin-bottom: 10px;
-		font-size: 11px;
-		color: var(--muted);
-	}
-	.row3 {
-		display: flex;
-		gap: 8px;
-	}
-	.field.small {
-		flex: 1;
-	}
-	.field input {
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		padding: 5px 7px;
-		font-size: 13px;
-		color: var(--ink);
-	}
-	:global(.sel-trigger) {
-		width: 100%;
-		text-align: left;
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		padding: 6px 8px;
-		font-size: 12px;
-		background: #fff;
-		cursor: pointer;
-		color: var(--ink);
-	}
-	:global(.sel-content) {
-		z-index: 70;
-		background: #fff;
-		border: 1px solid var(--border);
-		border-radius: 8px;
-		box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
-		padding: 4px;
-		max-height: 240px;
-		overflow-y: auto;
-	}
-	:global(.sel-item) {
-		padding: 6px 8px;
-		font-size: 12px;
-		border-radius: 5px;
-		cursor: pointer;
-		color: var(--ink);
-	}
-	:global(.sel-item[data-highlighted]) {
-		background: var(--accent-soft);
-	}
-	.detune {
-		margin-bottom: 10px;
-		font-size: 11px;
-		color: var(--muted);
-	}
-	.detune-row {
-		display: flex;
-		gap: 4px;
-		margin-top: 4px;
-	}
-	.detune-row button {
-		flex: 1;
-		border: 1px solid var(--border);
-		background: #fff;
-		border-radius: 6px;
-		padding: 5px 0;
-		font-size: 11px;
-		cursor: pointer;
-		color: var(--ink);
-	}
-	.danger {
-		width: 100%;
-		border: 1px solid #fecaca;
-		background: #fef2f2;
-		color: #dc2626;
-		border-radius: 6px;
-		padding: 7px;
-		font-size: 12px;
-		font-weight: 600;
-		cursor: pointer;
-	}
-	.danger:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
 	}
 </style>

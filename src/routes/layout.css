@@ -9,41 +9,45 @@
 }
 
 /*
- * Palette — "old paper": a white music sheet floating on warm beige interface
- * chrome. Ink (warm near-black) is the only interactive accent; the ambers are
- * used purely as surfaces and highlight fills. No terracotta, no cold grays.
+ * Palette: minimal monochrome. A white music sheet on a neutral zinc/stone
+ * interface. Ink (near-black zinc) is the only interactive accent; everything
+ * else is built from neutral grays. No beige, no warm tones.
  */
 :root {
 	--paper: #ffffff; /* the music sheet */
-	--bg: #fffaf3; /* app background, lightest beige */
-	--panel: #fff2db; /* interface surfaces (bars, strips) */
-	--panel-2: #ffe5bf; /* raised / hovered / active surfaces */
-	--amber: #ffe5bf;
-	--ink: #2a2018; /* warm near-black text */
-	--muted: #8a7560; /* warm secondary text */
-	--border: #ecdcc0; /* warm hairline */
-	--border-strong: #ddc8a4;
-	--accent: #2a2018; /* primary = ink on paper */
-	--accent-ink: #fffaf3; /* text on accent */
-	--accent-soft: #ffe5bf; /* cursor / focus tint */
-	--sage: #1f6f6b; /* playback + voice 2 */
-	--brick: #b4452f; /* overflow / destructive */
+	--bg: #fafafa; /* app background, neutral-50 */
+	--panel: #f4f4f5; /* interface surfaces, zinc-100 */
+	--panel-2: #e4e4e7; /* raised / hovered / active surfaces, zinc-200 */
+	--ink: #18181b; /* near-black text, zinc-900 */
+	--ink-soft: #3f3f46; /* zinc-700 */
+	--muted: #71717a; /* secondary text, zinc-500 */
+	--faint: #a1a1aa; /* tertiary, zinc-400 */
+	--border: #e4e4e7; /* hairline, zinc-200 */
+	--border-strong: #d4d4d8; /* zinc-300 */
+	--accent: #18181b; /* primary = ink */
+	--accent-ink: #ffffff; /* text on accent */
+	--accent-soft: #e4e4e7; /* cursor / focus tint */
+	--accent-2: #52525b; /* secondary ink, voice 2, zinc-600 */
+	--brick: #b91c1c; /* overflow / destructive, red-700 */
+	--brick-soft: #fef2f2;
+	--brick-border: #fecaca;
 
-	--serif:
-		'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, 'Hoefler Text', Georgia, serif;
-	--sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	--sans:
+		ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+	--serif: var(--sans);
+	--mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Roboto Mono', monospace;
 
-	/* Radius scale — tight by default for a crisp, modern feel. */
-	--r-xs: 4px; /* buttons, chips, inputs */
-	--r-sm: 6px;
-	--r-md: 10px; /* panels, cards */
+	/* Radius scale: tight by default for a crisp, modern feel. */
+	--r-xs: 6px; /* buttons, chips, inputs */
+	--r-sm: 8px;
+	--r-md: 12px; /* panels, cards */
 	--r-lg: 16px; /* sheets, modals */
 	--r-pill: 999px;
 
-	/* Elevation */
-	--shadow-1: 0 1px 2px rgba(74, 56, 30, 0.06);
-	--shadow-2: 0 6px 24px rgba(74, 56, 30, 0.12);
-	--shadow-3: 0 -6px 28px rgba(74, 56, 30, 0.12);
+	/* Elevation: neutral, soft. */
+	--shadow-1: 0 1px 2px rgba(24, 24, 27, 0.06);
+	--shadow-2: 0 8px 28px rgba(24, 24, 27, 0.12);
+	--shadow-3: 0 -6px 28px rgba(24, 24, 27, 0.1);
 }
 
 html {
@@ -62,4 +66,43 @@ body {
 
 .scroll-x {
 	scrollbar-width: thin;
+}
+
+/* Shared bits-ui Select styling used by the edit panel and song dialog. */
+.sel-trigger {
+	width: 100%;
+	text-align: left;
+	border: 1px solid var(--border-strong);
+	border-radius: var(--r-xs);
+	padding: 8px 10px;
+	font-size: 13px;
+	font-weight: 500;
+	background: var(--paper);
+	cursor: pointer;
+	color: var(--ink);
+}
+.sel-content {
+	z-index: 95;
+	background: var(--paper);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--r-sm);
+	box-shadow: var(--shadow-2);
+	padding: 5px;
+	max-height: 260px;
+	overflow-y: auto;
+}
+.sel-item {
+	padding: 8px 9px;
+	font-size: 13px;
+	font-weight: 500;
+	border-radius: var(--r-xs);
+	cursor: pointer;
+	color: var(--ink);
+}
+.sel-item[data-highlighted] {
+	background: var(--panel);
+	outline: none;
+}
+.sel-item[data-selected] {
+	background: var(--panel-2);
 }
