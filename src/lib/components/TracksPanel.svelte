@@ -22,6 +22,7 @@
 	import MapPin from 'phosphor-svelte/lib/MapPin';
 	import MagnifyingGlassPlus from 'phosphor-svelte/lib/MagnifyingGlassPlus';
 	import MagnifyingGlassMinus from 'phosphor-svelte/lib/MagnifyingGlassMinus';
+	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 
 	// Width of the frozen track-controls column (kept in sync with the markup so
 	// the absolute playhead can offset past it).
@@ -72,6 +73,19 @@
 	let editOpen = $state(false);
 	let eqOpen = $state<Record<string, boolean>>({});
 
+	// Per-row mixer detail (volume/pan/EQ/settings) expand state. Collapsed by
+	// default — rows show only name, mute, solo and the expand chevron.
+	let rowOpen = $state<Record<string, boolean>>({});
+	const allRowsOpen = $derived(tracks.length > 0 && tracks.every((t) => rowOpen[t.id]));
+
+	function toggleRow(id: string) {
+		rowOpen = { ...rowOpen, [id]: !rowOpen[id] };
+	}
+	function toggleAllRows() {
+		const next = !allRowsOpen;
+		rowOpen = Object.fromEntries(tracks.map((t) => [t.id, next]));
+	}
+
 	function trackHasContent(t: OtoTrack, mi: number): boolean {
 		const m = t.measures[mi];
 		if (!m) return false;
@@ -86,6 +100,32 @@
 
 	function jumpTo(measure: number, track = store.cursor.track) {
 		store.setCursor({ track, measure, beat: 0 });
+	}
+
+	// Double tap/click a colored (content-bearing) block in the arrangement to
+	// jump there and scroll the main score view to that exact track.
+	function gotoSection(i: number, measure: number) {
+		const t = tracks[i];
+		if (!t || !trackHasContent(t, measure)) return;
+		jumpTo(measure, i);
+		store.mixerOpen = false;
+		store.scrollToTrack(t.id);
+	}
+
+	// Native `dblclick` doesn't fire reliably from touch double-taps, so track
+	// taps manually for touch pointers; mouse double-clicks use ondblclick below.
+	let lastTap = { row: -1, time: 0 };
+	function handleTrackbarTap(e: PointerEvent, i: number) {
+		if (e.pointerType !== 'touch') return;
+		const now = performance.now();
+		const x = e.clientX - (e.currentTarget as HTMLElement).getBoundingClientRect().left;
+		const measure = Math.min(measureCount - 1, Math.floor(x / cell));
+		if (lastTap.row === i && now - lastTap.time < 350) {
+			gotoSection(i, measure);
+			lastTap = { row: -1, time: 0 };
+		} else {
+			lastTap = { row: i, time: now };
+		}
 	}
 
 	// Mixer setters mirror the store, then push the change onto the live audio
@@ -182,8 +222,16 @@
 			<!-- Measure ruler -->
 			<div class="bg-background sticky top-0 z-20 flex border-b">
 				<div
-					class="bg-background sticky left-0 z-10 flex w-[210px] shrink-0 items-center border-r px-3 py-1.5"
+					class="bg-background sticky left-0 z-10 flex w-[210px] shrink-0 items-center gap-1.5 border-r px-3 py-1.5"
 				>
+					<button
+						class="text-muted-foreground hover:text-foreground flex shrink-0 items-center"
+						title={allRowsOpen ? 'Collapse all tracks' : 'Expand all tracks'}
+						aria-label={allRowsOpen ? 'Collapse all tracks' : 'Expand all tracks'}
+						onclick={toggleAllRows}
+					>
+						<CaretDown class={cn('size-3.5 transition-transform', allRowsOpen && 'rotate-180')} />
+					</button>
 					<span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
 						>Track</span
 					>
@@ -218,7 +266,6 @@
 						style="border-left:3px solid {track.color}"
 					>
 						<div class="flex items-center gap-1.5">
-							<span class="size-2.5 shrink-0 rounded-full" style="background:{track.color}"></span>
 							<input
 								class="text-foreground hover:border-border focus:border-border focus:bg-background min-w-0 flex-1 rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-[13px] font-semibold focus:outline-none"
 								value={track.name}
@@ -247,102 +294,120 @@
 								aria-pressed={track.soloed}
 								onclick={() => store.toggleSolo(i)}>S</button
 							>
-						</div>
-
-						<div class="flex items-center gap-2">
-							<input
-								type="range"
-								min="0"
-								max="1"
-								step="0.01"
-								aria-label={`${track.name} volume`}
-								title="Volume"
-								class="mixer-fader min-w-0 flex-1"
-								value={track.volume}
-								onpointerdown={() => store.beginGesture()}
-								onpointerup={() => store.endGesture()}
-								onpointercancel={() => store.endGesture()}
-								oninput={(e) => setVolume(i, e.currentTarget.valueAsNumber)}
-							/>
-							<Knob
-								value={track.pan}
-								min={-1}
-								max={1}
-								default={0}
-								label={`${track.name} pan`}
-								format={panLabel}
-								onInput={(v) => setPan(i, v)}
-								onDragStart={() => store.beginGesture()}
-								onDragEnd={() => store.endGesture()}
-							/>
-							<Popover.Root
-								open={!!eqOpen[track.id]}
-								onOpenChange={(v) => (eqOpen = { ...eqOpen, [track.id]: v })}
-							>
-								<Popover.Trigger
-									class={cn(
-										'flex size-7 shrink-0 items-center justify-center rounded-md border text-[10px] font-bold transition-colors',
-										eqActive(track)
-											? 'bg-primary text-primary-foreground border-primary'
-											: 'text-muted-foreground hover:text-foreground'
-									)}
-									title="Equaliser"
-									aria-label={`${track.name} equaliser`}>EQ</Popover.Trigger
-								>
-								<Popover.Content side="top" align="end" class="w-56 p-3">
-									<div class="mb-2 flex items-center justify-between">
-										<span class="text-xs font-semibold">Equaliser</span>
-										<button
-											class="text-muted-foreground hover:text-foreground text-[11px] underline"
-											onclick={() => resetEq(i)}>Reset</button
-										>
-									</div>
-									{#each [['low', 'Low'], ['mid', 'Mid'], ['high', 'High']] as [band, lbl] (band)}
-										{@const key = band as 'low' | 'mid' | 'high'}
-										<div class="mb-2 grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-2">
-											<span class="text-muted-foreground text-[11px]">{lbl}</span>
-											<input
-												type="range"
-												min="-12"
-												max="12"
-												step="0.5"
-												class="mixer-fader"
-												value={track.eq[key]}
-												onpointerdown={() => store.beginGesture()}
-												onpointerup={() => store.endGesture()}
-												onpointercancel={() => store.endGesture()}
-												oninput={(e) => setEqBand(i, key, e.currentTarget.valueAsNumber)}
-											/>
-											<span class="text-right text-[11px] tabular-nums">
-												{track.eq[key] > 0 ? '+' : ''}{track.eq[key]}
-											</span>
-										</div>
-									{/each}
-								</Popover.Content>
-							</Popover.Root>
 							<button
-								class="text-muted-foreground hover:text-foreground flex size-7 shrink-0 items-center justify-center rounded-md"
-								title="Instrument & tuning"
-								aria-label={`${track.name} settings`}
-								onclick={() => {
-									editIndex = i;
-									editOpen = true;
-								}}
+								class="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-md"
+								title={rowOpen[track.id] ? 'Collapse track controls' : 'Expand track controls'}
+								aria-label={rowOpen[track.id] ? 'Collapse track controls' : 'Expand track controls'}
+								aria-expanded={!!rowOpen[track.id]}
+								onclick={() => toggleRow(track.id)}
 							>
-								<GearSix class="size-4" />
+								<CaretDown
+									class={cn('size-4 transition-transform', rowOpen[track.id] && 'rotate-180')}
+								/>
 							</button>
 						</div>
+
+						{#if rowOpen[track.id]}
+							<div class="flex items-center gap-2">
+								<input
+									type="range"
+									min="0"
+									max="1"
+									step="0.01"
+									aria-label={`${track.name} volume`}
+									title="Volume"
+									class="mixer-fader min-w-0 flex-1"
+									value={track.volume}
+									onpointerdown={() => store.beginGesture()}
+									onpointerup={() => store.endGesture()}
+									onpointercancel={() => store.endGesture()}
+									oninput={(e) => setVolume(i, e.currentTarget.valueAsNumber)}
+								/>
+								<Knob
+									value={track.pan}
+									min={-1}
+									max={1}
+									default={0}
+									label={`${track.name} pan`}
+									format={panLabel}
+									onInput={(v) => setPan(i, v)}
+									onDragStart={() => store.beginGesture()}
+									onDragEnd={() => store.endGesture()}
+								/>
+								<Popover.Root
+									open={!!eqOpen[track.id]}
+									onOpenChange={(v) => (eqOpen = { ...eqOpen, [track.id]: v })}
+								>
+									<Popover.Trigger
+										class={cn(
+											'flex size-7 shrink-0 items-center justify-center rounded-md border text-[10px] font-bold transition-colors',
+											eqActive(track)
+												? 'bg-primary text-primary-foreground border-primary'
+												: 'text-muted-foreground hover:text-foreground'
+										)}
+										title="Equaliser"
+										aria-label={`${track.name} equaliser`}>EQ</Popover.Trigger
+									>
+									<Popover.Content side="top" align="end" class="w-56 p-3">
+										<div class="mb-2 flex items-center justify-between">
+											<span class="text-xs font-semibold">Equaliser</span>
+											<button
+												class="text-muted-foreground hover:text-foreground text-[11px] underline"
+												onclick={() => resetEq(i)}>Reset</button
+											>
+										</div>
+										{#each [['low', 'Low'], ['mid', 'Mid'], ['high', 'High']] as [band, lbl] (band)}
+											{@const key = band as 'low' | 'mid' | 'high'}
+											<div class="mb-2 grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-2">
+												<span class="text-muted-foreground text-[11px]">{lbl}</span>
+												<input
+													type="range"
+													min="-12"
+													max="12"
+													step="0.5"
+													class="mixer-fader"
+													value={track.eq[key]}
+													onpointerdown={() => store.beginGesture()}
+													onpointerup={() => store.endGesture()}
+													onpointercancel={() => store.endGesture()}
+													oninput={(e) => setEqBand(i, key, e.currentTarget.valueAsNumber)}
+												/>
+												<span class="text-right text-[11px] tabular-nums">
+													{track.eq[key] > 0 ? '+' : ''}{track.eq[key]}
+												</span>
+											</div>
+										{/each}
+									</Popover.Content>
+								</Popover.Root>
+								<button
+									class="text-muted-foreground hover:text-foreground flex size-7 shrink-0 items-center justify-center rounded-md"
+									title="Instrument & tuning"
+									aria-label={`${track.name} settings`}
+									onclick={() => {
+										editIndex = i;
+										editOpen = true;
+									}}
+								>
+									<GearSix class="size-4" />
+								</button>
+							</div>
+						{/if}
 					</div>
 
 					<!-- Arrangement blocks -->
 					<button
 						class="relative flex shrink-0 cursor-pointer"
 						style="width:{timelineW}px"
-						title="Jump to bar"
+						title="Double-tap a section to jump to it in the score"
 						onclick={(e) => {
 							const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
 							jumpTo(Math.min(measureCount - 1, Math.floor(x / cell)), i);
 						}}
+						ondblclick={(e) => {
+							const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
+							gotoSection(i, Math.min(measureCount - 1, Math.floor(x / cell)));
+						}}
+						onpointerup={(e) => handleTrackbarTap(e, i)}
 					>
 						{#each Array.from({ length: measureCount }, (_, k) => k) as mi (mi)}
 							<div

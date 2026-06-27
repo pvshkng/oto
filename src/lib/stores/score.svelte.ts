@@ -88,6 +88,20 @@ export class ScoreStore {
 	loopEnabled = $state(false);
 	countInOn = $state(false);
 
+	// Score-area scroll requests (UI only). The main view listens for these to
+	// scroll itself back to the top of the song or to a specific track/measure;
+	// each request carries a token so the same target can be re-requested.
+	scrollRequest = $state<{ kind: 'start' | 'track'; trackId?: string; token: number } | null>(null);
+	#scrollToken = 0;
+
+	scrollToStart() {
+		this.scrollRequest = { kind: 'start', token: ++this.#scrollToken };
+	}
+
+	scrollToTrack(trackId: string) {
+		this.scrollRequest = { kind: 'track', trackId, token: ++this.#scrollToken };
+	}
+
 	// History
 	#undoStack = $state<string[]>([]);
 	#redoStack = $state<string[]>([]);

@@ -233,6 +233,7 @@ export function transportCommands(): Cmd[] {
 export function allCommandGroups(): CmdGroup[] {
 	const hasNote = !!store.currentNote;
 	const groups: CmdGroup[] = [];
+	groups.push({ heading: 'File', items: fileCommands() });
 	groups.push({ heading: 'Transport', items: transportCommands() });
 	groups.push({ heading: 'Edit', items: editCommands() });
 	if (hasNote) {
@@ -247,6 +248,5 @@ export function allCommandGroups(): CmdGroup[] {
 		heading: `Bar ${store.cursor.measure + 1}`,
 		items: [...barCommands(), ...timeSigCommands()]
 	});
-	groups.push({ heading: 'File', items: fileCommands() });
 	return groups;
 }

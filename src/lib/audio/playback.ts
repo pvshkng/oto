@@ -74,3 +74,10 @@ export function stopPlayback() {
 	store.isPlaying = false;
 	store.playhead = null;
 }
+
+/** Stop playback (if running), rewind the cursor to bar 1 and scroll the score back up. */
+export function goToStart() {
+	if (store.isPlaying) stopPlayback();
+	store.setCursor({ measure: 0, beat: 0 });
+	store.scrollToStart();
+}

@@ -7,7 +7,7 @@
 	// follow.
 
 	import { store } from '$lib/stores/score.svelte';
-	import { togglePlayback, stopPlayback } from '$lib/audio/playback';
+	import { togglePlayback, stopPlayback, goToStart } from '$lib/audio/playback';
 	import { downloadOto, openFile, exportPdf } from '$lib/io/files';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Command from '$lib/components/ui/command';
@@ -21,6 +21,7 @@
 	import Play from 'phosphor-svelte/lib/Play';
 	import Pause from 'phosphor-svelte/lib/Pause';
 	import Stop from 'phosphor-svelte/lib/Stop';
+	import SkipBack from 'phosphor-svelte/lib/SkipBack';
 	import Metronome from 'phosphor-svelte/lib/Metronome';
 	import Repeat from 'phosphor-svelte/lib/Repeat';
 	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
@@ -186,14 +187,14 @@
 		<Stop class="size-5" weight="fill" />
 	</Button>
 	<Button
-		variant={store.metronomeOn ? 'default' : 'outline'}
+		variant="outline"
 		size="icon"
 		class="size-9 shrink-0"
-		title="Metronome"
-		aria-label="Toggle metronome"
-		onclick={() => (store.metronomeOn = !store.metronomeOn)}
+		title="Back to the beginning"
+		aria-label="Back to the beginning"
+		onclick={goToStart}
 	>
-		<Metronome class="size-5" />
+		<SkipBack class="size-5" weight="fill" />
 	</Button>
 	<Button
 		variant={store.loopEnabled ? 'default' : 'outline'}
@@ -204,6 +205,16 @@
 		onclick={() => (store.loopEnabled = !store.loopEnabled)}
 	>
 		<Repeat class="size-5" />
+	</Button>
+	<Button
+		variant={store.metronomeOn ? 'default' : 'outline'}
+		size="icon"
+		class="size-9 shrink-0"
+		title="Metronome"
+		aria-label="Toggle metronome"
+		onclick={() => (store.metronomeOn = !store.metronomeOn)}
+	>
+		<Metronome class="size-5" />
 	</Button>
 
 	<!-- Tempo, opens the BPM drawer -->
