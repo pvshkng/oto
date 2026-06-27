@@ -9,7 +9,7 @@
 	import EditPanel from '$lib/components/EditPanel.svelte';
 	import SongModal from '$lib/components/SongModal.svelte';
 	import TrackControlDrawer from '$lib/components/TrackControlDrawer.svelte';
-	import TrackMixerDrawer from '$lib/components/TrackMixerDrawer.svelte';
+	import TracksPanel from '$lib/components/TracksPanel.svelte';
 	import StatusBanner from '$lib/components/StatusBanner.svelte';
 
 	// Height of the fixed bottom dock, so the sheet can scroll clear of it.
@@ -195,12 +195,13 @@
 	<div class="bottom-dock no-print" bind:clientHeight={dockHeight}>
 		{#if store.editMode}
 			<EditPanel />
+		{:else if store.mixerOpen}
+			<TracksPanel />
 		{/if}
 		<BottomBar />
 	</div>
 
 	<SongModal />
-	<TrackMixerDrawer bind:open={store.mixerOpen} />
 	<TrackControlDrawer bind:open={trackEditOpen} index={trackEditIndex} />
 </div>
 

@@ -128,6 +128,23 @@
 		}
 	}
 
+	// Double tap/click on a note or the tab band toggles the note editor open
+	// (pulling up the keypad), so touch users get in and out of edit mode
+	// without reaching for the bottom bar.
+	function handleDoubleClick(
+		e: MouseEvent,
+		measure: LaidMeasure,
+		band: 'tab' | 'standard' | 'rhythm'
+	) {
+		handleClick(e, measure, band);
+		if (store.editMode) {
+			store.editMode = false;
+		} else {
+			store.editTool = 'keypad';
+			store.editMode = true;
+		}
+	}
+
 	// Prime the cursor on press so a long-press / right-click context menu acts on
 	// the beat and string under the finger, not wherever the cursor happened to be.
 	function primeContext(
@@ -337,6 +354,7 @@
 							<g
 								transform="translate(0,{band.offsetY})"
 								onclick={(e) => handleClick(e, measure, 'standard')}
+								ondblclick={(e) => handleDoubleClick(e, measure, 'standard')}
 								onpointerdown={(e) => primeContext(e, measure, 'standard')}
 								role="presentation"
 							>
@@ -397,6 +415,7 @@
 							<g
 								transform="translate(0,{band.offsetY})"
 								onclick={(e) => handleClick(e, measure, 'tab')}
+								ondblclick={(e) => handleDoubleClick(e, measure, 'tab')}
 								onpointerdown={(e) => primeContext(e, measure, 'tab')}
 								role="presentation"
 							>

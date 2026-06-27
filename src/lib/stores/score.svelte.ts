@@ -52,12 +52,30 @@ export class ScoreStore {
 	/** Auto-advance the cursor to the next beat after a note is committed. */
 	autoAdvance = $state(true);
 
-	// Bottom edit panel UI
-	editMode = $state(false);
+	// Bottom edit panel UI. The note editor (keypad/fretboard) and the tracks
+	// panel share the same dock and are mutually exclusive — opening one closes
+	// the other.
+	#editModeState = $state(false);
+	#mixerOpenState = $state(false);
 	editTool = $state<'keypad' | 'fretboard'>('keypad');
 	songModalOpen = $state(false);
-	/** Track mixer drawer (the menubar "Tracks" panel). */
-	mixerOpen = $state(false);
+
+	get editMode(): boolean {
+		return this.#editModeState;
+	}
+	set editMode(v: boolean) {
+		this.#editModeState = v;
+		if (v) this.#mixerOpenState = false;
+	}
+
+	/** Tracks panel (the menubar "Tracks" panel). */
+	get mixerOpen(): boolean {
+		return this.#mixerOpenState;
+	}
+	set mixerOpen(v: boolean) {
+		this.#mixerOpenState = v;
+		if (v) this.#editModeState = false;
+	}
 
 	// Track focus / fold state (UI-only, keyed by track id, not persisted).
 	collapsed = $state<Record<string, boolean>>({});

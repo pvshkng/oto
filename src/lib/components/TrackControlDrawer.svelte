@@ -56,8 +56,8 @@
 	}
 </script>
 
-<Drawer.Root bind:open direction="right">
-	<Drawer.Content class="right-2 top-2 bottom-2 w-[92vw] max-w-sm rounded-2xl border outline-none">
+<Drawer.Root bind:open direction="bottom">
+	<Drawer.Content class="mx-auto flex w-full max-w-md flex-col rounded-t-2xl border-t outline-none">
 		<Drawer.Header class="border-b">
 			<Drawer.Title>Track control</Drawer.Title>
 			<Drawer.Description>
@@ -66,7 +66,7 @@
 		</Drawer.Header>
 
 		{#if track}
-			<div class="flex flex-col gap-4 overflow-y-auto p-4">
+			<div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
 				<div class="grid gap-2">
 					<Label for="track-name">Name</Label>
 					<Input
