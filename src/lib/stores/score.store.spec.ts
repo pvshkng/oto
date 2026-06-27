@@ -158,6 +158,36 @@ describe('ScoreStore auto-grow entry', () => {
 	});
 });
 
+describe('ScoreStore time signature & beat insertion', () => {
+	let s: ScoreStore;
+	beforeEach(() => (s = freshStore()));
+
+	it('changes a single bar time signature across all tracks', () => {
+		s.addTrack();
+		s.setMeasureTimeSignature(1, 3, 4);
+		expect(s.score.tracks[0].measures[1].timeSignature).toEqual([3, 4]);
+		expect(s.score.tracks[1].measures[1].timeSignature).toEqual([3, 4]);
+		// bar 0 keeps the score default
+		expect(s.score.tracks[0].measures[0].timeSignature).toBeUndefined();
+	});
+
+	it('reports the effective time signature, carrying a change forward', () => {
+		s.setMeasureTimeSignature(1, 6, 8);
+		expect(s.timeSignatureAt(0)).toEqual([4, 4]); // score default
+		expect(s.timeSignatureAt(1)).toEqual([6, 8]);
+		expect(s.timeSignatureAt(2)).toEqual([6, 8]); // carried forward
+	});
+
+	it('inserts a beat before the cursor, pushing the current beat right', () => {
+		s.setCursor({ measure: 0, beat: 0, string: 0 });
+		s.setFretAtCursor(7); // beat 0 now has fret 7
+		s.insertBeatBefore();
+		// the new empty beat sits at index 0; the fret-7 beat moved to index 1
+		expect(s.track.measures[0].beats[0].rest).toBe(true);
+		expect(s.track.measures[0].beats[1].notes[0].fret).toBe(7);
+	});
+});
+
 describe('ScoreStore transpose & tracks', () => {
 	let s: ScoreStore;
 	beforeEach(() => (s = freshStore()));

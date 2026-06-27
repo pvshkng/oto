@@ -33,6 +33,8 @@ export interface BeatMarker {
 export interface CompiledScore {
 	notes: ScheduledNote[];
 	markers: BeatMarker[];
+	/** One per beat of the primary track/voice, for the moving playhead. */
+	beatMarkers: BeatMarker[];
 	beatTimes: number[]; // metronome click times (one per quarter note)
 	totalTime: number;
 }
@@ -41,6 +43,7 @@ export interface CompiledScore {
 export function compileScore(score: OtoScore): CompiledScore {
 	const notes: ScheduledNote[] = [];
 	const markers: BeatMarker[] = [];
+	const beatMarkers: BeatMarker[] = [];
 	const anySolo = score.tracks.some((t) => t.soloed);
 
 	// Use the longest track to drive measure timing / markers.
@@ -66,14 +69,18 @@ export function compileScore(score: OtoScore): CompiledScore {
 		for (const track of score.tracks) {
 			const measure = track.measures[mi];
 			if (!measure) continue;
-			for (const voice of measureVoices(measure)) {
+			const voices = measureVoices(measure);
+			const isPrimary = track === score.tracks[0];
+			for (const voice of voices) {
 				const cutoff = beatsCutoff(voice, capacity);
+				const isPrimaryVoice = isPrimary && voice === voices[0];
 				let local = 0;
 				for (let bi = 0; bi < voice.length; bi++) {
 					if (bi >= cutoff) break; // skip overflow
 					const beat = voice[bi];
 					const durSec = beatFraction(beat) * 4 * quarterSec;
 					const startT = measureStart + local;
+					if (isPrimaryVoice) beatMarkers.push({ time: startT, measure: mi, beat: bi });
 					if (!beat.rest) {
 						const palm = beat.notes.some((n) => n.techniques?.includes('palm-mute'));
 						for (const note of beat.notes) {
@@ -114,6 +121,7 @@ export function compileScore(score: OtoScore): CompiledScore {
 	return {
 		notes,
 		markers,
+		beatMarkers,
 		beatTimes: beatTimesSet,
 		totalTime: cursorTime
 	};
@@ -228,6 +236,8 @@ export interface PlayOptions {
 	/** Loop the window indefinitely (used for loop-selection playback). */
 	repeat: boolean;
 	onMarker: (measure: number) => void;
+	/** Fired as the playhead reaches each beat of the primary voice. */
+	onBeatMarker: (measure: number, beat: number) => void;
 	onBeat: (time: number) => void;
 	onStop: () => void;
 }
@@ -318,12 +328,21 @@ export class AudioEngine {
 			}
 		}
 
-		// Playhead markers.
+		// Playhead markers (per measure, kept for callers that only need the bar).
 		for (const m of compiled.markers) {
 			if (m.time < windowStart - 1e-6 || m.time >= windowEnd - 1e-6) continue;
 			const rel = m.time - windowStart;
 			transport.schedule((time) => {
 				Tone.getDraw().schedule(() => opts.onMarker(m.measure), time);
+			}, rel);
+		}
+
+		// Per-beat playhead — drives the moving note cursor during playback.
+		for (const m of compiled.beatMarkers) {
+			if (m.time < windowStart - 1e-6 || m.time >= windowEnd - 1e-6) continue;
+			const rel = m.time - windowStart;
+			transport.schedule((time) => {
+				Tone.getDraw().schedule(() => opts.onBeatMarker(m.measure, m.beat), time);
 			}, rel);
 		}
 
