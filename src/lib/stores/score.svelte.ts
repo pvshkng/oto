@@ -74,6 +74,8 @@ export class ScoreStore {
 	#undoStack = $state<string[]>([]);
 	#redoStack = $state<string[]>([]);
 	#loaded = false;
+	/** Set while a continuous mixer drag is in flight (see beginGesture). */
+	#gestureActive = false;
 
 	get track(): OtoTrack {
 		return this.score.tracks[this.cursor.track] ?? this.score.tracks[0];
@@ -119,11 +121,32 @@ export class ScoreStore {
 
 	/** Snapshot for undo, then run a mutation and persist. */
 	commit(mutate: () => void) {
+		this.#pushUndo();
+		mutate();
+		this.persist();
+	}
+
+	#pushUndo() {
 		this.#undoStack.push(JSON.stringify(this.score));
 		if (this.#undoStack.length > 100) this.#undoStack.shift();
 		this.#redoStack = [];
-		mutate();
-		this.persist();
+	}
+
+	/**
+	 * Begin a continuous mixer gesture (a fader/knob drag). We snapshot the score
+	 * *once* on drag-start, then let the live setters mutate freely; endGesture()
+	 * closes it. This makes volume/pan/EQ undoable without flooding the history
+	 * with one entry per pointer tick. Safe to call repeatedly — only the first
+	 * call in a gesture takes a snapshot.
+	 */
+	beginGesture() {
+		if (this.#gestureActive) return;
+		this.#gestureActive = true;
+		this.#pushUndo();
+	}
+
+	endGesture() {
+		this.#gestureActive = false;
 	}
 
 	undo() {
@@ -234,10 +257,12 @@ export class ScoreStore {
 		this.commit(() => (this.score.tracks[index].soloed = !this.score.tracks[index].soloed));
 	}
 
-	// ---- mixer (live, persisted but not undo-tracked) ----------------------
+	// ---- mixer (live, persisted) -------------------------------------------
 	//
 	// Faders and knobs fire continuously while dragging, so they mutate state
-	// directly and persist rather than pushing an undo snapshot per pixel.
+	// directly and persist rather than pushing an undo snapshot per pixel. Undo
+	// is handled at the gesture level: callers wrap a drag in beginGesture() /
+	// endGesture() so a whole drag collapses into a single history entry.
 
 	setVolume(index: number, v: number) {
 		const t = this.score.tracks[index];
@@ -260,8 +285,10 @@ export class ScoreStore {
 	resetEq(index: number) {
 		const t = this.score.tracks[index];
 		if (!t) return;
-		t.eq = { low: 0, mid: 0, high: 0 };
-		this.persist();
+		// A discrete click (not a drag) → make it a single undoable step.
+		this.commit(() => {
+			t.eq = { low: 0, mid: 0, high: 0 };
+		});
 	}
 	setMasterVolume(v: number) {
 		this.score.masterVolume = clamp(v, 0, 1);

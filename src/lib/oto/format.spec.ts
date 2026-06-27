@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { makeScore, makeTrack, serialize, parse, OtoParseError } from './format';
+import { makeScore, makeTrack, serialize, parse, OtoParseError, OTO_VERSION } from './format';
 
 describe('.oto format', () => {
 	it('creates a valid default score', () => {
@@ -64,6 +64,52 @@ describe('.oto format', () => {
 		expect(s.tracks[0].tuning.length).toBeGreaterThan(0);
 		expect(s.tracks[0].measures[0].beats[0].duration).toBe(4);
 		expect(s.tracks[0].measures[0].beats[0].rest).toBe(false);
+	});
+
+	it('round-trips the mixer fields (pan / EQ / masterVolume / sections)', () => {
+		const s = makeScore({
+			masterVolume: 0.6,
+			sections: [
+				{ id: 'sec-1', measure: 0, label: 'Intro' },
+				{ id: 'sec-2', measure: 8, label: 'Chorus' }
+			],
+			tracks: [
+				makeTrack({
+					name: 'Lead',
+					volume: 0.5,
+					pan: -0.4,
+					eq: { low: 3, mid: -2, high: 6 }
+				})
+			]
+		});
+		const back = parse(serialize(s));
+		expect(back.masterVolume).toBe(0.6);
+		expect(back.sections).toHaveLength(2);
+		expect(back.sections[1]).toMatchObject({ measure: 8, label: 'Chorus' });
+		expect(back.tracks[0].volume).toBe(0.5);
+		expect(back.tracks[0].pan).toBe(-0.4);
+		expect(back.tracks[0].eq).toEqual({ low: 3, mid: -2, high: 6 });
+	});
+
+	it('stamps the current format version', () => {
+		expect(makeScore().version).toBe(OTO_VERSION);
+		expect(OTO_VERSION).toBeGreaterThanOrEqual(2);
+	});
+
+	it('backfills mixer defaults when loading an old (v1) document', () => {
+		// A v1 file predates pan/eq/masterVolume/sections.
+		const v1 = JSON.stringify({
+			format: 'oto',
+			version: 1,
+			title: 'Legacy',
+			tracks: [{ measures: [{ beats: [{ duration: 4, notes: [{ string: 0, fret: 3 }] }] }] }]
+		});
+		const s = parse(v1);
+		expect(s.version).toBe(OTO_VERSION); // upgraded
+		expect(s.masterVolume).toBe(0.85);
+		expect(s.sections).toEqual([]);
+		expect(s.tracks[0].pan).toBe(0);
+		expect(s.tracks[0].eq).toEqual({ low: 0, mid: 0, high: 0 });
 	});
 
 	it('coerces an invalid duration to a quarter note', () => {

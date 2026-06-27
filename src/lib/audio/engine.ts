@@ -100,7 +100,10 @@ export function compileScore(score: OtoScore): CompiledScore {
 								time: startT,
 								duration: durSec * (note.techniques?.includes('staccato') ? 0.4 : 0.95),
 								freq,
-								velocity: (note.techniques?.includes('ghost') ? 0.4 : 1) * track.volume,
+								// Per-track volume is applied live by the voice's gain node (see
+								// TrackVoice.gain), so it is intentionally *not* baked into velocity —
+								// that keeps the fader audible mid-playback.
+								velocity: note.techniques?.includes('ghost') ? 0.4 : 1,
 								trackId: track.id,
 								muted: track.muted || (anySolo && !track.soloed),
 								bend: note.techniques?.includes('bend') ? (note.bend ?? 1) : undefined,
@@ -163,6 +166,63 @@ class PluckPoly implements Instrument {
 	}
 }
 
+/**
+ * A small synthesised drum kit. The notation model is pitch-based (a fret maps to
+ * a frequency), so we route each hit to a kick / snare / hat / tom by register:
+ * the lower the pitch, the deeper the drum. It's an approximation of a real kit,
+ * but it makes a "Drums" track read as percussion instead of a melodic synth.
+ */
+class DrumKit implements Instrument {
+	private kick: Tone.MembraneSynth;
+	private tom: Tone.MembraneSynth;
+	private snare: Tone.NoiseSynth;
+	private hat: Tone.MetalSynth;
+	constructor(dest: Tone.InputNode) {
+		const out = dest as Tone.ToneAudioNode;
+		this.kick = new Tone.MembraneSynth({
+			pitchDecay: 0.05,
+			octaves: 6,
+			envelope: { attack: 0.001, decay: 0.4, sustain: 0 }
+		}).connect(out);
+		this.tom = new Tone.MembraneSynth({
+			pitchDecay: 0.03,
+			octaves: 3,
+			envelope: { attack: 0.001, decay: 0.25, sustain: 0 }
+		}).connect(out);
+		this.snare = new Tone.NoiseSynth({
+			noise: { type: 'white' },
+			envelope: { attack: 0.001, decay: 0.18, sustain: 0 }
+		}).connect(out);
+		this.hat = new Tone.MetalSynth({
+			envelope: { attack: 0.001, decay: 0.08, release: 0.02 },
+			harmonicity: 5.1,
+			resonance: 4000,
+			octaves: 1.5
+		}).connect(out);
+	}
+	triggerAttackRelease(freq: number, dur: number, time?: number, velocity = 1) {
+		const t = time ?? Tone.now();
+		if (freq < 110) {
+			this.kick.triggerAttackRelease('C1', 0.4, t, velocity);
+		} else if (freq < 220) {
+			this.tom.triggerAttackRelease(freq, 0.2, t, velocity);
+		} else if (freq < 600) {
+			this.snare.triggerAttackRelease(0.18, t, velocity);
+		} else {
+			this.hat.triggerAttackRelease(0.05, t, velocity * 0.6);
+		}
+	}
+	releaseAll() {
+		/* percussion decays on its own */
+	}
+	dispose() {
+		this.kick.dispose();
+		this.tom.dispose();
+		this.snare.dispose();
+		this.hat.dispose();
+	}
+}
+
 /** Build an instrument and connect its full chain to `dest`. Returns the
  * triggerable instrument plus any effect nodes so they can be disposed. */
 function buildInstrument(
@@ -170,6 +230,9 @@ function buildInstrument(
 	dest: Tone.InputNode
 ): { instrument: Instrument; nodes: { dispose(): void }[] } {
 	switch (name) {
+		case 'drums': {
+			return { instrument: new DrumKit(dest), nodes: [] };
+		}
 		case 'nylon': {
 			// Classical/nylon: mellow, warm, quick damping, gentle ring.
 			const inst = new PluckPoly(
@@ -249,6 +312,9 @@ interface TrackVoice {
 	panner: Tone.Panner;
 	/** Per-track three-band EQ, fed from track.eq. */
 	eq: Tone.EQ3;
+	/** Per-track output level, fed from track.volume. Applying volume here (rather
+	 * than baking it into note velocity) keeps the fader audible mid-playback. */
+	gain: Tone.Gain;
 	/** instrument name the voice was built for, so we can rebuild on change. */
 	key: string;
 }
@@ -279,7 +345,7 @@ export class AudioEngine {
 	private instrumentFor(track: OtoTrack): Instrument {
 		const existing = this.voices.get(track.id);
 		if (existing && existing.key === track.instrument) {
-			this.syncTrack(track, existing);
+			this.applyTrackSettings(track, existing);
 			return existing.instrument;
 		}
 		// Instrument changed (or first use) → (re)build the chain.
@@ -288,19 +354,32 @@ export class AudioEngine {
 			for (const n of existing.nodes) n.dispose();
 			existing.eq.dispose();
 			existing.panner.dispose();
+			existing.gain.dispose();
 		}
-		// Chain: instrument → EQ3 → Panner → master.
-		const panner = new Tone.Panner(0).connect(this.master!);
+		// Chain: instrument → EQ3 → Panner → Gain → master.
+		const gain = new Tone.Gain(1).connect(this.master!);
+		const panner = new Tone.Panner(0).connect(gain);
 		const eq = new Tone.EQ3().connect(panner);
 		const { instrument, nodes } = buildInstrument(track.instrument, eq);
-		const voice: TrackVoice = { instrument, nodes, panner, eq, key: track.instrument };
+		const voice: TrackVoice = { instrument, nodes, panner, eq, gain, key: track.instrument };
 		this.voices.set(track.id, voice);
-		this.syncTrack(track, voice);
+		this.applyTrackSettings(track, voice);
 		return instrument;
 	}
 
-	/** Push a track's live pan/EQ settings onto its audio nodes. */
-	private syncTrack(track: OtoTrack, voice: TrackVoice) {
+	/**
+	 * Push a track's live volume/pan/EQ onto its audio nodes. Public so the store
+	 * (via the mixer) can make a fader/knob audible while a piece is playing,
+	 * instead of waiting for the next play() to re-sync. No-op until the track's
+	 * voice has been built (i.e. the engine has been started at least once).
+	 */
+	syncTrack(track: OtoTrack) {
+		const voice = this.voices.get(track.id);
+		if (voice) this.applyTrackSettings(track, voice);
+	}
+
+	private applyTrackSettings(track: OtoTrack, voice: TrackVoice) {
+		voice.gain.gain.value = Math.max(0, Math.min(1, track.volume ?? 1));
 		voice.panner.pan.value = Math.max(-1, Math.min(1, track.pan ?? 0));
 		const eq = track.eq ?? { low: 0, mid: 0, high: 0 };
 		voice.eq.low.value = eq.low;
@@ -320,7 +399,8 @@ export class AudioEngine {
 			capo: track.capo,
 			transpose: track.transpose
 		});
-		this.instrumentFor(track).triggerAttackRelease(freq, 0.6, undefined, 0.8 * track.volume);
+		// Volume is applied by the track's gain node (built/synced in instrumentFor).
+		this.instrumentFor(track).triggerAttackRelease(freq, 0.6, undefined, 0.8);
 	}
 
 	async play(score: OtoScore, compiled: CompiledScore, opts: PlayOptions) {
@@ -413,6 +493,7 @@ export class AudioEngine {
 			for (const n of v.nodes) n.dispose();
 			v.eq.dispose();
 			v.panner.dispose();
+			v.gain.dispose();
 		}
 		this.voices.clear();
 		this.metro?.dispose();

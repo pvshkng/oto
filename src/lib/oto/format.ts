@@ -1,4 +1,11 @@
 // .oto document factory, (de)serialisation and validation.
+//
+// Format history / migration notes:
+//   v1 → v2  Added mixer fields: per-track `pan` and three-band `eq`, plus
+//            score-level `masterVolume` and structural `sections`. These are all
+//            optional on disk — `parse()` backfills sensible defaults (pan 0,
+//            flat EQ, masterVolume 0.85, no sections), so v1 documents load
+//            unchanged and are silently upgraded to v2 on the next save.
 
 import { TUNINGS } from './pitch';
 import type {
@@ -11,7 +18,7 @@ import type {
 	TrackKind
 } from './types';
 
-export const OTO_VERSION = 1;
+export const OTO_VERSION = 2;
 
 let idCounter = 0;
 export function uid(prefix = 'id'): string {
