@@ -44,6 +44,10 @@ export class ScoreStore {
 	editTool = $state<'keypad' | 'fretboard'>('keypad');
 	songModalOpen = $state(false);
 
+	// Track focus / fold state (UI-only, keyed by track id, not persisted).
+	collapsed = $state<Record<string, boolean>>({});
+	focusedTrackId = $state<string | null>(null);
+
 	// Playback
 	isPlaying = $state(false);
 	playhead = $state<{ measure: number; beat: number } | null>(null);
@@ -207,6 +211,49 @@ export class ScoreStore {
 		this.commit(() => (this.score.tracks[index].soloed = !this.score.tracks[index].soloed));
 	}
 
+	// ---- track fold / focus (UI only) -------------------------------------
+
+	isCollapsed(index: number): boolean {
+		const t = this.score.tracks[index];
+		if (!t) return false;
+		// When a track is focused, every other track is folded away.
+		if (this.focusedTrackId && this.focusedTrackId !== t.id) return true;
+		return !!this.collapsed[t.id];
+	}
+
+	toggleCollapsed(index: number) {
+		const t = this.score.tracks[index];
+		if (!t) return;
+		this.collapsed = { ...this.collapsed, [t.id]: !this.collapsed[t.id] };
+	}
+
+	setCollapsed(index: number, value: boolean) {
+		const t = this.score.tracks[index];
+		if (!t) return;
+		this.collapsed = { ...this.collapsed, [t.id]: value };
+	}
+
+	get isFocusMode(): boolean {
+		return this.focusedTrackId !== null;
+	}
+
+	get focusedTrackName(): string {
+		const t = this.score.tracks.find((x) => x.id === this.focusedTrackId);
+		return t?.name ?? '';
+	}
+
+	/** Focus a single track for distraction-free writing; all others fold away. */
+	focusTrack(index: number) {
+		const t = this.score.tracks[index];
+		if (!t) return;
+		this.focusedTrackId = t.id;
+		this.setCursor({ track: index, measure: 0, beat: 0 });
+	}
+
+	clearFocus() {
+		this.focusedTrackId = null;
+	}
+
 	detune(index: number, semitones: number) {
 		this.commit(() => {
 			this.score.tracks[index] = detuneTrack(this.score.tracks[index], semitones);
@@ -239,6 +286,41 @@ export class ScoreStore {
 		this.commit(() => {
 			for (const t of this.score.tracks) {
 				if (t.measures.length > 1) t.measures.splice(measureIndex, 1);
+			}
+			this.clampCursor();
+		});
+	}
+
+	/** Insert an empty bar at `measureIndex` (pushing later bars right) on every track. */
+	insertMeasureAt(measureIndex: number) {
+		this.commit(() => {
+			for (const t of this.score.tracks) {
+				const at = Math.max(0, Math.min(measureIndex, t.measures.length));
+				t.measures.splice(at, 0, emptyMeasure());
+			}
+		});
+	}
+
+	/** Duplicate the bar at `measureIndex` on every track (a deep copy placed right after). */
+	duplicateMeasureAt(measureIndex: number) {
+		this.commit(() => {
+			for (const t of this.score.tracks) {
+				const src = t.measures[measureIndex];
+				if (!src) continue;
+				const copy: OtoMeasure = JSON.parse(JSON.stringify(src));
+				t.measures.splice(measureIndex + 1, 0, copy);
+			}
+		});
+	}
+
+	/** Clear every note in a bar (back to a single rest) on every track. */
+	clearMeasureAt(measureIndex: number) {
+		this.commit(() => {
+			for (const t of this.score.tracks) {
+				const m = t.measures[measureIndex];
+				if (!m) continue;
+				m.beats = [restBeat(this.activeDuration)];
+				m.voice2 = undefined;
 			}
 			this.clampCursor();
 		});
