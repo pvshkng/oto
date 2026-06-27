@@ -56,12 +56,20 @@ export class ScoreStore {
 	countInOn = $state(false);
 
 	// History
-	#undoStack: string[] = [];
-	#redoStack: string[] = [];
+	#undoStack = $state<string[]>([]);
+	#redoStack = $state<string[]>([]);
 	#loaded = false;
 
 	get track(): OtoTrack {
 		return this.score.tracks[this.cursor.track] ?? this.score.tracks[0];
+	}
+
+	get canUndo(): boolean {
+		return this.#undoStack.length > 0;
+	}
+
+	get canRedo(): boolean {
+		return this.#redoStack.length > 0;
 	}
 
 	get currentMeasureFill() {

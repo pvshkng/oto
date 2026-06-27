@@ -133,7 +133,7 @@
 		width: 22px;
 		height: 22px;
 		border-radius: 50%;
-		color: #fff;
+		color: var(--ink);
 		font:
 			700 10px ui-monospace,
 			monospace;

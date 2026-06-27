@@ -11,6 +11,7 @@
 	import * as Popover from '$lib/components/ui/popover';
 	import { cn } from '$lib/utils';
 	import Fretboard from './Fretboard.svelte';
+	import CaretLineDown from 'phosphor-svelte/lib/CaretLineDown';
 
 	let tsOpen = $state(false);
 
@@ -72,8 +73,13 @@
 				Fretboard
 			</button>
 		</div>
-		<button class="hide" onclick={() => (store.editMode = false)} title="Hide edit panel">
-			Hide ✕
+		<button
+			class="hide"
+			onclick={() => (store.editMode = false)}
+			title="Hide edit panel"
+			aria-label="Hide edit panel"
+		>
+			<CaretLineDown class="size-4" weight="bold" />
 		</button>
 	</div>
 
@@ -217,12 +223,14 @@
 		color: var(--accent-ink);
 	}
 	.hide {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 		border: 1px solid var(--border-strong);
 		background: var(--bg);
 		border-radius: var(--r-xs);
-		padding: 5px 10px;
-		font-size: 11px;
-		font-weight: 600;
+		width: 32px;
+		height: 32px;
 		color: var(--text-muted);
 		cursor: pointer;
 	}
@@ -325,10 +333,6 @@
 		background: var(--ink);
 		color: var(--accent-ink);
 		border-color: var(--ink);
-	}
-	.fretboard-wrap {
-		max-height: 220px;
-		overflow: auto;
 	}
 	@media (max-width: 720px) {
 		.ctl,
