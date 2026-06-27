@@ -9,11 +9,19 @@
 	import EditPanel from '$lib/components/EditPanel.svelte';
 	import SongModal from '$lib/components/SongModal.svelte';
 	import TrackControlDrawer from '$lib/components/TrackControlDrawer.svelte';
+	import TrackMixerDrawer from '$lib/components/TrackMixerDrawer.svelte';
 	import StatusBanner from '$lib/components/StatusBanner.svelte';
 
 	// Height of the fixed bottom dock, so the sheet can scroll clear of it.
 	let dockHeight = $state(56);
-	let addTrackOpen = $state(false);
+	let trackEditIndex = $state(-1);
+	let trackEditOpen = $state(false);
+
+	function addTrack() {
+		store.addTrack();
+		trackEditIndex = store.cursor.track;
+		trackEditOpen = true;
+	}
 
 	function onKeydown(e: KeyboardEvent) {
 		const target = e.target as HTMLElement;
@@ -172,7 +180,7 @@
 
 			<div class="add-row no-print">
 				<button onclick={() => store.addMeasureToAll()}>+ Bar</button>
-				<button onclick={() => (addTrackOpen = true)}>+ Track</button>
+				<button onclick={addTrack}>+ Track</button>
 				{#if store.score.tracks[0].measures.length > 1}
 					<button
 						class="ghost"
@@ -192,7 +200,8 @@
 	</div>
 
 	<SongModal />
-	<TrackControlDrawer bind:open={addTrackOpen} mode="add" />
+	<TrackMixerDrawer bind:open={store.mixerOpen} />
+	<TrackControlDrawer bind:open={trackEditOpen} index={trackEditIndex} />
 </div>
 
 <style>

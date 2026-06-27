@@ -16,8 +16,20 @@
 
 	let { open = $bindable(false) }: { open: boolean } = $props();
 
-	let addTrackOpen = $state(false);
-	let removeTrackOpen = $state(false);
+	let trackEditOpen = $state(false);
+	let trackEditIndex = $state(-1);
+
+	function addTrack() {
+		open = false;
+		store.addTrack();
+		trackEditIndex = store.cursor.track;
+		trackEditOpen = true;
+	}
+	function editCurrentTrack() {
+		open = false;
+		trackEditIndex = store.cursor.track;
+		trackEditOpen = true;
+	}
 
 	const onlyOneBar = $derived(store.track.measures.length <= 1);
 	const onlyOneTrack = $derived(store.score.tracks.length <= 1);
@@ -75,10 +87,7 @@
 				>
 				<button
 					class={cn(buttonVariants({ variant: 'outline' }), 'justify-start')}
-					onclick={() => {
-						open = false;
-						addTrackOpen = true;
-					}}
+					onclick={addTrack}
 				>
 					<MusicNotesPlus class="size-4" /> Add track
 				</button>
@@ -88,10 +97,7 @@
 						'text-destructive hover:bg-destructive/10 hover:text-destructive justify-start'
 					)}
 					disabled={onlyOneTrack}
-					onclick={() => {
-						open = false;
-						removeTrackOpen = true;
-					}}
+					onclick={editCurrentTrack}
 				>
 					<Trash class="size-4" /> Remove current track…
 				</button>
@@ -100,5 +106,4 @@
 	</Drawer.Content>
 </Drawer.Root>
 
-<TrackControlDrawer bind:open={addTrackOpen} mode="add" />
-<TrackControlDrawer bind:open={removeTrackOpen} mode="edit" index={store.cursor.track} />
+<TrackControlDrawer bind:open={trackEditOpen} index={trackEditIndex} />

@@ -24,6 +24,7 @@
 	import Metronome from 'phosphor-svelte/lib/Metronome';
 	import Repeat from 'phosphor-svelte/lib/Repeat';
 	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
+	import Sliders from 'phosphor-svelte/lib/Sliders';
 	import GearSix from 'phosphor-svelte/lib/GearSix';
 	import File from 'phosphor-svelte/lib/File';
 	import FilePlus from 'phosphor-svelte/lib/FilePlus';
@@ -132,6 +133,19 @@
 		onclick={() => (addRemoveOpen = true)}
 	>
 		<PlusMinus class="size-4" />
+	</Button>
+
+	<!-- Track mixer: levels, pan, EQ, arrangement and section markers -->
+	<Button
+		variant={store.mixerOpen ? 'default' : 'outline'}
+		size="sm"
+		class="h-9 shrink-0"
+		title="Tracks"
+		aria-label="Open track mixer"
+		onclick={() => (store.mixerOpen = !store.mixerOpen)}
+	>
+		<Sliders class="size-4" />
+		<span class="hidden sm:inline">Tracks</span>
 	</Button>
 
 	<!-- Note editor toggle, kept at the top level for one-tap access -->

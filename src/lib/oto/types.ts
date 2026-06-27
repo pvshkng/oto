@@ -117,6 +117,21 @@ export interface TrackView {
 	rhythm: boolean;
 }
 
+/** Three-band EQ in decibels (−12..+12). 0 across the board = flat / bypassed. */
+export interface TrackEq {
+	low: number;
+	mid: number;
+	high: number;
+}
+
+/** A structural anchor placed at a measure (e.g. "Intro", "Chorus"). */
+export interface Section {
+	id: string;
+	/** Zero-based measure the section starts on. */
+	measure: number;
+	label: string;
+}
+
 export interface OtoTrack {
 	id: string;
 	name: string;
@@ -130,6 +145,10 @@ export interface OtoTrack {
 	instrument: string;
 	/** 0..1 */
 	volume: number;
+	/** Stereo position, −1 (hard left) … 0 (centre) … +1 (hard right). */
+	pan: number;
+	/** Three-band EQ. Defaults to flat. */
+	eq: TrackEq;
 	muted: boolean;
 	soloed: boolean;
 	view: TrackView;
@@ -146,7 +165,11 @@ export interface OtoScore {
 	tempo: number;
 	/** Global default time signature. Measures may override. */
 	timeSignature: [number, number];
+	/** Master output level, 0..1. */
+	masterVolume: number;
 	tracks: OtoTrack[];
+	/** Structural section markers along the timeline. */
+	sections: Section[];
 	createdAt: string;
 	updatedAt: string;
 }

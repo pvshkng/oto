@@ -4,7 +4,15 @@
 // the active duration/effects palette and playback state. Components read these
 // directly (they're deep-reactive `$state`) and call methods to mutate.
 
-import { makeScore, makeTrack, parse, serialize, restBeat, emptyMeasure } from '$lib/oto/format';
+import {
+	makeScore,
+	makeTrack,
+	parse,
+	serialize,
+	restBeat,
+	emptyMeasure,
+	uid
+} from '$lib/oto/format';
 import { analyzeMeasure, beatsFilled, measureCapacity } from '$lib/oto/duration';
 import { detuneTrack, transposeTrackFrets } from '$lib/oto/transpose';
 import type {
@@ -14,8 +22,13 @@ import type {
 	OtoScore,
 	OtoTrack,
 	ScorePosition,
+	Section,
 	Technique
 } from '$lib/oto/types';
+
+function clamp(v: number, lo: number, hi: number): number {
+	return Math.max(lo, Math.min(hi, v));
+}
 
 const STORAGE_KEY = 'oto.score';
 const AUTOSAVE = true;
@@ -43,6 +56,8 @@ export class ScoreStore {
 	editMode = $state(false);
 	editTool = $state<'keypad' | 'fretboard'>('keypad');
 	songModalOpen = $state(false);
+	/** Track mixer drawer (the menubar "Tracks" panel). */
+	mixerOpen = $state(false);
 
 	// Track focus / fold state (UI-only, keyed by track id, not persisted).
 	collapsed = $state<Record<string, boolean>>({});
@@ -217,6 +232,65 @@ export class ScoreStore {
 	}
 	toggleSolo(index: number) {
 		this.commit(() => (this.score.tracks[index].soloed = !this.score.tracks[index].soloed));
+	}
+
+	// ---- mixer (live, persisted but not undo-tracked) ----------------------
+	//
+	// Faders and knobs fire continuously while dragging, so they mutate state
+	// directly and persist rather than pushing an undo snapshot per pixel.
+
+	setVolume(index: number, v: number) {
+		const t = this.score.tracks[index];
+		if (!t) return;
+		t.volume = clamp(v, 0, 1);
+		this.persist();
+	}
+	setPan(index: number, p: number) {
+		const t = this.score.tracks[index];
+		if (!t) return;
+		t.pan = clamp(p, -1, 1);
+		this.persist();
+	}
+	setEqBand(index: number, band: 'low' | 'mid' | 'high', db: number) {
+		const t = this.score.tracks[index];
+		if (!t) return;
+		t.eq = { ...t.eq, [band]: clamp(db, -12, 12) };
+		this.persist();
+	}
+	resetEq(index: number) {
+		const t = this.score.tracks[index];
+		if (!t) return;
+		t.eq = { low: 0, mid: 0, high: 0 };
+		this.persist();
+	}
+	setMasterVolume(v: number) {
+		this.score.masterVolume = clamp(v, 0, 1);
+		this.persist();
+	}
+
+	// ---- sections / markers ------------------------------------------------
+
+	addSection(measure: number, label?: string) {
+		this.commit(() => {
+			const m = Math.max(0, Math.floor(measure));
+			const auto = String.fromCharCode(65 + (this.score.sections.length % 26));
+			this.score.sections.push({ id: uid('sec'), measure: m, label: label ?? `Section ${auto}` });
+			this.score.sections.sort((a, b) => a.measure - b.measure);
+		});
+	}
+	updateSection(id: string, patch: Partial<Section>) {
+		this.commit(() => {
+			const s = this.score.sections.find((x) => x.id === id);
+			if (!s) return;
+			Object.assign(s, patch);
+			if (patch.measure !== undefined) s.measure = Math.max(0, Math.floor(s.measure));
+			this.score.sections.sort((a, b) => a.measure - b.measure);
+		});
+	}
+	removeSection(id: string) {
+		this.commit(() => {
+			this.score.sections = this.score.sections.filter((x) => x.id !== id);
+		});
 	}
 
 	// ---- track fold / focus (UI only) -------------------------------------

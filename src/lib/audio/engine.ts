@@ -245,6 +245,10 @@ export interface PlayOptions {
 interface TrackVoice {
 	instrument: Instrument;
 	nodes: { dispose(): void }[];
+	/** Per-track stereo placement, fed from track.pan. */
+	panner: Tone.Panner;
+	/** Per-track three-band EQ, fed from track.eq. */
+	eq: Tone.EQ3;
 	/** instrument name the voice was built for, so we can rebuild on change. */
 	key: string;
 }
@@ -274,15 +278,39 @@ export class AudioEngine {
 
 	private instrumentFor(track: OtoTrack): Instrument {
 		const existing = this.voices.get(track.id);
-		if (existing && existing.key === track.instrument) return existing.instrument;
+		if (existing && existing.key === track.instrument) {
+			this.syncTrack(track, existing);
+			return existing.instrument;
+		}
 		// Instrument changed (or first use) → (re)build the chain.
 		if (existing) {
 			existing.instrument.dispose();
 			for (const n of existing.nodes) n.dispose();
+			existing.eq.dispose();
+			existing.panner.dispose();
 		}
-		const { instrument, nodes } = buildInstrument(track.instrument, this.master!);
-		this.voices.set(track.id, { instrument, nodes, key: track.instrument });
+		// Chain: instrument → EQ3 → Panner → master.
+		const panner = new Tone.Panner(0).connect(this.master!);
+		const eq = new Tone.EQ3().connect(panner);
+		const { instrument, nodes } = buildInstrument(track.instrument, eq);
+		const voice: TrackVoice = { instrument, nodes, panner, eq, key: track.instrument };
+		this.voices.set(track.id, voice);
+		this.syncTrack(track, voice);
 		return instrument;
+	}
+
+	/** Push a track's live pan/EQ settings onto its audio nodes. */
+	private syncTrack(track: OtoTrack, voice: TrackVoice) {
+		voice.panner.pan.value = Math.max(-1, Math.min(1, track.pan ?? 0));
+		const eq = track.eq ?? { low: 0, mid: 0, high: 0 };
+		voice.eq.low.value = eq.low;
+		voice.eq.mid.value = eq.mid;
+		voice.eq.high.value = eq.high;
+	}
+
+	/** Set the master output level (0..1). No-op until the engine has started. */
+	setMasterVolume(v: number) {
+		if (this.master) this.master.gain.value = Math.max(0, Math.min(1, v));
 	}
 
 	/** Audition a single note immediately (used by the fretboard / note entry). */
@@ -299,6 +327,10 @@ export class AudioEngine {
 		await this.ensureStarted();
 		this.stop();
 		this.playing = true;
+
+		// Apply master level and refresh every track's pan/EQ before scheduling.
+		this.setMasterVolume(score.masterVolume ?? 0.85);
+		for (const t of score.tracks) this.instrumentFor(t);
 
 		const transport = Tone.getTransport();
 		const windowStart = opts.window ? opts.window.start : 0;
@@ -379,6 +411,8 @@ export class AudioEngine {
 		for (const v of this.voices.values()) {
 			v.instrument.dispose();
 			for (const n of v.nodes) n.dispose();
+			v.eq.dispose();
+			v.panner.dispose();
 		}
 		this.voices.clear();
 		this.metro?.dispose();

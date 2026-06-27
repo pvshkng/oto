@@ -1,23 +1,20 @@
 <script lang="ts">
-	// Minimal one-line track header: a collapse caret + name, then mute, solo,
-	// focus and the track-control cog. Everything else (notation views, tuning,
-	// instrument) lives in the track-control drawer behind the cog.
+	// Minimal one-line track header for the score view: a collapse caret, the
+	// track colour + name, and a focus toggle. All mixing (mute/solo, volume,
+	// pan, EQ) and instrument settings now live in the track mixer drawer,
+	// reachable from the menubar — the score stays about the music.
 
 	import { store } from '$lib/stores/score.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { cn } from '$lib/utils';
-	import TrackControlDrawer from './TrackControlDrawer.svelte';
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 	import Eye from 'phosphor-svelte/lib/Eye';
-	import GearSix from 'phosphor-svelte/lib/GearSix';
 
 	let { index }: { index: number } = $props();
 	const track = $derived(store.score.tracks[index]);
 	const isActive = $derived(store.cursor.track === index);
 	const collapsed = $derived(store.isCollapsed(index));
 	const focused = $derived(store.focusedTrackId === track.id);
-
-	let editOpen = $state(false);
 </script>
 
 <div
@@ -47,20 +44,6 @@
 	/>
 
 	<Button
-		variant={track.muted ? 'default' : 'outline'}
-		size="icon"
-		class="size-7 shrink-0 text-xs font-bold"
-		title="Mute"
-		onclick={() => store.toggleMute(index)}>M</Button
-	>
-	<Button
-		variant={track.soloed ? 'default' : 'outline'}
-		size="icon"
-		class="size-7 shrink-0 text-xs font-bold"
-		title="Solo"
-		onclick={() => store.toggleSolo(index)}>S</Button
-	>
-	<Button
 		variant={focused ? 'default' : 'outline'}
 		size="icon"
 		class="size-7 shrink-0"
@@ -70,16 +53,4 @@
 	>
 		<Eye class="size-4" weight={focused ? 'fill' : 'regular'} />
 	</Button>
-	<Button
-		variant="ghost"
-		size="icon"
-		class="size-7 shrink-0"
-		title="Track control"
-		aria-label="Track control"
-		onclick={() => (editOpen = true)}
-	>
-		<GearSix class="size-4" />
-	</Button>
 </div>
-
-<TrackControlDrawer bind:open={editOpen} mode="edit" {index} />
