@@ -13,7 +13,10 @@
 		default: def = 0,
 		size = 28,
 		label = 'Knob',
-		onInput
+		format,
+		onInput,
+		onDragStart,
+		onDragEnd
 	}: {
 		value?: number;
 		min?: number;
@@ -21,7 +24,12 @@
 		default?: number;
 		size?: number;
 		label?: string;
+		/** Optional formatter for the on-drag value tooltip (e.g. L/C/R for pan). */
+		format?: (v: number) => string;
 		onInput: (v: number) => void;
+		/** Fired on drag-start / drag-end so callers can bracket an undo gesture. */
+		onDragStart?: () => void;
+		onDragEnd?: () => void;
 	} = $props();
 
 	let dragging = $state(false);
@@ -40,6 +48,7 @@
 		dragging = true;
 		startY = e.clientY;
 		startVal = value;
+		onDragStart?.();
 		e.preventDefault();
 	}
 	function onPointerMove(e: PointerEvent) {
@@ -52,6 +61,7 @@
 		if (!dragging) return;
 		dragging = false;
 		(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+		onDragEnd?.();
 	}
 	function onKeyDown(e: KeyboardEvent) {
 		const step = (max - min) / 20;
@@ -92,4 +102,13 @@
 		style="height:{size *
 			0.42}px;transform:translate(-50%,-100%) rotate({angle}deg);transform-origin:50% 100%"
 	></span>
+
+	<!-- Value tooltip while dragging (reduces ambiguity on the small pan knob). -->
+	{#if dragging && format}
+		<span
+			class="bg-foreground text-background pointer-events-none absolute -top-6 left-1/2 z-30 -translate-x-1/2 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums whitespace-nowrap shadow"
+		>
+			{format(value)}
+		</span>
+	{/if}
 </div>

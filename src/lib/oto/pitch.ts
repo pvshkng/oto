@@ -78,7 +78,10 @@ export const TUNINGS: Record<string, string[]> = {
 	'Guitar DADGAD': ['D4', 'A3', 'G3', 'D3', 'A2', 'D2'],
 	'Bass Standard': ['G2', 'D2', 'A1', 'E1'],
 	'Bass 5-String': ['G2', 'D2', 'A1', 'E1', 'B0'],
-	Ukulele: ['A4', 'E4', 'C4', 'G4']
+	Ukulele: ['A4', 'E4', 'C4', 'G4'],
+	// Drum "tuning": each line maps to a kit piece by register (the drum engine
+	// routes by pitch — high → hi-hat, low → kick). Top line is the hi-hat.
+	'Drum Kit': ['E5', 'C4', 'C3', 'C2']
 };
 
 /** Standard pitch-class names for the note name labels. */

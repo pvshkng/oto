@@ -20,17 +20,55 @@
 	import Sliders from 'phosphor-svelte/lib/Sliders';
 	import X from 'phosphor-svelte/lib/X';
 	import MapPin from 'phosphor-svelte/lib/MapPin';
+	import MagnifyingGlassPlus from 'phosphor-svelte/lib/MagnifyingGlassPlus';
+	import MagnifyingGlassMinus from 'phosphor-svelte/lib/MagnifyingGlassMinus';
 
 	let { open = $bindable(false) }: { open: boolean } = $props();
 
-	// Pixels per measure in the timeline. Small enough to fit a few bars on a
-	// phone, the whole strip scrolls horizontally beyond that.
-	const CELL = 30;
+	// Width of the frozen track-controls column (kept in sync with the markup so
+	// the absolute playhead can offset past it).
+	const LEAD = 210;
+
+	// Pixels per measure in the timeline. Adjustable via the zoom control so long
+	// songs don't sprawl; defaults small enough to fit a few bars on a phone, and
+	// the strip scrolls horizontally beyond that.
+	const MIN_CELL = 16;
+	const MAX_CELL = 96;
+	let cell = $state(30);
+	function zoom(dir: 1 | -1) {
+		cell = Math.max(MIN_CELL, Math.min(MAX_CELL, cell + dir * 14));
+	}
 
 	const tracks = $derived(store.score.tracks);
 	const measureCount = $derived(Math.max(1, ...tracks.map((t) => t.measures.length)));
-	const timelineW = $derived(measureCount * CELL);
+	const timelineW = $derived(measureCount * cell);
 	const sections = $derived([...store.score.sections].sort((a, b) => a.measure - b.measure));
+
+	// Section markers are absolutely positioned by measure and collide when placed
+	// close together. Greedily pack them into rows so each label clears the one to
+	// its left, stacking downward when there isn't room on a row.
+	const MARKER_W = 92;
+	const laidOutSections = $derived.by(() => {
+		const rowRightEdge: number[] = [];
+		return sections.map((sec, si) => {
+			const left = Math.min(sec.measure, measureCount - 1) * cell;
+			let row = 0;
+			while (row < rowRightEdge.length && rowRightEdge[row] > left + 0.5) row++;
+			rowRightEdge[row] = left + MARKER_W;
+			return { sec, si, left, row };
+		});
+	});
+	const markerRows = $derived(Math.max(1, ...laidOutSections.map((m) => m.row + 1)));
+
+	// Live playhead position (px from the timeline's left edge) during playback.
+	const playheadX = $derived.by(() => {
+		const p = store.playhead;
+		if (!p || !store.isPlaying) return null;
+		const m = Math.min(p.measure, measureCount - 1);
+		const beats = tracks[0]?.measures[p.measure]?.beats.length ?? 1;
+		const frac = beats > 0 ? Math.min(p.beat, beats) / beats : 0;
+		return (m + frac) * cell;
+	});
 
 	let editIndex = $state(-1);
 	let editOpen = $state(false);
@@ -52,9 +90,34 @@
 		store.setCursor({ track, measure, beat: 0 });
 	}
 
+	// Mixer setters mirror the store, then push the change onto the live audio
+	// chain so a fader/knob is audible mid-playback rather than on the next play.
+	function setVolume(i: number, v: number) {
+		store.setVolume(i, v);
+		audio.syncTrack(tracks[i]);
+	}
+	function setPan(i: number, p: number) {
+		store.setPan(i, p);
+		audio.syncTrack(tracks[i]);
+	}
+	function setEqBand(i: number, band: 'low' | 'mid' | 'high', db: number) {
+		store.setEqBand(i, band, db);
+		audio.syncTrack(tracks[i]);
+	}
+	function resetEq(i: number) {
+		store.resetEq(i);
+		audio.syncTrack(tracks[i]);
+	}
 	function setMaster(v: number) {
 		store.setMasterVolume(v);
 		audio.setMasterVolume(v); // live while playing
+	}
+
+	// Pan readout for the knob's drag tooltip.
+	function panLabel(v: number): string {
+		if (Math.abs(v) < 0.02) return 'C';
+		const amt = Math.round(Math.abs(v) * 100);
+		return `${v < 0 ? 'L' : 'R'}${amt}`;
 	}
 
 	function eqActive(t: OtoTrack): boolean {
@@ -76,6 +139,26 @@
 				</Drawer.Description>
 			</div>
 			<div class="flex items-center gap-1.5">
+				<div class="mr-1 flex items-center gap-0.5">
+					<button
+						class="text-muted-foreground hover:text-foreground flex size-7 items-center justify-center rounded-md border disabled:opacity-40"
+						title="Zoom out timeline"
+						aria-label="Zoom out timeline"
+						disabled={cell <= MIN_CELL}
+						onclick={() => zoom(-1)}
+					>
+						<MagnifyingGlassMinus class="size-4" />
+					</button>
+					<button
+						class="text-muted-foreground hover:text-foreground flex size-7 items-center justify-center rounded-md border disabled:opacity-40"
+						title="Zoom in timeline"
+						aria-label="Zoom in timeline"
+						disabled={cell >= MAX_CELL}
+						onclick={() => zoom(1)}
+					>
+						<MagnifyingGlassPlus class="size-4" />
+					</button>
+				</div>
 				<Button variant="outline" size="sm" class="h-8" onclick={addTrack}>
 					<Plus class="size-4" /> Track
 				</Button>
@@ -87,7 +170,16 @@
 
 		<!-- Scrollable mixer body. Left column is sticky; timeline scrolls under it. -->
 		<div class="min-h-0 flex-1 overflow-auto overscroll-contain">
-			<div class="w-max min-w-full text-sm">
+			<div class="relative w-max min-w-full text-sm">
+				<!-- Moving playback position. Sits above track content but below the
+				     frozen controls column (z-10) so it tucks away when scrolled. -->
+				{#if playheadX !== null}
+					<div
+						class="bg-primary pointer-events-none absolute top-0 bottom-0 z-[5] w-px"
+						style="left:{LEAD + playheadX}px"
+					></div>
+				{/if}
+
 				<!-- Measure ruler -->
 				<div class="bg-background sticky top-0 z-20 flex border-b">
 					<div
@@ -105,7 +197,7 @@
 										'text-muted-foreground flex items-center justify-start py-1.5 pl-1 text-[10px] tabular-nums',
 										(mi + 1) % 4 === 0 ? 'border-r border-border' : 'border-r border-border/40'
 									)}
-									style="width:{CELL}px"
+									style="width:{cell}px"
 								>
 									{#if mi === 0 || (mi + 1) % 4 === 0}{mi + 1}{/if}
 								</div>
@@ -169,7 +261,10 @@
 									title="Volume"
 									class="mixer-fader min-w-0 flex-1"
 									value={track.volume}
-									oninput={(e) => store.setVolume(i, e.currentTarget.valueAsNumber)}
+									onpointerdown={() => store.beginGesture()}
+									onpointerup={() => store.endGesture()}
+									onpointercancel={() => store.endGesture()}
+									oninput={(e) => setVolume(i, e.currentTarget.valueAsNumber)}
 								/>
 								<Knob
 									value={track.pan}
@@ -177,7 +272,10 @@
 									max={1}
 									default={0}
 									label={`${track.name} pan`}
-									onInput={(v) => store.setPan(i, v)}
+									format={panLabel}
+									onInput={(v) => setPan(i, v)}
+									onDragStart={() => store.beginGesture()}
+									onDragEnd={() => store.endGesture()}
 								/>
 								<Popover.Root
 									open={!!eqOpen[track.id]}
@@ -198,7 +296,7 @@
 											<span class="text-xs font-semibold">Equaliser</span>
 											<button
 												class="text-muted-foreground hover:text-foreground text-[11px] underline"
-												onclick={() => store.resetEq(i)}>Reset</button
+												onclick={() => resetEq(i)}>Reset</button
 											>
 										</div>
 										{#each [['low', 'Low'], ['mid', 'Mid'], ['high', 'High']] as [band, lbl] (band)}
@@ -212,7 +310,10 @@
 													step="0.5"
 													class="mixer-fader"
 													value={track.eq[key]}
-													oninput={(e) => store.setEqBand(i, key, e.currentTarget.valueAsNumber)}
+													onpointerdown={() => store.beginGesture()}
+													onpointerup={() => store.endGesture()}
+													onpointercancel={() => store.endGesture()}
+													oninput={(e) => setEqBand(i, key, e.currentTarget.valueAsNumber)}
 												/>
 												<span class="text-right text-[11px] tabular-nums">
 													{track.eq[key] > 0 ? '+' : ''}{track.eq[key]}
@@ -242,7 +343,7 @@
 							title="Jump to bar"
 							onclick={(e) => {
 								const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
-								jumpTo(Math.min(measureCount - 1, Math.floor(x / CELL)), i);
+								jumpTo(Math.min(measureCount - 1, Math.floor(x / cell)), i);
 							}}
 						>
 							{#each Array.from({ length: measureCount }, (_, k) => k) as mi (mi)}
@@ -252,7 +353,7 @@
 										(mi + 1) % 4 === 0 ? 'border-r border-border' : 'border-r border-border/40',
 										store.cursor.measure === mi && active && 'bg-foreground/5'
 									)}
-									style="width:{CELL}px"
+									style="width:{cell}px"
 								>
 									{#if trackHasContent(track, mi)}
 										<div class="m-px flex-1 rounded-sm" style="background:{track.color}"></div>
@@ -278,6 +379,9 @@
 							title="Master volume"
 							class="mixer-fader w-24"
 							value={store.score.masterVolume}
+							onpointerdown={() => store.beginGesture()}
+							onpointerup={() => store.endGesture()}
+							onpointercancel={() => store.endGesture()}
 							oninput={(e) => setMaster(e.currentTarget.valueAsNumber)}
 						/>
 					</div>
@@ -300,11 +404,14 @@
 							<MapPin class="size-3.5" /> Add
 						</button>
 					</div>
-					<div class="relative shrink-0 py-2" style="width:{timelineW}px;min-height:46px">
-						{#each sections as sec, si (sec.id)}
+					<div
+						class="relative shrink-0 py-2"
+						style="width:{timelineW}px;min-height:{markerRows * 30 + 8}px"
+					>
+						{#each laidOutSections as { sec, si, left, row } (sec.id)}
 							<div
-								class="absolute top-2 flex items-center gap-1 rounded-md border bg-card px-1 py-0.5 shadow-sm"
-								style="left:{Math.min(sec.measure, measureCount - 1) * CELL}px"
+								class="absolute flex items-center gap-1 rounded-md border bg-card px-1 py-0.5 shadow-sm"
+								style="left:{left}px;top:{row * 30 + 4}px"
 							>
 								<button
 									class="bg-primary text-primary-foreground flex size-4 items-center justify-center rounded text-[9px] font-bold"
@@ -351,6 +458,9 @@
 		border-radius: 999px;
 		background: var(--panel-2);
 		cursor: pointer;
+		/* Keep a drag on the fader from being stolen by the horizontally
+		   scrolling mixer body on touch devices. */
+		touch-action: none;
 	}
 	.mixer-fader::-webkit-slider-thumb {
 		-webkit-appearance: none;

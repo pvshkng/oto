@@ -82,6 +82,14 @@ export const INSTRUMENTS: InstrumentPreset[] = [
 		group: 'Other',
 		kind: 'ukulele',
 		tuning: TUNINGS['Ukulele']
+	},
+	{
+		value: 'drums',
+		label: 'Drum Kit',
+		engine: 'drums',
+		group: 'Drums',
+		kind: 'custom',
+		tuning: TUNINGS['Drum Kit']
 	}
 ];
 

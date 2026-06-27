@@ -214,3 +214,102 @@ describe('ScoreStore transpose & tracks', () => {
 		expect(v.standard || v.tab || v.rhythm).toBe(true);
 	});
 });
+
+describe('ScoreStore mixer setters', () => {
+	let s: ScoreStore;
+	beforeEach(() => (s = freshStore()));
+
+	it('clamps volume to 0..1', () => {
+		s.setVolume(0, 1.5);
+		expect(s.score.tracks[0].volume).toBe(1);
+		s.setVolume(0, -0.2);
+		expect(s.score.tracks[0].volume).toBe(0);
+	});
+
+	it('clamps pan to -1..1', () => {
+		s.setPan(0, 2);
+		expect(s.score.tracks[0].pan).toBe(1);
+		s.setPan(0, -2);
+		expect(s.score.tracks[0].pan).toBe(-1);
+	});
+
+	it('clamps EQ bands to -12..12 and updates a single band', () => {
+		s.setEqBand(0, 'low', 20);
+		s.setEqBand(0, 'mid', -20);
+		s.setEqBand(0, 'high', 4);
+		expect(s.score.tracks[0].eq).toEqual({ low: 12, mid: -12, high: 4 });
+	});
+
+	it('resets EQ to flat as a single undoable step', () => {
+		s.setEqBand(0, 'low', 6);
+		s.resetEq(0);
+		expect(s.score.tracks[0].eq).toEqual({ low: 0, mid: 0, high: 0 });
+		s.undo();
+		expect(s.score.tracks[0].eq.low).toBe(6);
+	});
+
+	it('clamps master volume to 0..1', () => {
+		s.setMasterVolume(5);
+		expect(s.score.masterVolume).toBe(1);
+		s.setMasterVolume(-1);
+		expect(s.score.masterVolume).toBe(0);
+	});
+
+	it('collapses a fader drag into one undo entry via begin/endGesture', () => {
+		expect(s.canUndo).toBe(false);
+		s.beginGesture();
+		s.setVolume(0, 0.6);
+		s.setVolume(0, 0.5);
+		s.setVolume(0, 0.4);
+		s.endGesture();
+		expect(s.score.tracks[0].volume).toBe(0.4);
+		// One snapshot for the whole drag.
+		s.undo();
+		expect(s.score.tracks[0].volume).toBe(0.8); // default track volume
+		expect(s.canUndo).toBe(false);
+	});
+
+	it('only snapshots once even if beginGesture is called repeatedly', () => {
+		const before = s.score.tracks[0].volume;
+		s.beginGesture();
+		s.beginGesture();
+		s.setVolume(0, 0.3);
+		s.endGesture();
+		s.undo();
+		expect(s.score.tracks[0].volume).toBe(before);
+		expect(s.canUndo).toBe(false);
+	});
+});
+
+describe('ScoreStore sections', () => {
+	let s: ScoreStore;
+	beforeEach(() => (s = freshStore()));
+
+	it('adds a section with an auto label and keeps them sorted by measure', () => {
+		s.addSection(8);
+		s.addSection(2);
+		expect(s.score.sections.map((x) => x.measure)).toEqual([2, 8]);
+		expect(s.score.sections[1].label).toBeTruthy();
+	});
+
+	it('updates a section label and re-sorts when the measure changes', () => {
+		s.addSection(0, 'Intro');
+		s.addSection(4, 'Verse');
+		const intro = s.score.sections.find((x) => x.label === 'Intro')!;
+		s.updateSection(intro.id, { label: 'Opening', measure: 10 });
+		const moved = s.score.sections.find((x) => x.id === intro.id)!;
+		expect(moved.label).toBe('Opening');
+		expect(moved.measure).toBe(10);
+		// "Verse" (measure 4) now sorts before the moved section.
+		expect(s.score.sections[0].label).toBe('Verse');
+	});
+
+	it('removes a section and supports undo', () => {
+		s.addSection(0, 'Intro');
+		const id = s.score.sections[0].id;
+		s.removeSection(id);
+		expect(s.score.sections).toHaveLength(0);
+		s.undo();
+		expect(s.score.sections).toHaveLength(1);
+	});
+});
