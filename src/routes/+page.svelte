@@ -8,7 +8,7 @@
 	import BottomBar from '$lib/components/BottomBar.svelte';
 	import EditPanel from '$lib/components/EditPanel.svelte';
 	import SongModal from '$lib/components/SongModal.svelte';
-	import TrackDialog from '$lib/components/TrackDialog.svelte';
+	import TrackControlDrawer from '$lib/components/TrackControlDrawer.svelte';
 
 	// Height of the fixed bottom dock, so the sheet can scroll clear of it.
 	let dockHeight = $state(56);
@@ -124,7 +124,7 @@
 </script>
 
 <svelte:head>
-	<title>oto — tablature studio</title>
+	<title>oto · tablature studio</title>
 	<meta
 		name="description"
 		content="Lightweight web app for creating guitar tablature and music notation."
@@ -161,7 +161,9 @@
 				<section class="track-block">
 					<div class="no-print"><TrackHeader index={i} /></div>
 					{#if !store.isCollapsed(i)}
-						<TrackStaff trackIndex={i} />
+						<div class="sheet">
+							<TrackStaff trackIndex={i} />
+						</div>
 					{/if}
 				</section>
 			{/each}
@@ -188,7 +190,7 @@
 	</div>
 
 	<SongModal />
-	<TrackDialog bind:open={addTrackOpen} mode="add" />
+	<TrackControlDrawer bind:open={addTrackOpen} mode="add" />
 </div>
 
 <style>
@@ -241,14 +243,14 @@
 		margin: 4px 0 0;
 		font-family: var(--serif);
 		font-style: italic;
-		color: var(--muted);
+		color: var(--text-muted);
 	}
 	.edit-hint {
 		position: absolute;
 		top: 0;
 		right: 0;
 		font-size: 10px;
-		color: var(--muted);
+		color: var(--text-muted);
 		opacity: 0;
 		transition: opacity 0.15s;
 		border: 1px solid var(--border-strong);
@@ -300,6 +302,13 @@
 	.track-block {
 		margin-bottom: 18px;
 	}
+	.sheet {
+		border: 1px solid var(--border);
+		border-top: 0;
+		border-radius: 0 0 var(--r-md) var(--r-md);
+		overflow: hidden;
+		background: var(--paper);
+	}
 	.add-row {
 		display: flex;
 		gap: 7px;
@@ -320,7 +329,7 @@
 		background: var(--panel-2);
 	}
 	.add-row .ghost {
-		color: var(--muted);
+		color: var(--text-muted);
 	}
 	.bottom-dock {
 		position: fixed;

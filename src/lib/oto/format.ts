@@ -11,8 +11,8 @@ export function uid(prefix = 'id'): string {
 	return `${prefix}-${Date.now().toString(36)}-${idCounter.toString(36)}`;
 }
 
-// Monochrome track accents, distinguished by lightness, not hue.
-const TRACK_COLORS = ['#18181b', '#52525b', '#a1a1aa', '#3f3f46', '#71717a', '#27272a', '#d4d4d8'];
+// Monochrome track accents, distinguished by lightness, not hue (no pure black).
+const TRACK_COLORS = ['#404040', '#525252', '#737373', '#a3a3a3', '#262626', '#8c8c8c', '#d4d4d4'];
 
 export function emptyMeasure(): OtoMeasure {
 	return { beats: [restBeat(4)] };

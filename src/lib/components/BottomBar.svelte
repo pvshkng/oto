@@ -1,417 +1,182 @@
 <script lang="ts">
-	// The single, always-visible control bar pinned to the bottom of the screen.
-	// File / Edit / Insert live in a bits-ui Menubar; transport is a pair of large
-	// icon buttons; metronome and loop are a bits-ui ToggleGroup; tempo is a popover.
+	// Bottom control bar. A minimal, horizontally scrollable strip: an omni command
+	// button (dots) opens the command palette, a compact Menubar holds File and
+	// Edit (with Insert nested inside Edit), the note-editor toggle sits at the top
+	// level, and the transport / metronome / loop / tempo controls follow.
 
 	import { store } from '$lib/stores/score.svelte';
 	import { togglePlayback, stopPlayback } from '$lib/audio/playback';
 	import { downloadOto, openFile, exportPdf } from '$lib/io/files';
-	import { Menubar, Popover, ToggleGroup } from 'bits-ui';
-	import TrackDialog from './TrackDialog.svelte';
+	import * as Menubar from '$lib/components/ui/menubar';
+	import * as Popover from '$lib/components/ui/popover';
+	import { Button, buttonVariants } from '$lib/components/ui/button';
+	import { cn } from '$lib/utils';
+	import OmniCommand from './OmniCommand.svelte';
+	import TrackControlDrawer from './TrackControlDrawer.svelte';
 
-	let importing = $state(false);
+	import DotsThreeVertical from 'phosphor-svelte/lib/DotsThreeVertical';
+	import Play from 'phosphor-svelte/lib/Play';
+	import Pause from 'phosphor-svelte/lib/Pause';
+	import Stop from 'phosphor-svelte/lib/Stop';
+	import Metronome from 'phosphor-svelte/lib/Metronome';
+	import Repeat from 'phosphor-svelte/lib/Repeat';
+	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
+	import GearSix from 'phosphor-svelte/lib/GearSix';
+
+	let omniOpen = $state(false);
 	let addTrackOpen = $state(false);
 
-	async function open() {
-		importing = true;
-		try {
-			await openFile();
-		} catch (e) {
-			alert(e instanceof Error ? e.message : 'Could not read that file.');
-		} finally {
-			importing = false;
-		}
-	}
 	function confirmNew() {
 		if (confirm('Start a new score? Your current one stays in the last save.')) store.newScore();
 	}
-
-	const transport = $derived([
-		...(store.metronomeOn ? ['metronome'] : []),
-		...(store.loopEnabled ? ['loop'] : [])
-	]);
+	function open() {
+		void openFile();
+	}
 </script>
 
-<div class="bar">
-	<Menubar.Root class="menubar">
+<div
+	class="bg-background flex items-center gap-1.5 overflow-x-auto border-t px-2 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+	style="padding-bottom: calc(0.375rem + env(safe-area-inset-bottom))"
+>
+	<!-- Omni command palette trigger -->
+	<Button
+		variant="ghost"
+		size="icon"
+		class="size-9 shrink-0"
+		title="Command palette"
+		aria-label="Open command palette"
+		onclick={() => (omniOpen = true)}
+	>
+		<DotsThreeVertical class="size-5" weight="bold" />
+	</Button>
+
+	<Menubar.Root class="h-9 shrink-0 gap-0.5 border-none bg-transparent p-0 shadow-none">
 		<Menubar.Menu>
-			<Menubar.Trigger class="mb-trigger">{importing ? 'Opening…' : 'File'}</Menubar.Trigger>
-			<Menubar.Portal>
-				<Menubar.Content class="mb-content" side="top" align="start" sideOffset={8}>
-					<Menubar.Item class="mb-item" onSelect={confirmNew}>New</Menubar.Item>
-					<Menubar.Item class="mb-item" onSelect={open}>Open / Import…</Menubar.Item>
-					<Menubar.Separator class="mb-sep" />
-					<Menubar.Item class="mb-item" onSelect={downloadOto}>Save .oto</Menubar.Item>
-					<Menubar.Item class="mb-item" onSelect={exportPdf}>Export PDF</Menubar.Item>
-				</Menubar.Content>
-			</Menubar.Portal>
+			<Menubar.Trigger>File</Menubar.Trigger>
+			<Menubar.Content side="top" align="start" sideOffset={8}>
+				<Menubar.Item onSelect={confirmNew}>New</Menubar.Item>
+				<Menubar.Item onSelect={open}>Open / Import</Menubar.Item>
+				<Menubar.Separator />
+				<Menubar.Item onSelect={() => downloadOto()}>Save .oto</Menubar.Item>
+				<Menubar.Item onSelect={() => exportPdf()}>Export PDF</Menubar.Item>
+			</Menubar.Content>
 		</Menubar.Menu>
 
 		<Menubar.Menu>
-			<Menubar.Trigger class="mb-trigger">Edit</Menubar.Trigger>
-			<Menubar.Portal>
-				<Menubar.Content class="mb-content" side="top" align="start" sideOffset={8}>
-					<Menubar.Item class="mb-item" onSelect={() => store.undo()}>Undo</Menubar.Item>
-					<Menubar.Item class="mb-item" onSelect={() => store.redo()}>Redo</Menubar.Item>
-					<Menubar.Separator class="mb-sep" />
-					<Menubar.Item class="mb-item" onSelect={() => (store.editMode = !store.editMode)}>
-						{store.editMode ? 'Hide note editor' : 'Show note editor'}
-					</Menubar.Item>
-				</Menubar.Content>
-			</Menubar.Portal>
-		</Menubar.Menu>
-
-		<Menubar.Menu>
-			<Menubar.Trigger class="mb-trigger">Insert</Menubar.Trigger>
-			<Menubar.Portal>
-				<Menubar.Content class="mb-content" side="top" align="start" sideOffset={8}>
-					<Menubar.Item class="mb-item" onSelect={() => store.addMeasureToAll()}
-						>Add bar</Menubar.Item
-					>
-					<Menubar.Item
-						class="mb-item"
-						onSelect={() => store.insertMeasureAt(store.cursor.measure)}
-					>
-						Insert bar at cursor
-					</Menubar.Item>
-					<Menubar.Item
-						class="mb-item"
-						onSelect={() => store.duplicateMeasureAt(store.cursor.measure)}
-					>
-						Duplicate current bar
-					</Menubar.Item>
-					<Menubar.Separator class="mb-sep" />
-					<Menubar.Item class="mb-item" onSelect={() => (addTrackOpen = true)}
-						>Add track…</Menubar.Item
-					>
-				</Menubar.Content>
-			</Menubar.Portal>
+			<Menubar.Trigger>Edit</Menubar.Trigger>
+			<Menubar.Content side="top" align="start" sideOffset={8}>
+				<Menubar.Item onSelect={() => store.undo()}>Undo</Menubar.Item>
+				<Menubar.Item onSelect={() => store.redo()}>Redo</Menubar.Item>
+				<Menubar.Separator />
+				<Menubar.Sub>
+					<Menubar.SubTrigger>Insert</Menubar.SubTrigger>
+					<Menubar.SubContent>
+						<Menubar.Item onSelect={() => store.addMeasureToAll()}>Add bar</Menubar.Item>
+						<Menubar.Item onSelect={() => store.insertMeasureAt(store.cursor.measure)}>
+							Insert bar at cursor
+						</Menubar.Item>
+						<Menubar.Item onSelect={() => store.duplicateMeasureAt(store.cursor.measure)}>
+							Duplicate current bar
+						</Menubar.Item>
+						<Menubar.Separator />
+						<Menubar.Item onSelect={() => (addTrackOpen = true)}>Add track</Menubar.Item>
+					</Menubar.SubContent>
+				</Menubar.Sub>
+			</Menubar.Content>
 		</Menubar.Menu>
 	</Menubar.Root>
 
-	<span class="div"></span>
+	<!-- Note editor toggle, kept at the top level for one-tap access -->
+	<Button
+		variant={store.editMode ? 'default' : 'outline'}
+		size="sm"
+		class="h-9 shrink-0"
+		title="Toggle note editor"
+		onclick={() => (store.editMode = !store.editMode)}
+	>
+		<PencilSimple class="size-4" />
+		<span class="hidden sm:inline">{store.editMode ? 'Editing' : 'Edit notes'}</span>
+	</Button>
+
+	<div class="bg-border mx-1 h-6 w-px shrink-0"></div>
 
 	<!-- Transport -->
-	<button
-		class="play"
-		class:playing={store.isPlaying}
-		onclick={togglePlayback}
+	<Button
+		size="icon"
+		class={cn('size-9 shrink-0', store.isPlaying && 'bg-primary/80')}
 		title="Play / Stop (Space)"
 		aria-label="Play or stop"
+		onclick={togglePlayback}
 	>
-		{#if store.isPlaying}
-			<svg viewBox="0 0 24 24" width="22" height="22"
-				><rect x="6" y="5" width="4" height="14" rx="1" /><rect
-					x="14"
-					y="5"
-					width="4"
-					height="14"
-					rx="1"
-				/></svg
-			>
-		{:else}
-			<svg viewBox="0 0 24 24" width="22" height="22"><path d="M7 4l13 8-13 8z" /></svg>
-		{/if}
-	</button>
-	<button class="icon-btn" onclick={stopPlayback} title="Stop" aria-label="Stop">
-		<svg viewBox="0 0 24 24" width="20" height="20"
-			><rect x="5" y="5" width="14" height="14" rx="2" /></svg
-		>
-	</button>
-
-	<ToggleGroup.Root type="multiple" value={transport} class="transport-tg">
-		<ToggleGroup.Item
-			class="tg-icon"
-			value="metronome"
-			title="Metronome"
-			onclick={() => (store.metronomeOn = !store.metronomeOn)}
-		>
-			<svg
-				viewBox="0 0 24 24"
-				width="20"
-				height="20"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="1.8"
-				><path d="M8 3h8l3 18H5L8 3z" /><line x1="12" y1="20" x2="15" y2="6" /></svg
-			>
-		</ToggleGroup.Item>
-		<ToggleGroup.Item
-			class={store.selection ? 'tg-icon armed' : 'tg-icon'}
-			value="loop"
-			title="Loop selection"
-			onclick={() => (store.loopEnabled = !store.loopEnabled)}
-		>
-			<svg
-				viewBox="0 0 24 24"
-				width="20"
-				height="20"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="1.8"
-				><path d="M17 2l4 4-4 4" /><path d="M3 11V9a4 4 0 014-4h14" /><path
-					d="M7 22l-4-4 4-4"
-				/><path d="M21 13v2a4 4 0 01-4 4H3" /></svg
-			>
-		</ToggleGroup.Item>
-	</ToggleGroup.Root>
+		{#if store.isPlaying}<Pause class="size-5" weight="fill" />{:else}<Play
+				class="size-5"
+				weight="fill"
+			/>{/if}
+	</Button>
+	<Button
+		variant="outline"
+		size="icon"
+		class="size-9 shrink-0"
+		title="Stop"
+		aria-label="Stop"
+		onclick={stopPlayback}
+	>
+		<Stop class="size-5" weight="fill" />
+	</Button>
+	<Button
+		variant={store.metronomeOn ? 'default' : 'outline'}
+		size="icon"
+		class="size-9 shrink-0"
+		title="Metronome"
+		aria-label="Toggle metronome"
+		onclick={() => (store.metronomeOn = !store.metronomeOn)}
+	>
+		<Metronome class="size-5" />
+	</Button>
+	<Button
+		variant={store.loopEnabled ? 'default' : 'outline'}
+		size="icon"
+		class={cn('size-9 shrink-0', store.selection && !store.loopEnabled && 'border-foreground')}
+		title="Loop selection"
+		aria-label="Toggle loop"
+		onclick={() => (store.loopEnabled = !store.loopEnabled)}
+	>
+		<Repeat class="size-5" />
+	</Button>
 
 	<!-- Tempo -->
 	<Popover.Root>
-		<Popover.Trigger class="tempo">{store.score.tempo}<small>bpm</small></Popover.Trigger>
-		<Popover.Portal>
-			<Popover.Content class="tempo-pop" side="top" sideOffset={8} align="center">
-				<div class="tempo-row">
-					<span>{store.score.tempo} BPM</span>
-					<input
-						type="range"
-						min="40"
-						max="240"
-						value={store.score.tempo}
-						oninput={(e) => store.setTempo(+e.currentTarget.value)}
-					/>
-				</div>
-			</Popover.Content>
-		</Popover.Portal>
+		<Popover.Trigger
+			class={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'h-9 shrink-0 tabular-nums')}
+		>
+			{store.score.tempo}<span class="text-muted-foreground text-[10px] font-semibold">bpm</span>
+		</Popover.Trigger>
+		<Popover.Content side="top" class="w-56">
+			<div class="flex flex-col gap-2">
+				<span class="text-sm font-semibold">{store.score.tempo} BPM</span>
+				<input
+					type="range"
+					min="40"
+					max="240"
+					class="accent-primary w-full"
+					value={store.score.tempo}
+					oninput={(e) => store.setTempo(+e.currentTarget.value)}
+				/>
+			</div>
+		</Popover.Content>
 	</Popover.Root>
 
-	<span class="spacer"></span>
-
-	<button
-		class="icon-btn"
-		onclick={() => (store.songModalOpen = true)}
+	<Button
+		variant="ghost"
+		size="icon"
+		class="size-9 shrink-0"
 		title="Song settings"
 		aria-label="Song settings"
+		onclick={() => (store.songModalOpen = true)}
 	>
-		<svg
-			viewBox="0 0 24 24"
-			width="20"
-			height="20"
-			fill="none"
-			stroke="currentColor"
-			stroke-width="1.9"
-			><circle cx="12" cy="12" r="3" /><path
-				d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-2.7 1.1V21a2 2 0 01-4 0v-.1A1.6 1.6 0 005 19.4l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.6 1.6 0 00-1.1-2.7H1a2 2 0 010-4h.1A1.6 1.6 0 004.6 5l-.1-.1a2 2 0 112.8-2.8l.1.1a1.6 1.6 0 002.7-1.1V1a2 2 0 014 0v.1A1.6 1.6 0 0019 4.6l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 001.1 2.7H23a2 2 0 010 4h-.1a1.6 1.6 0 00-1.5 1z"
-			/></svg
-		>
-	</button>
-	<button
-		class="edit-btn"
-		class:on={store.editMode}
-		onclick={() => (store.editMode = !store.editMode)}
-		title="Note editor"
-	>
-		{store.editMode ? 'Done' : 'Edit'}
-	</button>
+		<GearSix class="size-5" />
+	</Button>
 </div>
 
-<TrackDialog bind:open={addTrackOpen} mode="add" />
-
-<style>
-	.bar {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
-		background: var(--panel);
-		border-top: 1px solid var(--border-strong);
-	}
-	:global(.menubar) {
-		display: inline-flex;
-		gap: 2px;
-	}
-	:global(.mb-trigger) {
-		display: inline-flex;
-		align-items: center;
-		border: 1px solid transparent;
-		background: transparent;
-		color: var(--ink);
-		border-radius: var(--r-xs);
-		cursor: pointer;
-		font-size: 14px;
-		font-weight: 600;
-		height: 40px;
-		padding: 0 12px;
-	}
-	:global(.mb-trigger:hover),
-	:global(.mb-trigger[data-state='open']) {
-		background: var(--panel-2);
-	}
-	.icon-btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 42px;
-		height: 40px;
-		border: 1px solid var(--border-strong);
-		background: var(--paper);
-		color: var(--ink);
-		fill: currentColor;
-		border-radius: var(--r-xs);
-		cursor: pointer;
-		padding: 0;
-	}
-	.icon-btn:hover {
-		background: var(--panel-2);
-	}
-	:global(.transport-tg) {
-		display: inline-flex;
-		gap: 4px;
-	}
-	:global(.tg-icon) {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 42px;
-		height: 40px;
-		border: 1px solid var(--border-strong);
-		background: var(--paper);
-		color: var(--ink);
-		border-radius: var(--r-xs);
-		cursor: pointer;
-		padding: 0;
-	}
-	:global(.tg-icon:hover) {
-		background: var(--panel-2);
-	}
-	:global(.tg-icon.armed:not([data-state='on'])) {
-		border-color: var(--ink);
-	}
-	:global(.tg-icon[data-state='on']) {
-		background: var(--accent);
-		border-color: var(--accent);
-		color: var(--accent-ink);
-	}
-	.play {
-		width: 50px;
-		height: 40px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		border: 1px solid var(--accent);
-		background: var(--accent);
-		color: var(--accent-ink);
-		fill: var(--accent-ink);
-		border-radius: var(--r-xs);
-		cursor: pointer;
-	}
-	.play.playing {
-		background: var(--ink-soft);
-		border-color: var(--ink-soft);
-	}
-	:global(.tempo) {
-		display: inline-flex;
-		align-items: baseline;
-		gap: 3px;
-		border: 1px solid var(--border-strong);
-		background: var(--paper);
-		color: var(--ink);
-		border-radius: var(--r-xs);
-		cursor: pointer;
-		font-size: 15px;
-		font-weight: 700;
-		height: 40px;
-		padding: 0 12px;
-		font-variant-numeric: tabular-nums;
-	}
-	:global(.tempo small) {
-		font-size: 10px;
-		color: var(--muted);
-		font-weight: 600;
-	}
-	.div {
-		width: 1px;
-		height: 24px;
-		background: var(--border-strong);
-		margin: 0 2px;
-	}
-	.spacer {
-		flex: 1;
-	}
-	.edit-btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		border: 1px solid var(--border-strong);
-		background: var(--paper);
-		color: var(--ink);
-		border-radius: var(--r-xs);
-		cursor: pointer;
-		font-size: 14px;
-		font-weight: 600;
-		height: 40px;
-		padding: 0 16px;
-	}
-	.edit-btn.on {
-		background: var(--accent);
-		border-color: var(--accent);
-		color: var(--accent-ink);
-	}
-	:global(.mb-content) {
-		z-index: 70;
-		background: var(--paper);
-		border: 1px solid var(--border-strong);
-		border-radius: var(--r-sm);
-		box-shadow: var(--shadow-2);
-		padding: 5px;
-		min-width: 200px;
-	}
-	:global(.mb-item) {
-		padding: 10px 11px;
-		font-size: 14px;
-		font-weight: 500;
-		border-radius: var(--r-xs);
-		cursor: pointer;
-		color: var(--ink);
-	}
-	:global(.mb-item[data-highlighted]) {
-		background: var(--panel-2);
-		outline: none;
-	}
-	:global(.mb-sep) {
-		height: 1px;
-		background: var(--border);
-		margin: 5px 3px;
-	}
-	:global(.tempo-pop) {
-		z-index: 70;
-		background: var(--paper);
-		border: 1px solid var(--border-strong);
-		border-radius: var(--r-sm);
-		box-shadow: var(--shadow-2);
-		padding: 14px 16px;
-	}
-	.tempo-row {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		font-size: 13px;
-		font-weight: 600;
-		color: var(--ink);
-		width: 210px;
-	}
-	.tempo-row input {
-		accent-color: var(--accent);
-		width: 100%;
-	}
-	@media (max-width: 720px) {
-		.icon-btn,
-		:global(.tg-icon),
-		.play,
-		.edit-btn,
-		:global(.tempo),
-		:global(.mb-trigger) {
-			height: 46px;
-		}
-		.icon-btn,
-		:global(.tg-icon) {
-			width: 46px;
-		}
-		.play {
-			width: 54px;
-		}
-		:global(.mb-trigger) {
-			padding: 0 10px;
-		}
-	}
-</style>
+<OmniCommand bind:open={omniOpen} />
+<TrackControlDrawer bind:open={addTrackOpen} mode="add" />

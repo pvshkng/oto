@@ -1,15 +1,18 @@
 <script lang="ts">
 	// Bottom edit panel. Switches between the on-screen Keypad and the Fretboard
-	// (never both), and exposes every note control — duration, dotted, voice,
-	// per-bar time signature, insert/delete and effects — so you never have to
+	// (never both), and exposes every note control: duration, dotted, voice,
+	// per-bar time signature, insert/delete and effects, so you never have to
 	// reach back up to a toolbar while entering music.
 
 	import { store } from '$lib/stores/score.svelte';
 	import { enterDigit } from '$lib/editing/entry';
 	import { DURATION_ORDER } from '$lib/oto/duration';
 	import { DURATION_LABELS, type DurationValue, type Technique } from '$lib/oto/types';
-	import { Select } from 'bits-ui';
+	import * as Popover from '$lib/components/ui/popover';
+	import { cn } from '$lib/utils';
 	import Fretboard from './Fretboard.svelte';
+
+	let tsOpen = $state(false);
 
 	const GLYPHS: Record<DurationValue, string> = {
 		1: '𝅝',
@@ -108,16 +111,30 @@
 
 		<div class="grp ts">
 			<span class="lbl">Bar</span>
-			<Select.Root type="single" value={barTsLabel} onValueChange={setBarTs}>
-				<Select.Trigger class="sel-trigger ts-trig">{barTsLabel}</Select.Trigger>
-				<Select.Portal>
-					<Select.Content class="sel-content" sideOffset={4}>
+			<Popover.Root bind:open={tsOpen}>
+				<Popover.Trigger
+					class="border-input bg-background hover:bg-accent text-foreground inline-flex h-9 items-center rounded-md border px-3 text-sm font-bold tabular-nums"
+					>{barTsLabel}</Popover.Trigger
+				>
+				<Popover.Content side="top" class="w-28 p-1" sideOffset={6}>
+					<div class="grid grid-cols-2 gap-1">
 						{#each TIME_SIGS as t (t)}
-							<Select.Item class="sel-item" value={t} label={t}>{t}</Select.Item>
+							<button
+								class={cn(
+									'rounded-sm px-2 py-1.5 text-sm font-semibold tabular-nums',
+									barTsLabel === t
+										? 'bg-primary text-primary-foreground'
+										: 'hover:bg-accent text-foreground'
+								)}
+								onclick={() => {
+									setBarTs(t);
+									tsOpen = false;
+								}}>{t}</button
+							>
 						{/each}
-					</Select.Content>
-				</Select.Portal>
-			</Select.Root>
+					</div>
+				</Popover.Content>
+			</Popover.Root>
 		</div>
 
 		<span class="div"></span>
@@ -191,12 +208,12 @@
 		padding: 5px 14px;
 		font-size: 12px;
 		font-weight: 600;
-		color: var(--muted);
+		color: var(--text-muted);
 		border-radius: var(--r-xs);
 		cursor: pointer;
 	}
 	.seg button.on {
-		background: var(--accent);
+		background: var(--ink);
 		color: var(--accent-ink);
 	}
 	.hide {
@@ -206,7 +223,7 @@
 		padding: 5px 10px;
 		font-size: 11px;
 		font-weight: 600;
-		color: var(--muted);
+		color: var(--text-muted);
 		cursor: pointer;
 	}
 	.controls,
@@ -257,8 +274,8 @@
 	}
 	.ctl.on,
 	.fx.on {
-		background: var(--accent);
-		border-color: var(--accent);
+		background: var(--ink);
+		border-color: var(--ink);
 		color: var(--accent-ink);
 	}
 	.ctl.v2.on {
@@ -276,7 +293,7 @@
 		font-size: 10px;
 		text-transform: uppercase;
 		letter-spacing: 0.4px;
-		color: var(--muted);
+		color: var(--text-muted);
 		font-weight: 700;
 	}
 	:global(.ts-trig) {
@@ -305,9 +322,9 @@
 		background: var(--panel-2);
 	}
 	.key.wide {
-		background: var(--accent);
+		background: var(--ink);
 		color: var(--accent-ink);
-		border-color: var(--accent);
+		border-color: var(--ink);
 	}
 	.fretboard-wrap {
 		max-height: 220px;

@@ -49,8 +49,13 @@
 		"@coderline/alphatab": "^1.7.1",
 		"@coderline/alphatab-vite": "^1.7.1",
 		"bits-ui": "^2.18.1",
+		"clsx": "^2.1.1",
 		"install": "^0.13.0",
+		"phosphor-svelte": "^3.1.0",
+		"tailwind-merge": "^3.6.0",
+		"tailwind-variants": "^3.2.2",
 		"tone": "^15.1.22",
+		"vaul-svelte": "1.0.0-next.7",
 		"vexflow": "^5.0.0",
 		"vextab": "^3.0.6"
 	}
