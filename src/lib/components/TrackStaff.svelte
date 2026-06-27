@@ -6,14 +6,17 @@
 	import { store } from '$lib/stores/score.svelte';
 	import { layoutTrack, METRICS, type LaidBeat, type LaidMeasure } from '$lib/notation/layout';
 	import { GLYPH, restGlyph } from '$lib/notation/glyphs';
-	import { ContextMenu } from 'bits-ui';
+	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import { DURATION_ORDER } from '$lib/oto/duration';
+	import { DURATION_LABELS, TECHNIQUE_LABELS, type DurationValue } from '$lib/oto/types';
 	import {
-		DURATION_LABELS,
-		TECHNIQUE_LABELS,
-		type DurationValue,
-		type Technique
-	} from '$lib/oto/types';
+		EFFECT_LIST,
+		TIME_SIGS,
+		setDuration,
+		toggleDotted,
+		setBarTimeSig,
+		hasTech
+	} from '$lib/commands';
 
 	let { trackIndex }: { trackIndex: number } = $props();
 
@@ -25,37 +28,8 @@
 		16: '𝅘𝅥𝅯',
 		32: '𝅘𝅥𝅰'
 	};
-	const EFFECT_LIST: Technique[] = [
-		'hammer',
-		'slide',
-		'bend',
-		'vibrato',
-		'palm-mute',
-		'let-ring',
-		'harmonic',
-		'dead',
-		'staccato',
-		'ghost'
-	];
-	const TIME_SIGS = ['4/4', '3/4', '2/4', '6/8', '12/8', '5/4', '7/8'];
 
 	const ctxNote = $derived(store.currentNote);
-
-	function setDuration(d: DurationValue) {
-		store.activeDuration = d;
-		store.setBeatDuration(d, store.activeDotted);
-	}
-	function toggleDotted() {
-		store.activeDotted = !store.activeDotted;
-		store.setBeatDuration(store.activeDuration, store.activeDotted);
-	}
-	function setBarTimeSig(v: string) {
-		const [n, d] = v.split('/').map(Number);
-		store.setMeasureTimeSignature(store.cursor.measure, n, d);
-	}
-	function hasTech(t: Technique): boolean {
-		return ctxNote?.techniques?.includes(t) ?? false;
-	}
 
 	let containerWidth = $state(800);
 	let container: HTMLDivElement;
@@ -553,96 +527,82 @@
 			{/each}
 		</div>
 	</ContextMenu.Trigger>
-	<ContextMenu.Portal>
-		<ContextMenu.Content class="ctx">
-			<div class="ctx-label">Note</div>
-			<ContextMenu.Sub>
-				<ContextMenu.SubTrigger class="ctx-item ctx-sub">
-					<span>Duration</span>
-					<span class="ctx-chev">›</span>
-				</ContextMenu.SubTrigger>
-				<ContextMenu.SubContent class="ctx">
-					{#each DURATION_ORDER as d (d)}
-						<ContextMenu.Item class="ctx-item" onSelect={() => setDuration(d)}>
-							<span class="ctx-gl">{DUR_GLYPHS[d]}</span>
-							<span>{DURATION_LABELS[d]}</span>
-							{#if store.activeDuration === d}<span class="ctx-dot">•</span>{/if}
-						</ContextMenu.Item>
-					{/each}
-					<ContextMenu.Separator class="ctx-sep" />
-					<ContextMenu.Item class="ctx-item" onSelect={toggleDotted}>
-						<span>Dotted</span>
-						{#if store.activeDotted}<span class="ctx-dot">•</span>{/if}
+	<ContextMenu.Content class="w-56">
+		<div class="text-muted-foreground px-2 py-1.5 text-xs font-medium">Note</div>
+		<ContextMenu.Sub>
+			<ContextMenu.SubTrigger>Duration</ContextMenu.SubTrigger>
+			<ContextMenu.SubContent class="w-44">
+				{#each DURATION_ORDER as d (d)}
+					<ContextMenu.Item onSelect={() => setDuration(d)}>
+						<span class="w-4 text-center text-base leading-none">{DUR_GLYPHS[d]}</span>
+						<span>{DURATION_LABELS[d]}</span>
+						{#if store.activeDuration === d}<span class="ml-auto">●</span>{/if}
 					</ContextMenu.Item>
-				</ContextMenu.SubContent>
-			</ContextMenu.Sub>
+				{/each}
+				<ContextMenu.Separator />
+				<ContextMenu.Item onSelect={toggleDotted}>
+					<span>Dotted</span>
+					{#if store.activeDotted}<span class="ml-auto">●</span>{/if}
+				</ContextMenu.Item>
+			</ContextMenu.SubContent>
+		</ContextMenu.Sub>
 
-			<ContextMenu.Sub>
-				<ContextMenu.SubTrigger class="ctx-item ctx-sub" disabled={!ctxNote}>
-					<span>Effects</span>
-					<span class="ctx-chev">›</span>
-				</ContextMenu.SubTrigger>
-				<ContextMenu.SubContent class="ctx">
-					{#each EFFECT_LIST as t (t)}
-						<ContextMenu.Item class="ctx-item" onSelect={() => store.toggleTechnique(t)}>
-							<span>{TECHNIQUE_LABELS[t]}</span>
-							{#if hasTech(t)}<span class="ctx-dot">•</span>{/if}
-						</ContextMenu.Item>
-					{/each}
-				</ContextMenu.SubContent>
-			</ContextMenu.Sub>
+		<ContextMenu.Sub>
+			<ContextMenu.SubTrigger disabled={!ctxNote}>Effects</ContextMenu.SubTrigger>
+			<ContextMenu.SubContent class="w-44">
+				{#each EFFECT_LIST as t (t)}
+					<ContextMenu.Item onSelect={() => store.toggleTechnique(t)}>
+						<span>{TECHNIQUE_LABELS[t]}</span>
+						{#if hasTech(t)}<span class="ml-auto">●</span>{/if}
+					</ContextMenu.Item>
+				{/each}
+			</ContextMenu.SubContent>
+		</ContextMenu.Sub>
 
-			<ContextMenu.Item
-				class="ctx-item"
-				disabled={!ctxNote}
-				onSelect={() => store.deleteNoteAtCursor()}>Delete note</ContextMenu.Item
-			>
+		<ContextMenu.Item
+			disabled={!ctxNote}
+			variant="destructive"
+			onSelect={() => store.deleteNoteAtCursor()}
+		>
+			Delete note
+		</ContextMenu.Item>
 
-			<ContextMenu.Separator class="ctx-sep" />
-			<div class="ctx-label">Bar {store.cursor.measure + 1}</div>
+		<ContextMenu.Separator />
+		<div class="text-muted-foreground px-2 py-1.5 text-xs font-medium">
+			Bar {store.cursor.measure + 1}
+		</div>
 
-			<ContextMenu.Item
-				class="ctx-item"
-				onSelect={() => store.insertMeasureAt(store.cursor.measure)}
-				>Insert bar before</ContextMenu.Item
-			>
-			<ContextMenu.Item
-				class="ctx-item"
-				onSelect={() => store.insertMeasureAt(store.cursor.measure + 1)}
-				>Insert bar after</ContextMenu.Item
-			>
-			<ContextMenu.Item
-				class="ctx-item"
-				onSelect={() => store.duplicateMeasureAt(store.cursor.measure)}
-				>Duplicate bar</ContextMenu.Item
-			>
-			<ContextMenu.Item class="ctx-item" onSelect={() => store.clearMeasureAt(store.cursor.measure)}
-				>Clear bar</ContextMenu.Item
-			>
+		<ContextMenu.Item onSelect={() => store.insertMeasureAt(store.cursor.measure)}>
+			Insert bar before
+		</ContextMenu.Item>
+		<ContextMenu.Item onSelect={() => store.insertMeasureAt(store.cursor.measure + 1)}>
+			Insert bar after
+		</ContextMenu.Item>
+		<ContextMenu.Item onSelect={() => store.duplicateMeasureAt(store.cursor.measure)}>
+			Duplicate bar
+		</ContextMenu.Item>
+		<ContextMenu.Item onSelect={() => store.clearMeasureAt(store.cursor.measure)}>
+			Clear bar
+		</ContextMenu.Item>
 
-			<ContextMenu.Sub>
-				<ContextMenu.SubTrigger class="ctx-item ctx-sub">
-					<span>Time signature</span>
-					<span class="ctx-chev">›</span>
-				</ContextMenu.SubTrigger>
-				<ContextMenu.SubContent class="ctx">
-					{#each TIME_SIGS as ts (ts)}
-						<ContextMenu.Item class="ctx-item" onSelect={() => setBarTimeSig(ts)}
-							>{ts}</ContextMenu.Item
-						>
-					{/each}
-				</ContextMenu.SubContent>
-			</ContextMenu.Sub>
+		<ContextMenu.Sub>
+			<ContextMenu.SubTrigger>Time signature</ContextMenu.SubTrigger>
+			<ContextMenu.SubContent class="w-32">
+				{#each TIME_SIGS as ts (ts)}
+					<ContextMenu.Item onSelect={() => setBarTimeSig(ts)}>{ts}</ContextMenu.Item>
+				{/each}
+			</ContextMenu.SubContent>
+		</ContextMenu.Sub>
 
-			<ContextMenu.Separator class="ctx-sep" />
-			<ContextMenu.Item
-				class="ctx-item danger"
-				disabled={track.measures.length <= 1}
-				onSelect={() => store.removeMeasureFromAll(store.cursor.measure)}
-				>Delete bar</ContextMenu.Item
-			>
-		</ContextMenu.Content>
-	</ContextMenu.Portal>
+		<ContextMenu.Separator />
+		<ContextMenu.Item
+			variant="destructive"
+			disabled={track.measures.length <= 1}
+			onSelect={() => store.removeMeasureFromAll(store.cursor.measure)}
+		>
+			Delete bar
+		</ContextMenu.Item>
+	</ContextMenu.Content>
 </ContextMenu.Root>
 
 <style>
@@ -653,72 +613,6 @@
 		width: 100%;
 		overflow-x: auto;
 		background: var(--paper, #fff);
-		border-radius: var(--r-sm);
-	}
-	:global(.ctx) {
-		z-index: 95;
-		min-width: 200px;
-		background: var(--paper);
-		border: 1px solid var(--border-strong);
-		border-radius: var(--r-sm);
-		box-shadow: var(--shadow-2);
-		padding: 5px;
-	}
-	:global(.ctx-label) {
-		padding: 7px 9px 4px;
-		font-size: 10px;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--faint);
-	}
-	:global(.ctx-item) {
-		display: flex;
-		align-items: center;
-		gap: 9px;
-		padding: 8px 9px;
-		font-size: 13px;
-		font-weight: 500;
-		color: var(--ink);
-		border-radius: var(--r-xs);
-		cursor: pointer;
-		user-select: none;
-	}
-	:global(.ctx-item[data-highlighted]) {
-		background: var(--panel);
-		outline: none;
-	}
-	:global(.ctx-item[data-disabled]) {
-		color: var(--faint);
-		pointer-events: none;
-	}
-	:global(.ctx-item.danger) {
-		color: var(--brick);
-	}
-	:global(.ctx-item.danger[data-highlighted]) {
-		background: var(--brick-soft);
-	}
-	:global(.ctx-sub) {
-		justify-content: space-between;
-	}
-	:global(.ctx-chev) {
-		margin-left: auto;
-		color: var(--faint);
-		font-size: 15px;
-	}
-	:global(.ctx-gl) {
-		font-size: 15px;
-		width: 16px;
-		text-align: center;
-	}
-	:global(.ctx-dot) {
-		margin-left: auto;
-		color: var(--ink);
-	}
-	:global(.ctx-sep) {
-		height: 1px;
-		background: var(--border);
-		margin: 5px 4px;
 	}
 	.track-staff.active {
 		box-shadow: inset 0 0 0 2px var(--accent-soft, #e4e4e7);

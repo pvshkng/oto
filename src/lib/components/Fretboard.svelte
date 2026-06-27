@@ -19,6 +19,11 @@
 
 	function place(stringIndex: number, fret: number) {
 		store.setCursor({ string: stringIndex });
+		// Tapping the note that is already there removes it (toggle behaviour).
+		if (noteAt(stringIndex, fret)) {
+			store.deleteNoteAtCursor();
+			return;
+		}
 		store.setFretAtCursor(fret);
 		audio.pluck(track, stringIndex, fret);
 	}
@@ -84,7 +89,7 @@
 		font:
 			600 10px ui-monospace,
 			monospace;
-		color: var(--muted);
+		color: var(--text-muted);
 		text-align: center;
 		padding-bottom: 4px;
 	}
