@@ -1,7 +1,15 @@
 // .oto document factory, (de)serialisation and validation.
 
 import { TUNINGS } from './pitch';
-import type { DurationValue, OtoBeat, OtoMeasure, OtoScore, OtoTrack, TrackKind } from './types';
+import type {
+	DurationValue,
+	OtoBeat,
+	OtoMeasure,
+	OtoScore,
+	OtoTrack,
+	Section,
+	TrackKind
+} from './types';
 
 export const OTO_VERSION = 1;
 
@@ -11,15 +19,15 @@ export function uid(prefix = 'id'): string {
 	return `${prefix}-${Date.now().toString(36)}-${idCounter.toString(36)}`;
 }
 
-// Track accents: Tailwind's -200 swatch of each hue only, so they stay light
+// Track accents: Tailwind's -100 swatch of each hue only, so they stay soft
 // and legible as both fills and text-on-color (note dots, fretboard markers).
 export const TRACK_COLOR_SWATCHES: { name: string; hex: string }[] = [
-	{ name: 'red', hex: '#fecaca' },
-	{ name: 'emerald', hex: '#a7f3d0' },
-	{ name: 'cyan', hex: '#a5f3fc' },
-	{ name: 'indigo', hex: '#c7d2fe' },
-	{ name: 'purple', hex: '#e9d5ff' },
-	{ name: 'rose', hex: '#fecdd3' }
+	{ name: 'red', hex: '#fee2e2' },
+	{ name: 'emerald', hex: '#d1fae5' },
+	{ name: 'cyan', hex: '#cffafe' },
+	{ name: 'indigo', hex: '#e0e7ff' },
+	{ name: 'purple', hex: '#f3e8ff' },
+	{ name: 'rose', hex: '#ffe4e6' }
 ];
 const TRACK_COLORS = TRACK_COLOR_SWATCHES.map((c) => c.hex);
 
@@ -50,6 +58,8 @@ export function makeTrack(opts: Partial<OtoTrack> = {}): OtoTrack {
 		transpose: opts.transpose ?? 0,
 		instrument: opts.instrument ?? 'electric',
 		volume: opts.volume ?? 0.8,
+		pan: opts.pan ?? 0,
+		eq: opts.eq ?? { low: 0, mid: 0, high: 0 },
 		muted: opts.muted ?? false,
 		soloed: opts.soloed ?? false,
 		view: opts.view ?? { standard: true, tab: true, rhythm: false },
@@ -67,7 +77,9 @@ export function makeScore(opts: Partial<OtoScore> = {}): OtoScore {
 		artist: opts.artist ?? 'Unknown Artist',
 		tempo: opts.tempo ?? 120,
 		timeSignature: opts.timeSignature ?? [4, 4],
+		masterVolume: opts.masterVolume ?? 0.85,
 		tracks: opts.tracks ?? [makeTrack()],
+		sections: opts.sections ?? [],
 		createdAt: opts.createdAt ?? now,
 		updatedAt: now
 	};
@@ -99,7 +111,9 @@ export function parse(text: string): OtoScore {
 		artist: typeof d.artist === 'string' ? d.artist : 'Unknown Artist',
 		tempo: typeof d.tempo === 'number' ? d.tempo : 120,
 		timeSignature: isTimeSig(d.timeSignature) ? d.timeSignature : [4, 4],
+		masterVolume: typeof d.masterVolume === 'number' ? d.masterVolume : undefined,
 		tracks,
+		sections: Array.isArray(d.sections) ? (d.sections as unknown[]).map(normaliseSection) : [],
 		createdAt: typeof d.createdAt === 'string' ? d.createdAt : undefined
 	});
 }
@@ -122,6 +136,8 @@ function normaliseTrack(t: unknown): OtoTrack {
 		transpose: typeof o.transpose === 'number' ? o.transpose : undefined,
 		instrument: typeof o.instrument === 'string' ? o.instrument : undefined,
 		volume: typeof o.volume === 'number' ? o.volume : undefined,
+		pan: typeof o.pan === 'number' ? o.pan : undefined,
+		eq: normaliseEq(o.eq),
 		muted: typeof o.muted === 'boolean' ? o.muted : undefined,
 		soloed: typeof o.soloed === 'boolean' ? o.soloed : undefined,
 		view:
@@ -135,6 +151,25 @@ function normaliseTrack(t: unknown): OtoTrack {
 		measures,
 		color: typeof o.color === 'string' ? o.color : undefined
 	});
+}
+
+function normaliseEq(v: unknown): { low: number; mid: number; high: number } | undefined {
+	if (!v || typeof v !== 'object') return undefined;
+	const o = v as Record<string, unknown>;
+	return {
+		low: typeof o.low === 'number' ? o.low : 0,
+		mid: typeof o.mid === 'number' ? o.mid : 0,
+		high: typeof o.high === 'number' ? o.high : 0
+	};
+}
+
+function normaliseSection(s: unknown): Section {
+	const o = (s ?? {}) as Record<string, unknown>;
+	return {
+		id: typeof o.id === 'string' ? o.id : uid('sec'),
+		measure: typeof o.measure === 'number' ? Math.max(0, Math.floor(o.measure)) : 0,
+		label: typeof o.label === 'string' ? o.label : 'Section'
+	};
 }
 
 function normaliseMeasure(m: unknown): OtoMeasure {
