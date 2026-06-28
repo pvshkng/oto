@@ -733,6 +733,11 @@ export class AudioEngine {
 		transport.cancel();
 		transport.loop = false;
 		transport.position = 0;
+		// transport.cancel() only drops pending Transport events — it does not
+		// cancel callbacks already queued on the separate Draw clock (used for
+		// onBeatMarker/onMarker), so without this a stale UI update from the
+		// previous play could still land just after resuming.
+		Tone.getDraw().cancel();
 		for (const v of this.voices.values()) v.instrument.releaseAll?.();
 	}
 

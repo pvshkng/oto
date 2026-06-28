@@ -443,6 +443,8 @@
 			{#each layout.systems as system (system.y)}
 				<svg
 					class="system"
+					data-first-measure={system.measures[0]?.index}
+					data-last-measure={system.measures[system.measures.length - 1]?.index}
 					width={Math.max(system.width, containerWidth - 8)}
 					height={system.height}
 					role="presentation"
@@ -458,6 +460,15 @@
 								onpointerdown={(e) => primeContext(e, measure, 'standard')}
 								role="presentation"
 							>
+								<!-- Invisible full-band rect so taps on empty space (not just on a
+								     drawn line/note) still register a click on this <g>. -->
+								<rect
+									x={measure.x}
+									y="0"
+									width={measure.width}
+									height={band.height}
+									class="hit-area"
+								/>
 								<!-- 5 staff lines -->
 								{#each [0, 1, 2, 3, 4] as i (i)}
 									<line
@@ -486,16 +497,12 @@
 
 								{#if measure.showHeader}
 									{#if layout.clef === 'bass'}
-										<text
-											x={measure.x + 8}
-											y={12 + 2.5 * METRICS.staffLineGap}
-											class="bravura clef">{GLYPH.bassClef}</text
+										<text x={measure.x + 8} y={12 + 2.5 * METRICS.staffLineGap} class="bravura clef"
+											>{GLYPH.bassClef}</text
 										>
 									{:else}
-										<text
-											x={measure.x + 8}
-											y={12 + 3.4 * METRICS.staffLineGap}
-											class="bravura clef">{GLYPH.trebleClef}</text
+										<text x={measure.x + 8} y={12 + 3.4 * METRICS.staffLineGap} class="bravura clef"
+											>{GLYPH.trebleClef}</text
 										>
 									{/if}
 								{/if}
@@ -534,6 +541,13 @@
 								onpointerdown={(e) => primeContext(e, measure, 'tab')}
 								role="presentation"
 							>
+								<rect
+									x={measure.x}
+									y="0"
+									width={measure.width}
+									height={band.height}
+									class="hit-area"
+								/>
 								{#if measure.overflow}
 									<rect
 										x={measure.x}
@@ -593,6 +607,13 @@
 								onpointerdown={(e) => primeContext(e, measure, 'rhythm')}
 								role="presentation"
 							>
+								<rect
+									x={measure.x}
+									y="0"
+									width={measure.width}
+									height={band.height}
+									class="hit-area"
+								/>
 								<line
 									x1={measure.x}
 									y1={band.height / 2}
@@ -753,6 +774,14 @@
 	}
 	.system {
 		display: block;
+	}
+	/* Transparent backstop so a tap on empty space inside a band still hits the
+	   <g>'s click handler — without it, SVG only dispatches pointer events where
+	   something is actually painted (a line, note, etc). */
+	.hit-area {
+		fill: transparent;
+		pointer-events: all;
+		touch-action: manipulation;
 	}
 	.staff-line {
 		stroke: #d4d4d8;

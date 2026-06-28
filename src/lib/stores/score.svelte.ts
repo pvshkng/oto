@@ -96,11 +96,9 @@ export class ScoreStore {
 
 	// Playback
 	isPlaying = $state(false);
-	/** True after Pause — distinct from a full Stop, so the next Play resumes
-	 *  from `pausePosition` instead of restarting at the selection cursor. */
+	/** True after Pause — distinct from a full Stop. The cursor is synced to
+	 *  the paused position, so the next Play resumes from `cursor`. */
 	isPaused = $state(false);
-	/** Exact (measure, beat) playback was paused at. Cleared on Stop. */
-	pausePosition = $state<{ measure: number; beat: number } | null>(null);
 	playhead = $state<{ measure: number; beat: number } | null>(null);
 
 	// User preferences (persisted to localStorage, see loadPrefs/#persistPrefs).
@@ -158,15 +156,20 @@ export class ScoreStore {
 	// Score-area scroll requests (UI only). The main view listens for these to
 	// scroll itself back to the top of the song or to a specific track/measure;
 	// each request carries a token so the same target can be re-requested.
-	scrollRequest = $state<{ kind: 'start' | 'track'; trackId?: string; token: number } | null>(null);
+	scrollRequest = $state<{
+		kind: 'start' | 'track';
+		trackId?: string;
+		measure?: number;
+		token: number;
+	} | null>(null);
 	#scrollToken = 0;
 
 	scrollToStart() {
 		this.scrollRequest = { kind: 'start', token: ++this.#scrollToken };
 	}
 
-	scrollToTrack(trackId: string) {
-		this.scrollRequest = { kind: 'track', trackId, token: ++this.#scrollToken };
+	scrollToTrack(trackId: string, measure?: number) {
+		this.scrollRequest = { kind: 'track', trackId, measure, token: ++this.#scrollToken };
 	}
 
 	// History

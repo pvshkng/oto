@@ -7,7 +7,7 @@
 	// follow.
 
 	import { store } from '$lib/stores/score.svelte';
-	import { togglePlayback, stopPlayback, goToStart } from '$lib/audio/playback';
+	import { play, pausePlayback, stopPlayback, goToStart } from '$lib/audio/playback';
 	import { downloadOto, openFile, exportPdf } from '$lib/io/files';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Command from '$lib/components/ui/command';
@@ -169,25 +169,35 @@
 
 	<div class="bg-border mx-1 h-6 w-px shrink-0"></div>
 
-	<!-- Transport: Play/Pause, Stop and Back-to-start stuck together as one
-	     control (rounded only on the outer ends). Play/Pause is a single toggle
-	     button — pressing it while playing pauses in place rather than
-	     stopping, so pressing it again resumes from that exact note. Stop
-	     drops back to the selection cursor; Back-to-start rewinds to bar 1. -->
+	<!-- Transport: Play, Pause, Stop and Back-to-start stuck together as one
+	     control (rounded only on the outer ends). Play and Pause are separate
+	     buttons, each sinking while its state is active, so it's always clear
+	     whether playback is running or paused. Play always starts from the
+	     cursor, so navigating while paused and pressing Play resumes exactly
+	     there. Stop drops the cursor back to bar 1 without scrolling;
+	     Back-to-start rewinds to bar 1 and scrolls the score there. -->
 	<div class="flex shrink-0 items-stretch">
 		<Button
 			variant="outline"
 			size="icon"
 			class={cn('size-9 rounded-r-none', store.isPlaying && 'sunk')}
-			title="Play / pause (Space)"
-			aria-label="Play or pause"
+			title="Play (Space)"
+			aria-label="Play"
 			aria-pressed={store.isPlaying}
-			onclick={togglePlayback}
+			onclick={play}
 		>
-			{#if store.isPlaying}<Pause class="size-5" weight="fill" />{:else}<Play
-					class="size-5"
-					weight="fill"
-				/>{/if}
+			<Play class="size-5" weight="fill" />
+		</Button>
+		<Button
+			variant="outline"
+			size="icon"
+			class={cn('size-9 rounded-none border-l-0', store.isPaused && 'sunk')}
+			title="Pause (Space)"
+			aria-label="Pause"
+			aria-pressed={store.isPaused}
+			onclick={pausePlayback}
+		>
+			<Pause class="size-5" weight="fill" />
 		</Button>
 		<Button
 			variant="outline"
