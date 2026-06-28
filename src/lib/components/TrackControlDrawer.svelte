@@ -82,7 +82,9 @@
 						id="track-name"
 						value={track.name}
 						placeholder="Track name"
-						onchange={(e) => store.updateTrack(index, { name: e.currentTarget.value })}
+						onfocus={() => store.beginGesture()}
+						onblur={() => store.endGesture()}
+						oninput={(e) => store.updateTrackLive(index, { name: e.currentTarget.value })}
 					/>
 				</div>
 
@@ -181,7 +183,9 @@
 							min="0"
 							max="12"
 							value={track.capo}
-							onchange={(e) => store.setCapo(index, e.currentTarget.valueAsNumber || 0)}
+							onfocus={() => store.beginGesture()}
+							onblur={() => store.endGesture()}
+							oninput={(e) => store.setCapoLive(index, e.currentTarget.valueAsNumber || 0)}
 						/>
 					</div>
 					<div class="grid gap-2">
@@ -192,7 +196,10 @@
 							min="-24"
 							max="24"
 							value={track.transpose}
-							onchange={(e) => store.setDisplayTranspose(index, e.currentTarget.valueAsNumber || 0)}
+							onfocus={() => store.beginGesture()}
+							onblur={() => store.endGesture()}
+							oninput={(e) =>
+								store.setDisplayTransposeLive(index, e.currentTarget.valueAsNumber || 0)}
 						/>
 					</div>
 				</div>

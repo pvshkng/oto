@@ -34,7 +34,9 @@
 					id="song-title"
 					value={store.score.title}
 					placeholder="Untitled Score"
-					oninput={(e) => store.setTitle(e.currentTarget.value)}
+					onfocus={() => store.beginGesture()}
+					onblur={() => store.endGesture()}
+					oninput={(e) => store.setTitleLive(e.currentTarget.value)}
 				/>
 			</div>
 			<div class="grid gap-2">
@@ -43,7 +45,9 @@
 					id="song-artist"
 					value={store.score.artist}
 					placeholder="Unknown"
-					oninput={(e) => store.setArtist(e.currentTarget.value)}
+					onfocus={() => store.beginGesture()}
+					onblur={() => store.endGesture()}
+					oninput={(e) => store.setArtistLive(e.currentTarget.value)}
 				/>
 			</div>
 			<div class="grid grid-cols-2 gap-3">
@@ -55,7 +59,9 @@
 						min="20"
 						max="400"
 						value={store.score.tempo}
-						oninput={(e) => store.setTempo(+e.currentTarget.value)}
+						onfocus={() => store.beginGesture()}
+						onblur={() => store.endGesture()}
+						oninput={(e) => store.setTempoLive(+e.currentTarget.value)}
 					/>
 				</div>
 				<div class="grid gap-2">
