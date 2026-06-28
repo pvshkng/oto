@@ -206,28 +206,31 @@
 	>
 		<Repeat class="size-5" />
 	</Button>
-	<Button
-		variant={store.metronomeOn ? 'default' : 'outline'}
-		size="icon"
-		class="size-9 shrink-0"
-		title="Metronome"
-		aria-label="Toggle metronome"
-		onclick={() => (store.metronomeOn = !store.metronomeOn)}
-	>
-		<Metronome class="size-5" />
-	</Button>
-
-	<!-- Tempo, opens the BPM drawer -->
-	<Button
-		variant="outline"
-		size="sm"
-		class="h-9 shrink-0 tabular-nums"
-		title="Tempo"
-		aria-label="Open tempo settings"
-		onclick={() => (tempoOpen = true)}
-	>
-		{store.score.tempo}<span class="text-muted-foreground text-[10px] font-semibold">bpm</span>
-	</Button>
+	<!-- Metronome + tempo: one split control. The metronome is the rounded-left
+	     half, BPM the rounded-right half, joined so they read as a single button
+	     cut down the middle. -->
+	<div class="flex shrink-0 items-stretch">
+		<Button
+			variant={store.metronomeOn ? 'default' : 'outline'}
+			size="icon"
+			class="size-9 rounded-r-none"
+			title="Metronome"
+			aria-label="Toggle metronome"
+			onclick={() => (store.metronomeOn = !store.metronomeOn)}
+		>
+			<Metronome class="size-5" />
+		</Button>
+		<Button
+			variant="outline"
+			size="sm"
+			class="h-9 rounded-l-none border-l-0 tabular-nums"
+			title="Tempo"
+			aria-label="Open tempo settings"
+			onclick={() => (tempoOpen = true)}
+		>
+			{store.score.tempo}<span class="text-muted-foreground text-[10px] font-semibold">bpm</span>
+		</Button>
+	</div>
 
 	<Button
 		variant="ghost"

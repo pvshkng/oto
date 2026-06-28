@@ -11,6 +11,15 @@ import * as Tone from 'tone';
 import { frettedFreq } from '$lib/oto/pitch';
 import { beatFraction, beatsCutoff } from '$lib/oto/duration';
 import { measureVoices, type OtoScore, type OtoTrack } from '$lib/oto/types';
+import {
+	createSampler,
+	isSetLoaded,
+	loadSets,
+	pendingSampleCount,
+	sampleSetForEngine,
+	type SampleSet
+} from './samples';
+import { loading } from '$lib/stores/loading.svelte';
 
 // Tone's default context uses latencyHint "interactive" (the browser's smallest
 // safe buffer) with a 100ms scheduling look-ahead. That's tuned for things like
@@ -246,6 +255,16 @@ function buildInstrument(
 	name: string,
 	dest: Tone.InputNode
 ): { instrument: Instrument; nodes: { dispose(): void }[] } {
+	// Prefer a recorded multisample when its set is loaded — this is what makes
+	// the guitars/bass/piano sound real rather than synthesised. The synth cases
+	// below remain a graceful fallback for the brief window before samples finish
+	// downloading (or if a fetch fails).
+	const set = sampleSetForEngine(name);
+	if (set && isSetLoaded(set)) {
+		const sampler = createSampler(set, dest);
+		if (sampler) return { instrument: sampler, nodes: [] };
+	}
+
 	switch (name) {
 		case 'drums': {
 			return { instrument: new DrumKit(dest), nodes: [] };
@@ -417,6 +436,9 @@ interface TrackVoice {
 	gain: Tone.Gain;
 	/** instrument name the voice was built for, so we can rebuild on change. */
 	key: string;
+	/** True when this voice is the synth fallback for a sampled instrument whose
+	 *  samples weren't loaded yet — rebuilt into a real sampler once they are. */
+	fallback: boolean;
 }
 
 export class AudioEngine {
@@ -468,11 +490,16 @@ export class AudioEngine {
 
 	private instrumentFor(track: OtoTrack): Instrument {
 		const existing = this.voices.get(track.id);
-		if (existing && existing.key === track.instrument) {
+		// Reuse the cached voice unless the instrument changed, or it's a synth
+		// fallback whose samples have since finished loading (so we can upgrade it
+		// to the real sampler).
+		const set = sampleSetForEngine(track.instrument);
+		const stale = existing?.fallback && set !== null && isSetLoaded(set);
+		if (existing && existing.key === track.instrument && !stale) {
 			this.applyTrackSettings(track, existing);
 			return existing.instrument;
 		}
-		// Instrument changed (or first use) → (re)build the chain.
+		// Instrument changed (or first use, or upgrade) → (re)build the chain.
 		if (existing) {
 			existing.instrument.dispose();
 			for (const n of existing.nodes) n.dispose();
@@ -485,10 +512,41 @@ export class AudioEngine {
 		const panner = new Tone.Panner(0).connect(gain);
 		const eq = new Tone.EQ3().connect(panner);
 		const { instrument, nodes } = buildInstrument(track.instrument, eq);
-		const voice: TrackVoice = { instrument, nodes, panner, eq, gain, key: track.instrument };
+		const fallback = set !== null && !isSetLoaded(set);
+		const voice: TrackVoice = {
+			instrument,
+			nodes,
+			panner,
+			eq,
+			gain,
+			key: track.instrument,
+			fallback
+		};
 		this.voices.set(track.id, voice);
 		this.applyTrackSettings(track, voice);
 		return instrument;
+	}
+
+	/**
+	 * Ensure the recorded sample sets used by the given tracks are decoded and
+	 * cached before playback, driving the loading overlay's progress while they
+	 * download. Resolves immediately when everything needed is already cached, so
+	 * it's cheap to call on every play/audition. Loading failures are swallowed —
+	 * the synth fallback still makes sound — but the overlay is closed so the app
+	 * never gets stuck behind it.
+	 */
+	async ensureSamples(engineNames: string[]): Promise<void> {
+		const sets = [
+			...new Set(engineNames.map(sampleSetForEngine).filter((s): s is SampleSet => s !== null))
+		];
+		if (sets.length === 0) return;
+		const pending = pendingSampleCount(sets);
+		if (pending > 0) loading.begin(pending);
+		try {
+			await loadSets(sets, () => loading.tick());
+		} catch {
+			loading.finish();
+		}
 	}
 
 	/**
@@ -526,6 +584,7 @@ export class AudioEngine {
 	/** Audition a single note immediately (used by the fretboard / note entry). */
 	async pluck(track: OtoTrack, stringIndex: number, fret: number) {
 		await this.ensureStarted();
+		await this.ensureSamples([track.instrument]);
 		const freq = frettedFreq(track.tuning, stringIndex, fret, {
 			capo: track.capo,
 			transpose: track.transpose
@@ -536,6 +595,10 @@ export class AudioEngine {
 
 	async play(score: OtoScore, compiled: CompiledScore, opts: PlayOptions) {
 		await this.ensureStarted();
+		// Make sure every track's samples are decoded before we build its voice,
+		// so playback starts on real samplers (not the synth fallback) and never
+		// stutters waiting on a fetch mid-bar.
+		await this.ensureSamples(score.tracks.map((t) => t.instrument));
 		this.stop();
 		this.playing = true;
 		this.setMetronomeSound(opts.metronomeSound);

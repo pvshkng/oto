@@ -28,13 +28,17 @@ export function uid(prefix = 'id'): string {
 
 // Track accents: Tailwind's -100 swatch of each hue only, so they stay soft
 // and legible as both fills and text-on-color (note dots, fretboard markers).
+// Deliberately no red/rose/pink hues — red is reserved app-wide for the
+// over-full-bar warning, so it never doubles as a track accent.
 export const TRACK_COLOR_SWATCHES: { name: string; hex: string }[] = [
-	{ name: 'red', hex: '#fee2e2' },
 	{ name: 'emerald', hex: '#d1fae5' },
+	{ name: 'teal', hex: '#ccfbf1' },
+	{ name: 'sky', hex: '#e0f2fe' },
 	{ name: 'cyan', hex: '#cffafe' },
 	{ name: 'indigo', hex: '#e0e7ff' },
 	{ name: 'purple', hex: '#f3e8ff' },
-	{ name: 'rose', hex: '#ffe4e6' }
+	{ name: 'amber', hex: '#fef3c7' },
+	{ name: 'slate', hex: '#e2e8f0' }
 ];
 const TRACK_COLORS = TRACK_COLOR_SWATCHES.map((c) => c.hex);
 
