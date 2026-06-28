@@ -6,8 +6,10 @@
 	import { audio, type MetronomeSound } from '$lib/audio/engine';
 	import * as Drawer from '$lib/components/ui/drawer';
 	import { Button } from '$lib/components/ui/button';
+	import { cn } from '$lib/utils';
 	import Minus from 'phosphor-svelte/lib/Minus';
 	import Plus from 'phosphor-svelte/lib/Plus';
+	import SpeakerSimpleHigh from 'phosphor-svelte/lib/SpeakerSimpleHigh';
 
 	let { open = $bindable(false) }: { open: boolean } = $props();
 
@@ -30,6 +32,12 @@
 		// Apply immediately, even mid-playback, instead of waiting for the next play().
 		audio.setMetronomeSound(id);
 		audio.previewMetronome();
+	}
+
+	function setMetronomeVolume(v: number) {
+		store.metronomeVolume = v;
+		// Apply live so the change is audible mid-playback.
+		audio.setMetronomeVolume(v);
 	}
 </script>
 
@@ -89,18 +97,43 @@
 				<span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
 					Metronome sound
 				</span>
-				<div class="flex w-full gap-2" role="group" aria-label="Metronome sound">
-					{#each sounds as s (s.id)}
+				<div class="flex w-full items-stretch" role="group" aria-label="Metronome sound">
+					{#each sounds as s, i (s.id)}
 						<Button
-							variant={store.metronomeSound === s.id ? 'default' : 'outline'}
+							variant="outline"
 							size="sm"
-							class="h-9 flex-1"
+							class={cn(
+								'h-9 flex-1 rounded-none',
+								i === 0 && 'rounded-l-md',
+								i === sounds.length - 1 && 'rounded-r-md',
+								i > 0 && 'border-l-0',
+								store.metronomeSound === s.id && 'sunk'
+							)}
 							aria-pressed={store.metronomeSound === s.id}
 							onclick={() => pickSound(s.id)}
 						>
 							{s.label}
 						</Button>
 					{/each}
+				</div>
+			</div>
+
+			<div class="flex w-full flex-col items-center gap-2">
+				<span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+					Metronome volume
+				</span>
+				<div class="flex w-full items-center gap-3">
+					<SpeakerSimpleHigh class="text-muted-foreground size-5 shrink-0" />
+					<input
+						type="range"
+						min="0"
+						max="1"
+						step="0.01"
+						class="accent-primary w-full"
+						value={store.metronomeVolume}
+						oninput={(e) => setMetronomeVolume(+e.currentTarget.value)}
+						aria-label="Metronome volume"
+					/>
 				</div>
 			</div>
 		</div>

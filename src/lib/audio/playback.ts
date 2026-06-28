@@ -73,6 +73,7 @@ export async function togglePlayback() {
 		await audio.play(store.score, compiled, {
 			metronome: store.metronomeOn,
 			metronomeSound: store.metronomeSound,
+			metronomeVolume: store.metronomeVolume,
 			window,
 			repeat,
 			onMarker: () => {},
@@ -99,7 +100,10 @@ export function pausePlayback() {
 	audio.stop();
 	store.isPlaying = false;
 	store.isPaused = true;
-	store.pausePosition = store.playhead ?? { measure: store.cursor.measure, beat: store.cursor.beat };
+	store.pausePosition = store.playhead ?? {
+		measure: store.cursor.measure,
+		beat: store.cursor.beat
+	};
 }
 
 /** Full stop: drops the paused position too, so the next Play restarts from

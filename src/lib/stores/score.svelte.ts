@@ -92,6 +92,7 @@ export class ScoreStore {
 	playhead = $state<{ measure: number; beat: number } | null>(null);
 	metronomeOn = $state(false);
 	metronomeSound = $state<MetronomeSound>('click');
+	metronomeVolume = $state(1);
 	loopEnabled = $state(false);
 	countInOn = $state(false);
 	/** Set when the audio engine failed to start (e.g. blocked autoplay), so the

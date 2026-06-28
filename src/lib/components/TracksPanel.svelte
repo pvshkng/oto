@@ -16,7 +16,6 @@
 	import type { OtoTrack } from '$lib/oto/types';
 
 	import Plus from 'phosphor-svelte/lib/Plus';
-	import GearSix from 'phosphor-svelte/lib/GearSix';
 	import Sliders from 'phosphor-svelte/lib/Sliders';
 	import X from 'phosphor-svelte/lib/X';
 	import MapPin from 'phosphor-svelte/lib/MapPin';
@@ -26,7 +25,7 @@
 
 	// Width of the frozen track-controls column (kept in sync with the markup so
 	// the absolute playhead can offset past it).
-	const LEAD = 210;
+	const LEAD = 184;
 
 	// Pixels per measure in the timeline. Adjustable via the zoom control so long
 	// songs don't sprawl; defaults small enough to fit a few bars on a phone, and
@@ -226,7 +225,7 @@
 			<!-- Measure ruler -->
 			<div class="bg-background sticky top-0 z-20 flex border-b">
 				<div
-					class="bg-background sticky left-0 z-10 flex w-[210px] shrink-0 items-center gap-1.5 border-r px-3 py-1.5"
+					class="bg-background sticky left-0 z-10 flex w-[184px] shrink-0 items-center gap-1.5 border-r px-3 py-1.5"
 				>
 					<button
 						class="text-muted-foreground hover:text-foreground flex shrink-0 items-center"
@@ -272,44 +271,50 @@
 					<!-- Frozen controls column -->
 					<div
 						class={cn(
-							'bg-background sticky left-0 z-10 flex w-[210px] shrink-0 flex-col gap-1.5 border-r px-2.5 py-2',
+							'bg-background sticky left-0 z-10 flex w-[184px] shrink-0 flex-col gap-1.5 border-r px-2.5 py-2',
 							active && 'bg-muted/60'
 						)}
 						style="border-left:3px solid {track.color}"
 					>
 						<div class="flex items-center gap-1.5">
-							<input
-								class="text-foreground hover:border-border focus:border-border focus:bg-background min-w-0 flex-1 rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-[13px] font-semibold focus:outline-none"
-								value={track.name}
-								onfocus={() => {
-									store.setCursor({ track: i });
-									store.beginGesture();
-								}}
-								onblur={() => store.endGesture()}
-								oninput={(e) => store.updateTrackLive(i, { name: e.currentTarget.value })}
-							/>
-							<button
-								class={cn(
-									'flex size-6 shrink-0 items-center justify-center rounded-md border text-[11px] font-bold transition-colors',
-									track.muted
-										? 'bg-primary text-primary-foreground border-primary'
-										: 'text-muted-foreground hover:text-foreground'
-								)}
-								title="Mute"
-								aria-pressed={track.muted}
-								onclick={() => store.toggleMute(i)}>M</button
-							>
-							<button
-								class={cn(
-									'flex size-6 shrink-0 items-center justify-center rounded-md border text-[11px] font-bold transition-colors',
-									track.soloed
-										? 'bg-primary text-primary-foreground border-primary'
-										: 'text-muted-foreground hover:text-foreground'
-								)}
-								title="Solo"
-								aria-pressed={track.soloed}
-								onclick={() => store.toggleSolo(i)}>S</button
-							>
+							<!-- Name + Mute + Solo as one stuck-together control: the name opens
+							     this track's control drawer, M/S sink in when active. -->
+							<div class="flex min-w-0 flex-1 items-stretch">
+								<button
+									class="text-foreground hover:bg-muted flex h-7 min-w-0 flex-1 items-center rounded-md rounded-r-none border bg-transparent px-2 text-[13px] font-semibold"
+									title="Track control"
+									aria-label={`${track.name} track control`}
+									onclick={() => {
+										store.setCursor({ track: i });
+										editIndex = i;
+										editOpen = true;
+									}}
+								>
+									<span class="truncate">{track.name}</span>
+								</button>
+								<button
+									class={cn(
+										'flex h-7 w-7 shrink-0 items-center justify-center rounded-none border border-l-0 text-[11px] font-bold',
+										track.muted
+											? 'sunk text-foreground'
+											: 'text-muted-foreground hover:text-foreground'
+									)}
+									title="Mute"
+									aria-pressed={track.muted}
+									onclick={() => store.toggleMute(i)}>M</button
+								>
+								<button
+									class={cn(
+										'flex h-7 w-7 shrink-0 items-center justify-center rounded-md rounded-l-none border border-l-0 text-[11px] font-bold',
+										track.soloed
+											? 'sunk text-foreground'
+											: 'text-muted-foreground hover:text-foreground'
+									)}
+									title="Solo"
+									aria-pressed={track.soloed}
+									onclick={() => store.toggleSolo(i)}>S</button
+								>
+							</div>
 							<button
 								class="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-md"
 								title={rowOpen[track.id] ? 'Collapse track controls' : 'Expand track controls'}
@@ -395,17 +400,6 @@
 										{/each}
 									</Popover.Content>
 								</Popover.Root>
-								<button
-									class="text-muted-foreground hover:text-foreground flex size-7 shrink-0 items-center justify-center rounded-md"
-									title="Instrument & tuning"
-									aria-label={`${track.name} settings`}
-									onclick={() => {
-										editIndex = i;
-										editOpen = true;
-									}}
-								>
-									<GearSix class="size-4" />
-								</button>
 							</div>
 						{/if}
 					</div>
@@ -452,7 +446,7 @@
 			<!-- Master strip -->
 			<div class="flex border-b bg-muted/30">
 				<div
-					class="bg-muted/40 sticky left-0 z-10 flex w-[210px] shrink-0 items-center gap-2 border-r px-2.5 py-2.5"
+					class="bg-muted/40 sticky left-0 z-10 flex w-[184px] shrink-0 items-center gap-2 border-r px-2.5 py-2.5"
 				>
 					<span class="text-foreground flex-1 text-[13px] font-bold">Master</span>
 					<input
@@ -476,7 +470,7 @@
 			<!-- Section markers -->
 			<div class="flex">
 				<div
-					class="bg-background sticky left-0 z-10 flex w-[210px] shrink-0 items-center justify-between gap-2 border-r px-2.5 py-2"
+					class="bg-background sticky left-0 z-10 flex w-[184px] shrink-0 items-center justify-between gap-2 border-r px-2.5 py-2"
 				>
 					<span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
 						>Sections</span
