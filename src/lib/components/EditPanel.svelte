@@ -14,6 +14,9 @@
 	import Numpad from 'phosphor-svelte/lib/Numpad';
 	import Guitar from 'phosphor-svelte/lib/Guitar';
 	import PianoKeys from 'phosphor-svelte/lib/PianoKeys';
+	import ColumnsPlusLeft from 'phosphor-svelte/lib/ColumnsPlusLeft';
+	import ColumnsPlusRight from 'phosphor-svelte/lib/ColumnsPlusRight';
+	import Eraser from 'phosphor-svelte/lib/Eraser';
 
 	let tsOpen = $state(false);
 
@@ -109,31 +112,41 @@
 	<!-- Note controls (apply to the selected beat / note) -->
 	<div class="controls">
 		<div class="grp">
-			{#each DURATION_ORDER as d (d)}
-				<button
-					class="ctl gl"
-					class:sunk={store.activeDuration === d}
-					title={DURATION_LABELS[d]}
-					onclick={() => pickDuration(d)}>{GLYPHS[d]}</button
-				>
-			{/each}
-			<button class="ctl gl" class:sunk={store.activeDotted} title="Dotted" onclick={toggleDot}
-				>♩<b>.</b></button
+			<div class="seg-group">
+				{#each DURATION_ORDER as d (d)}
+					<button
+						class="ctl gl seg-item"
+						class:sunk={store.activeDuration === d}
+						class:gl-sm={d === 4 || d === 8}
+						title={DURATION_LABELS[d]}
+						onclick={() => pickDuration(d)}>{GLYPHS[d]}</button
+					>
+				{/each}
+			</div>
+			<button
+				class="ctl gl gl-sm dotted"
+				class:sunk={store.activeDotted}
+				title="Dotted"
+				onclick={toggleDot}>♩<b>.</b></button
 			>
 		</div>
 
 		<span class="div"></span>
 
 		<div class="grp">
-			<button class="ctl" class:sunk={store.cursor.voice === 0} onclick={() => store.setVoice(0)}
-				>V1</button
-			>
-			<button
-				class="ctl v2"
-				class:sunk={store.cursor.voice === 1}
-				title="Second voice"
-				onclick={() => store.setVoice(1)}>V2</button
-			>
+			<div class="seg-group">
+				<button
+					class="ctl seg-item"
+					class:sunk={store.cursor.voice === 0}
+					onclick={() => store.setVoice(0)}>V1</button
+				>
+				<button
+					class="ctl seg-item v2"
+					class:sunk={store.cursor.voice === 1}
+					title="Second voice"
+					onclick={() => store.setVoice(1)}>V2</button
+				>
+			</div>
 		</div>
 
 		<span class="div"></span>
@@ -169,11 +182,30 @@
 		<span class="div"></span>
 
 		<div class="grp">
-			<button class="ctl" title="Insert beat before" onclick={() => store.insertBeatBefore()}
-				>⇤+</button
+			<button
+				class="ctl icon"
+				title="Insert beat before"
+				aria-label="Insert beat before"
+				onclick={() => store.insertBeatBefore()}
 			>
-			<button class="ctl" title="Insert beat after" onclick={() => store.insertBeat()}>+⇥</button>
-			<button class="ctl" title="Delete beat" onclick={() => store.deleteBeat()}>⌦</button>
+				<ColumnsPlusLeft class="size-5" />
+			</button>
+			<button
+				class="ctl icon"
+				title="Insert beat after"
+				aria-label="Insert beat after"
+				onclick={() => store.insertBeat()}
+			>
+				<ColumnsPlusRight class="size-5" />
+			</button>
+			<button
+				class="ctl icon"
+				title="Delete beat"
+				aria-label="Delete beat"
+				onclick={() => store.deleteBeat()}
+			>
+				<Eraser class="size-5" />
+			</button>
 		</div>
 	</div>
 
@@ -314,8 +346,34 @@
 		justify-content: center;
 	}
 	.ctl.gl {
-		font-size: 19px;
+		font-size: 24px;
 		line-height: 1;
+	}
+	/* The plain quarter/eighth note glyphs (♩ ♪) render visually smaller than the
+	   stacked Musical-Symbol glyphs, so bump them up to match the others' size. */
+	.ctl.gl.gl-sm {
+		font-size: 30px;
+	}
+	.ctl.icon {
+		color: var(--ink);
+	}
+	/* Segmented controls (durations, voices): buttons butt together sharing a
+	   border, only the outer ends rounded — like the keypad/fretboard/piano tabs. */
+	.seg-group {
+		display: inline-flex;
+		align-items: stretch;
+		flex: none;
+	}
+	.seg-group .seg-item {
+		border-radius: 0;
+		border-left-width: 0;
+	}
+	.seg-group .seg-item:first-child {
+		border-left-width: 1px;
+		border-radius: var(--r-xs) 0 0 var(--r-xs);
+	}
+	.seg-group .seg-item:last-child {
+		border-radius: 0 var(--r-xs) var(--r-xs) 0;
 	}
 	.fx:disabled {
 		opacity: 0.4;

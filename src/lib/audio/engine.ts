@@ -417,6 +417,8 @@ function buildMetronomeVoice(
 export interface PlayOptions {
 	metronome: boolean;
 	metronomeSound: MetronomeSound;
+	/** Metronome click level (0..1). */
+	metronomeVolume: number;
 	/** Time window to play. null = whole piece from the start. */
 	window: { start: number; end: number } | null;
 	/** Loop the window indefinitely (used for loop-selection playback). */
@@ -449,7 +451,9 @@ export class AudioEngine {
 	private voices = new Map<string, TrackVoice>();
 	private metro: Instrument | null = null;
 	private metroNodes: { dispose(): void }[] = [];
+	private metroGain: Tone.Gain | null = null;
 	private metroSound: MetronomeSound = 'click';
+	private metroVolume = 1;
 	private master: Tone.Gain | null = null;
 	private reverb: Tone.Reverb | null = null;
 	private started = false;
@@ -465,7 +469,10 @@ export class AudioEngine {
 			// A small amount of room reverb gives the plucked strings body.
 			this.reverb = new Tone.Reverb({ decay: 1.4, preDelay: 0.01, wet: 0.14 }).toDestination();
 			this.master = new Tone.Gain(0.85).connect(this.reverb);
-			const { instrument, nodes } = buildMetronomeVoice(this.metroSound, this.master);
+			// The metronome runs through its own gain so its level is independent of
+			// the master and the instrument tracks.
+			this.metroGain = new Tone.Gain(this.metroVolume).connect(this.master);
+			const { instrument, nodes } = buildMetronomeVoice(this.metroSound, this.metroGain);
 			this.metro = instrument;
 			this.metroNodes = nodes;
 			this.started = true;
@@ -484,12 +491,19 @@ export class AudioEngine {
 	setMetronomeSound(sound: MetronomeSound) {
 		if (sound === this.metroSound && this.metro) return;
 		this.metroSound = sound;
-		if (!this.master) return;
+		if (!this.metroGain) return;
 		this.metro?.dispose();
 		for (const n of this.metroNodes) n.dispose();
-		const { instrument, nodes } = buildMetronomeVoice(sound, this.master);
+		const { instrument, nodes } = buildMetronomeVoice(sound, this.metroGain);
 		this.metro = instrument;
 		this.metroNodes = nodes;
+	}
+
+	/** Set the metronome's click level (0..1). Remembered and applied on first
+	 *  `ensureStarted()` when called before the engine has started. */
+	setMetronomeVolume(v: number) {
+		this.metroVolume = Math.max(0, Math.min(1, v));
+		if (this.metroGain) this.metroGain.gain.value = this.metroVolume;
 	}
 
 	private instrumentFor(track: OtoTrack): Instrument {
@@ -609,6 +623,7 @@ export class AudioEngine {
 		this.stop();
 		this.playing = true;
 		this.setMetronomeSound(opts.metronomeSound);
+		this.setMetronomeVolume(opts.metronomeVolume);
 
 		// Apply master level and refresh every track's pan/EQ before scheduling.
 		this.setMasterVolume(score.masterVolume ?? 0.85);
@@ -709,6 +724,7 @@ export class AudioEngine {
 		this.voices.clear();
 		this.metro?.dispose();
 		for (const n of this.metroNodes) n.dispose();
+		this.metroGain?.dispose();
 		this.master?.dispose();
 		this.reverb?.dispose();
 		this.started = false;
