@@ -41,6 +41,39 @@ function groupsOf(beats: LaidBeat[]): number[][] {
 	return [...map.values()];
 }
 
+describe('standard notation pitch placement', () => {
+	it('writes guitar notes an octave above sounding pitch (open B sits on the middle line)', () => {
+		// Open 2nd string (index 1) sounds B3, but guitar standard notation is a
+		// transposing convention written an octave higher — so it should land on
+		// the middle staff line (B4, step 6), not a step and a half below the staff.
+		const beats = lay([
+			{
+				beats: [
+					beat(4, [note(1, 0)]),
+					beat(4, [note(1, 0)]),
+					beat(4, [note(1, 0)]),
+					beat(4, [note(1, 0)])
+				]
+			}
+		]);
+		expect(beats[0].notes[0].step).toBe(6);
+	});
+
+	it('places open high E (string 0) a third above the middle line', () => {
+		const beats = lay([
+			{
+				beats: [
+					beat(4, [note(0, 0)]),
+					beat(4, [note(0, 0)]),
+					beat(4, [note(0, 0)]),
+					beat(4, [note(0, 0)])
+				]
+			}
+		]);
+		expect(beats[0].notes[0].step).toBe(9);
+	});
+});
+
 describe('beam grouping', () => {
 	it('breaks beams at each notated beat (eight eighths in 4/4 → four pairs)', () => {
 		const beats = lay([{ beats: Array.from({ length: 8 }, () => beat(8, [note(0, 0)])) }]);
@@ -111,8 +144,8 @@ describe('stem direction', () => {
 				]
 			}
 		]);
-		expect(beats[0].stemDir).toBe(-1); // high E5 region → stem down
-		expect(beats[1].stemDir).toBe(1); // low E2 → stem up
+		expect(beats[0].stemDir).toBe(-1); // high E5 (sounding) → stem down
+		expect(beats[1].stemDir).toBe(1); // low E2 (sounding) → stem up
 	});
 });
 
@@ -176,7 +209,7 @@ describe('accidentals', () => {
 
 describe('notehead clusters', () => {
 	it('offsets one of two noteheads a second apart so they do not overlap', () => {
-		// E4 (string 0 fret 0, step 2) + D4 (string 1 fret 3, step 1): a second.
+		// E4 (string 0 fret 0, step 9) + D4 (string 1 fret 3, step 8): a second.
 		const beats = lay([
 			{
 				beats: [
@@ -192,7 +225,7 @@ describe('notehead clusters', () => {
 	});
 
 	it('leaves a third or wider cluster un-offset', () => {
-		// E4 (step 2) + B3 (string 1 fret 0, step -1): a fourth apart.
+		// E4 (step 9) + B3 (string 1 fret 0, step 6): a fourth apart.
 		const beats = lay([
 			{
 				beats: [
