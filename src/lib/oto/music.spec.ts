@@ -7,7 +7,7 @@ import {
 	analyzeMeasure,
 	overflowCutoff
 } from './duration';
-import { detuneTrack, transposeTrackFrets } from './transpose';
+import { detuneTrack, transposeTrackFrets, retuneTrack } from './transpose';
 import { makeTrack } from './format';
 import type { OtoBeat, OtoMeasure } from './types';
 
@@ -132,5 +132,47 @@ describe('transpose & detune', () => {
 		const down = transposeTrackFrets(t, -1);
 		// 0 - 1 = -1 → bumped up an octave to 11
 		expect(down.measures[0].beats[0].notes[0].fret).toBe(11);
+	});
+
+	it('retune in transpose mode shifts frets by the per-string pitch diff', () => {
+		const t = makeTrack({
+			tuning: ['E4', 'B3', 'G3', 'D3', 'A2', 'E2'],
+			measures: [{ beats: [{ duration: 4, notes: [{ string: 0, fret: 2 }], rest: false }] }]
+		});
+		// String 0 dropped a whole step (E4 -> D4): fret should rise by 2 to keep the same pitch.
+		const r = retuneTrack(t, ['D4', 'B3', 'G3', 'D3', 'A2', 'E2'], 'transpose');
+		expect(r.tuning[0]).toBe('D4');
+		expect(r.measures[0].beats[0].notes[0].fret).toBe(4);
+	});
+
+	it('retune in transpose mode bumps a negative fret up an octave', () => {
+		const t = makeTrack({
+			tuning: ['E4', 'B3', 'G3', 'D3', 'A2', 'E2'],
+			measures: [{ beats: [{ duration: 4, notes: [{ string: 0, fret: 0 }], rest: false }] }]
+		});
+		// String 0 raised a half step (E4 -> F4): diff is -1, so 0 - 1 = -1 → bumped to 11.
+		const r = retuneTrack(t, ['F4', 'B3', 'G3', 'D3', 'A2', 'E2'], 'transpose');
+		expect(r.measures[0].beats[0].notes[0].fret).toBe(11);
+	});
+
+	it('retune in transpose mode shifts slideTo by the same diff', () => {
+		const t = makeTrack({
+			tuning: ['E4', 'B3', 'G3', 'D3', 'A2', 'E2'],
+			measures: [
+				{ beats: [{ duration: 4, notes: [{ string: 0, fret: 2, slideTo: 4 }], rest: false }] }
+			]
+		});
+		const r = retuneTrack(t, ['D4', 'B3', 'G3', 'D3', 'A2', 'E2'], 'transpose');
+		expect(r.measures[0].beats[0].notes[0].slideTo).toBe(6);
+	});
+
+	it('retune in keep mode swaps the tuning but leaves frets untouched', () => {
+		const t = makeTrack({
+			tuning: ['E4', 'B3', 'G3', 'D3', 'A2', 'E2'],
+			measures: [{ beats: [{ duration: 4, notes: [{ string: 0, fret: 2 }], rest: false }] }]
+		});
+		const r = retuneTrack(t, ['D4', 'B3', 'G3', 'D3', 'A2', 'E2'], 'keep');
+		expect(r.tuning[0]).toBe('D4');
+		expect(r.measures[0].beats[0].notes[0].fret).toBe(2);
 	});
 });
