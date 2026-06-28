@@ -37,9 +37,16 @@ export interface LaidNote {
 	stdY: number; // y of notehead on standard staff
 	step: number;
 	sharp: boolean;
+	/** Accidental to draw before the notehead, after per-measure cancellation. */
+	accidental: 'sharp' | 'flat' | 'natural' | null;
+	/** Horizontal notehead displacement (px) so clustered seconds don't overlap. */
+	headXOffset: number;
 	techniques: string[];
 	bend?: number;
 	slideTo?: number;
+	tied?: boolean;
+	/** When this note ties forward, the target notehead's coordinates. */
+	tie: { x2: number; stdY2: number; tabY2: number } | null;
 	ledgerLines: number[]; // y positions of ledger lines
 }
 
@@ -47,6 +54,8 @@ export interface LaidBeat {
 	index: number;
 	x: number;
 	width: number;
+	/** Onset within the measure, in whole-note fractions (for beam grouping). */
+	startFrac: number;
 	duration: DurationValue;
 	dotted: boolean;
 	rest: boolean;
@@ -54,6 +63,9 @@ export interface LaidBeat {
 	stemDir: 1 | -1; // 1 = up
 	beams: number;
 	beamGroup: number; // id of beam group, -1 if none
+	/** Highest notehead y (smallest value) and lowest notehead y on the staff. */
+	noteTop: number;
+	noteBottom: number;
 	stdStemTop: number;
 	stdStemBottom: number;
 }
@@ -160,16 +172,25 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 			const innerWidth = width - headerW - METRICS.measurePadStart - METRICS.measurePadEnd;
 			const fill = analyzeMeasure(measure, score.timeSignature);
 
+			// Beat-unit (whole-note fraction) for beam grouping: beam runs break at
+			// each notated beat, e.g. per quarter note in 4/4 or 5/4.
+			const ts = measure.timeSignature ?? score.timeSignature;
+			const beatUnit = 1 / ts[1];
+
 			// Lay one voice's beats along the measure's inner width, positioned
 			// proportionally to duration. `forcedDir` pins stem direction for the
 			// two-voice case (voice 1 up, voice 2 down).
 			const layVoice = (vbeats: typeof measure.beats, forcedDir: 1 | -1 | null): LaidBeat[] => {
 				const totalFrac = vbeats.reduce((s, b) => s + beatFraction(b), 0) || 1;
+				// Per-voice, per-measure accidental memory so a sharped pitch isn't
+				// re-marked and a later natural cancels it.
+				const accMap = new Map<number, 'sharp' | 'natural'>();
 				let acc = 0;
 				const laid = vbeats.map((beat, bi): LaidBeat => {
 					const frac = beatFraction(beat);
 					const bx = innerStart + (acc / totalFrac) * innerWidth + 8;
 					const bw = (frac / totalFrac) * innerWidth;
+					const startFrac = acc;
 					acc += frac;
 
 					const notes: LaidNote[] = beat.notes.map((n) => {
@@ -189,34 +210,42 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 							stdY,
 							step,
 							sharp,
+							accidental: accidentalFor(step, sharp, accMap),
+							headXOffset: 0,
 							techniques: n.techniques ?? [],
 							bend: n.bend,
 							slideTo: n.slideTo,
+							tied: n.tied,
+							tie: null,
 							ledgerLines: ledgerLinesFor(step)
 						};
 					});
 
-					const stemDir: 1 | -1 = forcedDir ?? (avgStep(notes) > 6 ? -1 : 1);
 					const stdYs = notes.map((n) => n.stdY);
-					const top = stdYs.length ? Math.min(...stdYs) : standardNoteY(6);
-					const bottom = stdYs.length ? Math.max(...stdYs) : standardNoteY(6);
-					const stemLen = 26;
+					const noteTop = stdYs.length ? Math.min(...stdYs) : standardNoteY(6);
+					const noteBottom = stdYs.length ? Math.max(...stdYs) : standardNoteY(6);
 					return {
 						index: bi,
 						x: bx,
 						width: bw,
+						startFrac,
 						duration: beat.duration,
 						dotted: !!beat.dotted,
 						rest: !!beat.rest || beat.notes.length === 0,
 						notes,
-						stemDir,
+						stemDir: forcedDir ?? 1,
 						beams: beamCount(beat.duration),
 						beamGroup: -1,
-						stdStemTop: stemDir === 1 ? top - stemLen : top,
-						stdStemBottom: stemDir === 1 ? bottom : bottom + stemLen
+						noteTop,
+						noteBottom,
+						stdStemTop: noteTop,
+						stdStemBottom: noteBottom
 					};
 				});
-				assignBeamGroups(laid);
+				assignBeamGroups(laid, beatUnit);
+				assignStemDirections(laid, forcedDir);
+				offsetSecondClusters(laid);
+				assignTies(laid);
 				return laid;
 			};
 
@@ -244,6 +273,15 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 			mx += width;
 			return laid;
 		});
+
+		// Ties that cross a barline: link a measure's last beat to the next
+		// measure's first beat. Measures in a system share absolute x, so the
+		// tie path renders correctly. (Ties across a system break are dropped.)
+		for (let i = 0; i < measures.length - 1; i++) {
+			linkCrossMeasureTies(measures[i].beats, measures[i + 1].beats);
+			if (measures[i].voice2 && measures[i + 1].voice2)
+				linkCrossMeasureTies(measures[i].voice2!, measures[i + 1].voice2!);
+		}
 
 		return { y: 0, height: systemHeight, measures, width: mx };
 	}
@@ -283,19 +321,54 @@ function ledgerLinesFor(step: number): number[] {
 	return lines;
 }
 
+const STEM_LEN = 26;
+const MIDDLE_STEP = 6; // B4, the middle staff line in treble clef
+
 function avgStep(notes: LaidNote[]): number {
-	if (!notes.length) return 6;
+	if (!notes.length) return MIDDLE_STEP;
 	return notes.reduce((s, n) => s + n.step, 0) / notes.length;
 }
 
-/** Group consecutive non-rest eighth/sixteenth beats into beam groups. */
-function assignBeamGroups(beats: LaidBeat[]) {
+/**
+ * Per-measure accidental resolution (key of C, no key signature). Returns the
+ * accidental to draw, or null when the pitch is already covered by an earlier
+ * accidental on the same staff position this bar.
+ */
+function accidentalFor(
+	step: number,
+	sharp: boolean,
+	accMap: Map<number, 'sharp' | 'natural'>
+): 'sharp' | 'flat' | 'natural' | null {
+	const cur = accMap.get(step);
+	if (sharp) {
+		if (cur !== 'sharp') {
+			accMap.set(step, 'sharp');
+			return 'sharp';
+		}
+		return null;
+	}
+	if (cur === 'sharp') {
+		accMap.set(step, 'natural');
+		return 'natural';
+	}
+	return null;
+}
+
+/**
+ * Group consecutive non-rest eighth/sixteenth beats into beam groups, breaking
+ * the run whenever it crosses a notated beat boundary (every `beatUnit` of a
+ * whole note) so beaming follows the metre instead of running edge to edge.
+ */
+function assignBeamGroups(beats: LaidBeat[], beatUnit: number) {
+	const cellOf = (b: LaidBeat) => Math.floor(b.startFrac / beatUnit + 1e-9);
 	let group = 0;
 	let i = 0;
 	while (i < beats.length) {
 		if (beats[i].beams > 0 && !beats[i].rest) {
-			let j = i;
-			while (j < beats.length && beats[j].beams > 0 && !beats[j].rest) j++;
+			const cell = cellOf(beats[i]);
+			let j = i + 1;
+			while (j < beats.length && beats[j].beams > 0 && !beats[j].rest && cellOf(beats[j]) === cell)
+				j++;
 			if (j - i >= 2) {
 				for (let k = i; k < j; k++) beats[k].beamGroup = group;
 				group++;
@@ -304,5 +377,81 @@ function assignBeamGroups(beats: LaidBeat[]) {
 		} else {
 			i++;
 		}
+	}
+}
+
+/**
+ * Decide one stem direction per beam group (so a beam never asks neighbouring
+ * stems to point opposite ways) and per standalone beat, then set the stem
+ * extents accordingly. `forcedDir` pins direction for multi-voice staves.
+ */
+function assignStemDirections(beats: LaidBeat[], forcedDir: 1 | -1 | null) {
+	const seen = new Set<number>();
+	for (const b of beats) {
+		if (b.beamGroup >= 0) {
+			if (seen.has(b.beamGroup)) continue;
+			seen.add(b.beamGroup);
+			const members = beats.filter((m) => m.beamGroup === b.beamGroup);
+			const all = members.flatMap((m) => m.notes);
+			const dir: 1 | -1 = forcedDir ?? (avgStep(all) > MIDDLE_STEP ? -1 : 1);
+			for (const m of members) {
+				m.stemDir = dir;
+				setStemExtents(m);
+			}
+		} else {
+			b.stemDir = forcedDir ?? (avgStep(b.notes) > MIDDLE_STEP ? -1 : 1);
+			setStemExtents(b);
+		}
+	}
+}
+
+function setStemExtents(b: LaidBeat) {
+	if (b.stemDir === 1) {
+		b.stdStemTop = b.noteTop - STEM_LEN;
+		b.stdStemBottom = b.noteBottom;
+	} else {
+		b.stdStemTop = b.noteTop;
+		b.stdStemBottom = b.noteBottom + STEM_LEN;
+	}
+}
+
+/**
+ * Within a chord, noteheads a second apart (adjacent staff positions) collide.
+ * Displace every other clustered head to the far side of the stem so both read.
+ */
+function offsetSecondClusters(beats: LaidBeat[]) {
+	const HEAD_W = 11;
+	for (const b of beats) {
+		if (b.notes.length < 2) continue;
+		const sorted = [...b.notes].sort((a, c) => a.step - c.step);
+		const off = b.stemDir === 1 ? HEAD_W : -HEAD_W;
+		for (let k = 1; k < sorted.length; k++) {
+			if (Math.abs(sorted[k].step - sorted[k - 1].step) <= 1 && sorted[k - 1].headXOffset === 0) {
+				sorted[k].headXOffset = off;
+			}
+		}
+	}
+}
+
+/** Link each tied note to the matching-string notehead in the next beat. */
+function assignTies(beats: LaidBeat[]) {
+	for (let i = 0; i < beats.length - 1; i++) {
+		for (const n of beats[i].notes) {
+			if (!n.tied) continue;
+			const next = beats[i + 1].notes.find((m) => m.string === n.string);
+			if (next) n.tie = { x2: next.x + next.headXOffset, stdY2: next.stdY, tabY2: next.tabY };
+		}
+	}
+}
+
+/** Link tied notes in `cur`'s last beat to the matching note in `next`'s first. */
+function linkCrossMeasureTies(cur: LaidBeat[], next: LaidBeat[]) {
+	if (!cur.length || !next.length) return;
+	const last = cur[cur.length - 1];
+	for (const n of last.notes) {
+		if (!n.tied || n.tie) continue;
+		const target = next[0].notes.find((m) => m.string === n.string);
+		if (target)
+			n.tie = { x2: target.x + target.headXOffset, stdY2: target.stdY, tabY2: target.tabY };
 	}
 }

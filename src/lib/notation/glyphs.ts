@@ -1,25 +1,60 @@
 // SMuFL (Bravura) glyph code points used by the standard-notation renderer.
 // We draw note heads/stems/beams as vector primitives and use the font only for
 // clefs, time-signature digits, rests and a few ornaments where it reads best.
-
-export const GLYPH = {
-	trebleClef: '',
-	bassClef: '',
-	restWhole: '',
-	restHalf: '',
-	restQuarter: '',
-	restEighth: '',
-	rest16th: '',
-	rest32nd: '',
-	augmentationDot: '',
-	flag8thUp: '',
-	flag16thUp: '',
-	flag32ndUp: '',
-	flag8thDown: '',
-	flag16thDown: ''
-} as const;
+//
+// Glyphs are built from explicit SMuFL code points (Private Use Area) via
+// String.fromCodePoint so this source stays ASCII-readable and diffable.
 
 import type { DurationValue } from '$lib/oto/types';
+
+const cp = (n: number) => String.fromCodePoint(n);
+
+export const GLYPH = {
+	trebleClef: cp(0xe050),
+	bassClef: cp(0xe062),
+	restWhole: cp(0xe4e3),
+	restHalf: cp(0xe4e4),
+	restQuarter: cp(0xe4e5),
+	restEighth: cp(0xe4e6),
+	rest16th: cp(0xe4e7),
+	rest32nd: cp(0xe4e8),
+	augmentationDot: cp(0xe1e7),
+	flag8thUp: cp(0xe240),
+	flag16thUp: cp(0xe242),
+	flag32ndUp: cp(0xe244),
+	flag8thDown: cp(0xe241),
+	flag16thDown: cp(0xe243),
+	accidentalSharp: cp(0xe262),
+	accidentalFlat: cp(0xe260),
+	accidentalNatural: cp(0xe261)
+} as const;
+
+// SMuFL time-signature digits live at U+E080–U+E089 (timeSig0 … timeSig9). The
+// plain ASCII digits don't carry the staff-specific design, so the time
+// signature renders blank without these.
+const TIME_SIG_DIGITS = Array.from({ length: 10 }, (_, d) => cp(0xe080 + d));
+
+/** Render an integer as Bravura staff time-signature digits. */
+export function timeSigGlyphs(n: number): string {
+	return String(n)
+		.split('')
+		.map((d) => TIME_SIG_DIGITS[+d] ?? '')
+		.join('');
+}
+
+/** Glyph for an accidental kind, or '' when none. */
+export function accidentalGlyph(kind: 'sharp' | 'flat' | 'natural' | null): string {
+	switch (kind) {
+		case 'sharp':
+			return GLYPH.accidentalSharp;
+		case 'flat':
+			return GLYPH.accidentalFlat;
+		case 'natural':
+			return GLYPH.accidentalNatural;
+		default:
+			return '';
+	}
+}
 
 export function restGlyph(d: DurationValue): string {
 	switch (d) {
