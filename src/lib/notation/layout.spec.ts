@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { layoutTrack, type LaidBeat } from './layout';
+import { accidentalGlyph } from './glyphs';
 import { makeScore, makeTrack } from '$lib/oto/format';
-import type { OtoBeat, OtoMeasure, DurationValue } from '$lib/oto/types';
+import type { OtoBeat, OtoMeasure, DurationValue, TrackKind } from '$lib/oto/types';
 
 const TUNING = ['E4', 'B3', 'G3', 'D3', 'A2', 'E2'];
+const BASS_TUNING = ['G2', 'D2', 'A1', 'E1'];
 
 function note(string: number, fret: number, extra: Partial<OtoBeat['notes'][number]> = {}) {
 	return { string, fret, ...extra };
@@ -16,20 +18,37 @@ function beat(
 	return { duration, notes, ...extra };
 }
 
-function lay(measures: OtoMeasure[], timeSignature: [number, number] = [4, 4]) {
+function layTrack(
+	measures: OtoMeasure[],
+	opts: {
+		tuning?: string[];
+		kind?: TrackKind;
+		timeSignature?: [number, number];
+		keySignature?: number;
+	} = {}
+) {
 	const track = makeTrack({
-		tuning: TUNING,
+		tuning: opts.tuning ?? TUNING,
+		kind: opts.kind ?? 'guitar',
 		measures,
 		view: { standard: true, tab: true, rhythm: false }
 	});
-	const score = makeScore({ timeSignature, tracks: [track] });
+	const score = makeScore({
+		timeSignature: opts.timeSignature ?? [4, 4],
+		keySignature: opts.keySignature ?? 0,
+		tracks: [track]
+	});
 	const layout = layoutTrack(score, track, {
 		containerWidth: 4000, // wide enough to keep everything on one system
 		showStandard: true,
 		showTab: true,
 		showRhythm: false
 	});
-	return layout.systems[0].measures[0].beats;
+	return layout;
+}
+
+function lay(measures: OtoMeasure[], timeSignature: [number, number] = [4, 4]) {
+	return layTrack(measures, { timeSignature }).systems[0].measures[0].beats;
 }
 
 function groupsOf(beats: LaidBeat[]): number[][] {
@@ -71,6 +90,76 @@ describe('standard notation pitch placement', () => {
 			}
 		]);
 		expect(beats[0].notes[0].step).toBe(9);
+	});
+});
+
+describe('clef selection', () => {
+	it('renders bass tracks in bass clef and everything else in treble', () => {
+		const guitar = layTrack([{ beats: [beat(4, [note(0, 0)])] }], { kind: 'guitar' });
+		const bass = layTrack([{ beats: [beat(4, [note(0, 0)])] }], {
+			kind: 'bass',
+			tuning: BASS_TUNING
+		});
+		const ukulele = layTrack([{ beats: [beat(4, [note(0, 0)])] }], { kind: 'ukulele' });
+		expect(guitar.clef).toBe('treble');
+		expect(bass.clef).toBe('bass');
+		expect(ukulele.clef).toBe('treble');
+	});
+
+	it('places a bass open G string (written an octave up, G3) in the top space of the bass staff', () => {
+		const layout = layTrack(
+			[
+				{
+					beats: [
+						beat(4, [note(0, 0)]),
+						beat(4, [note(0, 0)]),
+						beat(4, [note(0, 0)]),
+						beat(4, [note(0, 0)])
+					]
+				}
+			],
+			{ kind: 'bass', tuning: BASS_TUNING }
+		);
+		const beats = layout.systems[0].measures[0].beats;
+		// G2 sounding, written +12 as G3: bass-clef top space, step -3.
+		expect(beats[0].notes[0].step).toBe(-3);
+	});
+
+	it('places a bass open D string (written D3) exactly on the bass staff middle line', () => {
+		const layout = layTrack(
+			[
+				{
+					beats: [
+						beat(4, [note(1, 0)]),
+						beat(4, [note(1, 0)]),
+						beat(4, [note(1, 0)]),
+						beat(4, [note(1, 0)])
+					]
+				}
+			],
+			{ kind: 'bass', tuning: BASS_TUNING }
+		);
+		const beats = layout.systems[0].measures[0].beats;
+		expect(beats[0].notes[0].step).toBe(-6);
+	});
+
+	it('adds a ledger line for a bass open low-E string (written E2, below the bass staff)', () => {
+		const layout = layTrack(
+			[
+				{
+					beats: [
+						beat(4, [note(3, 0)]),
+						beat(4, [note(3, 0)]),
+						beat(4, [note(3, 0)]),
+						beat(4, [note(3, 0)])
+					]
+				}
+			],
+			{ kind: 'bass', tuning: BASS_TUNING }
+		);
+		const beats = layout.systems[0].measures[0].beats;
+		expect(beats[0].notes[0].step).toBe(-12);
+		expect(beats[0].notes[0].ledgerLines.length).toBeGreaterThan(0);
 	});
 });
 
@@ -204,6 +293,78 @@ describe('accidentals', () => {
 		expect(m0[1].notes[0].accidental).toBe(null);
 		// New bar re-states the accidental.
 		expect(m1[0].notes[0].accidental).toBe('sharp');
+	});
+});
+
+describe('key signatures', () => {
+	it('draws no accidental for a pitch the key signature already alters (G major, F#)', () => {
+		// String 0 (E4) fret 2 → F#4 sounding, written F#5 — already sharped by
+		// a one-sharp (G major) key signature, so no accidental should render.
+		const layout = layTrack(
+			[{ beats: [beat(4, [note(0, 2)]), beat(4, [note(0, 0)]), beat(4, [note(0, 0)])] }],
+			{ keySignature: 1 }
+		);
+		const beats = layout.systems[0].measures[0].beats;
+		expect(beats[0].notes[0].accidental).toBe(null);
+	});
+
+	it('cancels a key-signature sharp with a natural when the bar plays the plain letter (G major, F)', () => {
+		// String 0 (E4) fret 1 → F4 sounding, written F5 — the key signature
+		// already sharps F, so the plain (natural) F needs an explicit natural.
+		const layout = layTrack(
+			[{ beats: [beat(4, [note(0, 1)]), beat(4, [note(0, 0)]), beat(4, [note(0, 0)])] }],
+			{ keySignature: 1 }
+		);
+		const beats = layout.systems[0].measures[0].beats;
+		expect(beats[0].notes[0].accidental).toBe('natural');
+	});
+
+	it('draws no accidental for a pitch the key signature already flats (F major, Bb)', () => {
+		// String 0 (E4) fret 6 → Bb4 sounding — already flatted by a one-flat
+		// (F major) key signature, so no accidental should render, and it should
+		// be spelled as a flat (same staff position as B) rather than a sharp.
+		const layout = layTrack(
+			[{ beats: [beat(4, [note(0, 6)]), beat(4, [note(0, 0)]), beat(4, [note(0, 0)])] }],
+			{ keySignature: -1 }
+		);
+		const beats = layout.systems[0].measures[0].beats;
+		expect(beats[0].notes[0].accidental).toBe(null);
+		expect(beats[0].notes[0].step % 7).toBe(6); // lands on B's staff position
+	});
+
+	it('cancels a key-signature flat with a natural when the bar plays the plain letter (F major, B)', () => {
+		// String 1 (B3) open → B3 sounding, written B4 — the key signature
+		// already flats B, so the plain (natural) B needs an explicit natural.
+		const layout = layTrack(
+			[{ beats: [beat(4, [note(1, 0)]), beat(4, [note(0, 0)]), beat(4, [note(0, 0)])] }],
+			{ keySignature: -1 }
+		);
+		const beats = layout.systems[0].measures[0].beats;
+		expect(beats[0].notes[0].accidental).toBe('natural');
+	});
+
+	it('renders one sharp glyph on F#5 line for a one-sharp (G major) treble key signature', () => {
+		const layout = layTrack([{ beats: [beat(4, [note(0, 0)])] }], { keySignature: 1 });
+		expect(layout.keySigGlyphs).toHaveLength(1);
+		expect(layout.keySigGlyphs[0].glyph).toBe(accidentalGlyph('sharp'));
+	});
+
+	it('renders one flat glyph for a one-flat (F major) treble key signature', () => {
+		const layout = layTrack([{ beats: [beat(4, [note(0, 0)])] }], { keySignature: -1 });
+		expect(layout.keySigGlyphs).toHaveLength(1);
+		expect(layout.keySigGlyphs[0].glyph).toBe(accidentalGlyph('flat'));
+	});
+
+	it('renders no key signature glyphs for the key of C', () => {
+		const layout = layTrack([{ beats: [beat(4, [note(0, 0)])] }], { keySignature: 0 });
+		expect(layout.keySigGlyphs).toHaveLength(0);
+		expect(layout.keySigWidth).toBe(0);
+	});
+
+	it('renders the correct count of accidentals for a multi-sharp key (E major, 4 sharps)', () => {
+		const layout = layTrack([{ beats: [beat(4, [note(0, 0)])] }], { keySignature: 4 });
+		expect(layout.keySigGlyphs).toHaveLength(4);
+		expect(layout.keySigGlyphs.every((g) => g.glyph === accidentalGlyph('sharp'))).toBe(true);
 	});
 });
 

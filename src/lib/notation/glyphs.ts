@@ -112,18 +112,29 @@ export function beamCount(d: DurationValue): number {
  * Returns the number of diatonic steps above the bottom staff line (E4 = 0 in
  * treble for line positions). We map to a "position" where each step = half a
  * staff-line gap. Higher pitch = smaller y. */
-const DIATONIC = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6]; // semitone -> diatonic step within octave (C=0)
-const IS_SHARP = [false, true, false, true, false, false, true, false, true, false, true, false];
+// semitone -> diatonic step within octave (C=0), spelling each black key as the
+// sharp of its lower neighbour (the default, key-of-C-friendly spelling).
+const DIATONIC_SHARP = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6];
+// Same black keys, spelled as the flat of their upper neighbour instead — used
+// for flat key signatures so accidentals land on the expected staff position
+// (e.g. Bb on B's line, not A's).
+const DIATONIC_FLAT = [0, 1, 1, 2, 2, 3, 4, 4, 5, 5, 6, 6];
+// Which semitones are black keys at all — same set regardless of spelling.
+const IS_ALTERED = [false, true, false, true, false, false, true, false, true, false, true, false];
 
 export interface StaffStep {
 	/** diatonic steps relative to middle C (C4 = 0), positive = higher. */
 	step: number;
-	sharp: boolean;
+	/** Accidental implied by this pitch's spelling, or null for a natural-letter pitch. */
+	accidentalHint: 'sharp' | 'flat' | null;
 }
 
-export function midiToStaffStep(midi: number): StaffStep {
+/** `preferFlat` spells black keys as flats (for flat key signatures) instead of sharps. */
+export function midiToStaffStep(midi: number, preferFlat = false): StaffStep {
 	const pc = ((midi % 12) + 12) % 12;
 	const octave = Math.floor(midi / 12) - 1; // C4 -> octave 4
-	const step = (octave - 4) * 7 + DIATONIC[pc];
-	return { step, sharp: IS_SHARP[pc] };
+	const diatonic = preferFlat ? DIATONIC_FLAT : DIATONIC_SHARP;
+	const step = (octave - 4) * 7 + diatonic[pc];
+	const accidentalHint = IS_ALTERED[pc] ? (preferFlat ? 'flat' : 'sharp') : null;
+	return { step, accidentalHint };
 }

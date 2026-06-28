@@ -4,7 +4,7 @@
 
 import { analyzeMeasure, beatFraction } from '$lib/oto/duration';
 import { frettedMidi } from '$lib/oto/pitch';
-import { beamCount, midiToStaffStep } from './glyphs';
+import { accidentalGlyph, beamCount, midiToStaffStep } from './glyphs';
 import type { OtoScore, OtoTrack, DurationValue, TrackKind } from '$lib/oto/types';
 
 export interface LayoutOptions {
@@ -36,7 +36,6 @@ export interface LaidNote {
 	tabY: number;
 	stdY: number; // y of notehead on standard staff
 	step: number;
-	sharp: boolean;
 	/** Accidental to draw before the notehead, after per-measure cancellation. */
 	accidental: 'sharp' | 'flat' | 'natural' | null;
 	/** Horizontal notehead displacement (px) so clustered seconds don't overlap. */
@@ -96,6 +95,84 @@ export interface TrackLayout {
 	totalHeight: number;
 	stringCount: number;
 	bands: { standard: Band | null; tab: Band | null; rhythm: Band | null };
+	/** Which clef the standard staff is drawn in for this track. */
+	clef: Clef;
+	/** Key-signature accidental glyphs to draw after the clef, at the start of
+	 *  each system (empty for the key of C / A minor). `dx` is relative to the
+	 *  measure's x. */
+	keySigGlyphs: { glyph: string; dx: number; y: number }[];
+	/** Extra header width (px) consumed by `keySigGlyphs`, for positioning whatever comes after them. */
+	keySigWidth: number;
+}
+
+/** The two clefs the standard staff can render in. */
+export type Clef = 'treble' | 'bass';
+
+/** Bass is notated in bass clef; every other kind uses treble. */
+export function clefForKind(kind: TrackKind): Clef {
+	return kind === 'bass' ? 'bass' : 'treble';
+}
+
+/**
+ * Diatonic staff steps (relative to middle C = 0, see `midiToStaffStep`) for
+ * each clef's bottom line, top line and middle line.
+ *  - Treble: lines E4 G4 B4 D5 F5 → bottom 2, middle 6, top 10.
+ *  - Bass: lines G2 B2 D3 F3 A3 → bottom -10, middle -6, top -2.
+ */
+const CLEF_LINES: Record<Clef, { top: number; bottom: number; middle: number }> = {
+	treble: { top: 10, bottom: 2, middle: 6 },
+	bass: { top: -2, bottom: -10, middle: -6 }
+};
+
+// Circle-of-fifths order in which sharps/flats are added to a key signature,
+// expressed as diatonic letter classes (C=0 D=1 E=2 F=3 G=4 A=5 B=6).
+const SHARP_LETTER_ORDER = [3, 0, 4, 1, 5, 2, 6]; // F C G D A E B
+const FLAT_LETTER_ORDER = [6, 2, 5, 1, 4, 0, 3]; // B E A D G C F
+
+// Standard engraving staff steps for each sharp/flat, in the same circle-of-
+// fifths order as above, per clef.
+const KEY_SIG_STEPS: Record<Clef, { sharp: number[]; flat: number[] }> = {
+	treble: { sharp: [10, 7, 11, 8, 5, 9, 6], flat: [6, 9, 5, 8, 4, 7, 3] },
+	bass: { sharp: [-4, -7, -3, -6, -9, -5, -8], flat: [-8, -5, -9, -6, -10, -7, -4] }
+};
+
+/** Letter classes (mod-7 diatonic step) altered by a key signature, with their
+ *  alteration — e.g. G major (fifths=1) maps F's letter class to 'sharp'. */
+function keySignatureLetterDefaults(fifths: number): Map<number, 'sharp' | 'flat'> {
+	const map = new Map<number, 'sharp' | 'flat'>();
+	if (fifths > 0) {
+		for (let i = 0; i < Math.min(fifths, 7); i++) map.set(SHARP_LETTER_ORDER[i], 'sharp');
+	} else if (fifths < 0) {
+		for (let i = 0; i < Math.min(-fifths, 7); i++) map.set(FLAT_LETTER_ORDER[i], 'flat');
+	}
+	return map;
+}
+
+function letterClassOf(step: number): number {
+	return ((step % 7) + 7) % 7;
+}
+
+const KEY_SIG_GLYPH_GAP = 7;
+const KEY_SIG_START_DX = 26; // right after the clef glyph
+
+/** Accidental glyphs to render for a key signature in a given clef, positioned
+ *  left to right starting just after the clef. */
+function keySignatureGlyphs(fifths: number, clef: Clef): { glyph: string; dx: number; y: number }[] {
+	if (fifths === 0) return [];
+	const type = fifths > 0 ? 'sharp' : 'flat';
+	const steps = KEY_SIG_STEPS[clef][type].slice(0, Math.min(Math.abs(fifths), 7));
+	const glyph = accidentalGlyph(type);
+	return steps.map((step, i) => ({
+		glyph,
+		dx: KEY_SIG_START_DX + i * KEY_SIG_GLYPH_GAP,
+		y: standardNoteY(step, clef) + 4
+	}));
+}
+
+/** Extra header width needed to fit a key signature's accidentals. */
+function keySignatureWidth(fifths: number): number {
+	if (fifths === 0) return 0;
+	return Math.min(Math.abs(fifths), 7) * KEY_SIG_GLYPH_GAP + 6;
 }
 
 export interface Band {
@@ -103,16 +180,24 @@ export interface Band {
 	height: number;
 }
 
-function intrinsicMeasureWidth(beatCount: number, showHeader: boolean): number {
+function intrinsicMeasureWidth(beatCount: number, showHeader: boolean, headerWidth: number): number {
 	const w =
 		METRICS.measurePadStart +
 		Math.max(1, beatCount) * (METRICS.beatMinWidth + METRICS.beatPadding) +
 		METRICS.measurePadEnd;
-	return w + (showHeader ? METRICS.headerWidth : 0);
+	return w + (showHeader ? headerWidth : 0);
 }
 
 export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOptions): TrackLayout {
 	const stringCount = track.tuning.length;
+	const clef = clefForKind(track.kind);
+	const middleStep = CLEF_LINES[clef].middle;
+	const keyFifths = score.keySignature ?? 0;
+	const keyLetterDefaults = keySignatureLetterDefaults(keyFifths);
+	const preferFlat = keyFifths < 0;
+	const keySigGlyphs = keySignatureGlyphs(keyFifths, clef);
+	const keySigWidth = keySignatureWidth(keyFifths);
+	const headerWidth = METRICS.headerWidth + keySigWidth;
 	const standardHeight = METRICS.staffLineGap * 8 + 24; // 5 lines + ledger room
 	const tabHeight = (stringCount - 1) * METRICS.tabLineGap + 28;
 	const rhythmHeight = 30;
@@ -147,10 +232,10 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 	for (let mi = 0; mi < track.measures.length; mi++) {
 		const beatCount = track.measures[mi].beats.length;
 		const showHeader = row.length === 0;
-		const w = intrinsicMeasureWidth(beatCount, showHeader);
+		const w = intrinsicMeasureWidth(beatCount, showHeader, headerWidth);
 		if (row.length > 0 && rowWidth + w > avail) flush();
 		row.push(mi);
-		rowWidth += intrinsicMeasureWidth(beatCount, row.length === 1);
+		rowWidth += intrinsicMeasureWidth(beatCount, row.length === 1, headerWidth);
 	}
 	flush();
 
@@ -158,7 +243,7 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 	function buildSystem(measureIndexes: number[], justify: boolean): LaidSystem {
 		// First pass: intrinsic widths.
 		const intrinsic = measureIndexes.map((mi, i) =>
-			intrinsicMeasureWidth(track.measures[mi].beats.length, i === 0)
+			intrinsicMeasureWidth(track.measures[mi].beats.length, i === 0, headerWidth)
 		);
 		const totalIntrinsic = intrinsic.reduce((a, b) => a + b, 0);
 		const scale = justify && totalIntrinsic > 0 ? Math.min(1.6, avail / totalIntrinsic) : 1;
@@ -168,7 +253,7 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 		const measures: LaidMeasure[] = measureIndexes.map((mi, i) => {
 			const measure = track.measures[mi];
 			const showHeader = i === 0;
-			const headerW = showHeader ? METRICS.headerWidth : 0;
+			const headerW = showHeader ? headerWidth : 0;
 			const width = intrinsic[i] * scale;
 			const innerStart = mx + headerW + METRICS.measurePadStart;
 			const innerWidth = width - headerW - METRICS.measurePadStart - METRICS.measurePadEnd;
@@ -184,9 +269,11 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 			// two-voice case (voice 1 up, voice 2 down).
 			const layVoice = (vbeats: typeof measure.beats, forcedDir: 1 | -1 | null): LaidBeat[] => {
 				const totalFrac = vbeats.reduce((s, b) => s + beatFraction(b), 0) || 1;
-				// Per-voice, per-measure accidental memory so a sharped pitch isn't
-				// re-marked and a later natural cancels it.
-				const accMap = new Map<number, 'sharp' | 'natural'>();
+				// Per-voice, per-measure accidental memory so a sharped/flatted pitch
+				// isn't re-marked and a later natural cancels it. Falls back to the
+				// key signature's own alteration (by letter, across all octaves) when
+				// nothing has overridden a given staff position yet this measure.
+				const accMap = new Map<number, 'sharp' | 'flat' | null>();
 				let acc = 0;
 				const laid = vbeats.map((beat, bi): LaidBeat => {
 					const frac = beatFraction(beat);
@@ -208,9 +295,13 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 						// octave above the instrument's actual sounding pitch (like the
 						// double bass) so the staff doesn't need a thicket of ledger
 						// lines; the tab/audio paths keep using the real `midi` above.
-						const { step, sharp } = midiToStaffStep(midi + notationOctaveShift(track.kind));
+						const { step, accidentalHint } = midiToStaffStep(
+							midi + notationOctaveShift(track.kind),
+							preferFlat
+						);
 						const tabY = bands.tab ? n.string * METRICS.tabLineGap + 14 : 0;
-						const stdY = standardNoteY(step);
+						const stdY = standardNoteY(step, clef);
+						const keyDefault = keyLetterDefaults.get(letterClassOf(step)) ?? null;
 						return {
 							string: n.string,
 							fret: n.fret,
@@ -219,8 +310,7 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 							tabY,
 							stdY,
 							step,
-							sharp,
-							accidental: dead ? null : accidentalFor(step, sharp, accMap),
+							accidental: dead ? null : accidentalFor(step, accidentalHint, keyDefault, accMap),
 							headXOffset: 0,
 							techniques: n.techniques ?? [],
 							dead,
@@ -228,13 +318,13 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 							slideTo: n.slideTo,
 							tied: n.tied,
 							tie: null,
-							ledgerLines: ledgerLinesFor(step)
+							ledgerLines: ledgerLinesFor(step, clef)
 						};
 					});
 
 					const stdYs = notes.map((n) => n.stdY);
-					const noteTop = stdYs.length ? Math.min(...stdYs) : standardNoteY(6);
-					const noteBottom = stdYs.length ? Math.max(...stdYs) : standardNoteY(6);
+					const noteTop = stdYs.length ? Math.min(...stdYs) : standardNoteY(middleStep, clef);
+					const noteBottom = stdYs.length ? Math.max(...stdYs) : standardNoteY(middleStep, clef);
 					return {
 						index: bi,
 						x: bx,
@@ -254,7 +344,7 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 					};
 				});
 				assignBeamGroups(laid, beatUnit);
-				assignStemDirections(laid, forcedDir);
+				assignStemDirections(laid, forcedDir, middleStep);
 				offsetSecondClusters(laid);
 				assignTies(laid);
 				return laid;
@@ -308,7 +398,10 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 		systems,
 		totalHeight: yy + 8,
 		stringCount,
-		bands
+		bands,
+		clef,
+		keySigGlyphs,
+		keySigWidth
 	};
 }
 
@@ -324,57 +417,50 @@ function notationOctaveShift(kind: TrackKind): number {
 	return kind === 'guitar' || kind === 'bass' ? 12 : 0;
 }
 
-/** Standard-staff y for a diatonic step (C4 = 0). Top line F5 step=10. */
-function standardNoteY(step: number): number {
-	// Treble: bottom line E4 (step 2) … top line F5 (step 10). Each step = half gap.
-	const topLineStep = 10; // F5
+/** Standard-staff y for a diatonic step (C4 = 0), in the given clef. */
+function standardNoteY(step: number, clef: Clef): number {
+	// Each step = half a staff-line gap, measured down from the clef's top line.
+	const topLineStep = CLEF_LINES[clef].top;
 	const topLineY = 12 + METRICS.staffLineGap; // y of top staff line within band
 	return topLineY + (topLineStep - step) * (METRICS.staffLineGap / 2);
 }
 
-function ledgerLinesFor(step: number): number[] {
+function ledgerLinesFor(step: number, clef: Clef): number[] {
 	const lines: number[] = [];
-	// staff lines at steps 2,4,6,8,10 (E4 G4 B4 D5 F5)
-	if (step <= 0) {
-		for (let s = 0; s >= step; s -= 2) lines.push(standardNoteY(s));
+	const { top, bottom } = CLEF_LINES[clef];
+	if (step <= bottom - 2) {
+		for (let s = bottom - 2; s >= step; s -= 2) lines.push(standardNoteY(s, clef));
 	}
-	if (step >= 12) {
-		for (let s = 12; s <= step; s += 2) lines.push(standardNoteY(s));
+	if (step >= top + 2) {
+		for (let s = top + 2; s <= step; s += 2) lines.push(standardNoteY(s, clef));
 	}
 	return lines;
 }
 
 const STEM_LEN = 26;
-const MIDDLE_STEP = 6; // B4, the middle staff line in treble clef
 
-function avgStep(notes: LaidNote[]): number {
-	if (!notes.length) return MIDDLE_STEP;
+function avgStep(notes: LaidNote[], middleStep: number): number {
+	if (!notes.length) return middleStep;
 	return notes.reduce((s, n) => s + n.step, 0) / notes.length;
 }
 
 /**
- * Per-measure accidental resolution (key of C, no key signature). Returns the
- * accidental to draw, or null when the pitch is already covered by an earlier
- * accidental on the same staff position this bar.
+ * Per-measure accidental resolution. `keyDefault` is the alteration the key
+ * signature already applies to this staff position (by letter, every
+ * octave); `accMap` overrides it for the rest of the bar once an explicit
+ * accidental appears at this exact octave. Returns the accidental to draw, or
+ * null when the pitch already matches the current effective state.
  */
 function accidentalFor(
 	step: number,
-	sharp: boolean,
-	accMap: Map<number, 'sharp' | 'natural'>
+	desired: 'sharp' | 'flat' | null,
+	keyDefault: 'sharp' | 'flat' | null,
+	accMap: Map<number, 'sharp' | 'flat' | null>
 ): 'sharp' | 'flat' | 'natural' | null {
-	const cur = accMap.get(step);
-	if (sharp) {
-		if (cur !== 'sharp') {
-			accMap.set(step, 'sharp');
-			return 'sharp';
-		}
-		return null;
-	}
-	if (cur === 'sharp') {
-		accMap.set(step, 'natural');
-		return 'natural';
-	}
-	return null;
+	const current = accMap.has(step) ? accMap.get(step)! : keyDefault;
+	if (desired === current) return null;
+	accMap.set(step, desired);
+	return desired ?? 'natural';
 }
 
 /**
@@ -408,7 +494,7 @@ function assignBeamGroups(beats: LaidBeat[], beatUnit: number) {
  * stems to point opposite ways) and per standalone beat, then set the stem
  * extents accordingly. `forcedDir` pins direction for multi-voice staves.
  */
-function assignStemDirections(beats: LaidBeat[], forcedDir: 1 | -1 | null) {
+function assignStemDirections(beats: LaidBeat[], forcedDir: 1 | -1 | null, middleStep: number) {
 	const seen = new Set<number>();
 	for (const b of beats) {
 		if (b.beamGroup >= 0) {
@@ -416,13 +502,13 @@ function assignStemDirections(beats: LaidBeat[], forcedDir: 1 | -1 | null) {
 			seen.add(b.beamGroup);
 			const members = beats.filter((m) => m.beamGroup === b.beamGroup);
 			const all = members.flatMap((m) => m.notes);
-			const dir: 1 | -1 = forcedDir ?? (avgStep(all) > MIDDLE_STEP ? -1 : 1);
+			const dir: 1 | -1 = forcedDir ?? (avgStep(all, middleStep) > middleStep ? -1 : 1);
 			for (const m of members) {
 				m.stemDir = dir;
 				setStemExtents(m);
 			}
 		} else {
-			b.stemDir = forcedDir ?? (avgStep(b.notes) > MIDDLE_STEP ? -1 : 1);
+			b.stemDir = forcedDir ?? (avgStep(b.notes, middleStep) > middleStep ? -1 : 1);
 			setStemExtents(b);
 		}
 	}
