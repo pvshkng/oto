@@ -6,7 +6,6 @@
 import type { Component } from 'svelte';
 import { store } from '$lib/stores/score.svelte';
 import { togglePlayback, stopPlayback } from '$lib/audio/playback';
-import { downloadOto, openFile, exportPdf } from '$lib/io/files';
 import { DURATION_ORDER } from '$lib/oto/duration';
 import {
 	DURATION_LABELS,
@@ -183,9 +182,24 @@ export function fileCommands(): Cmd[] {
 					store.newScore();
 			}
 		},
-		{ id: 'file-save', label: 'Save .oto', icon: FloppyDisk, run: () => downloadOto() },
-		{ id: 'file-pdf', label: 'Export PDF', icon: FilePdf, run: () => exportPdf() },
-		{ id: 'file-open', label: 'Open / Import', icon: FolderOpen, run: () => void openFile() }
+		{
+			id: 'file-save',
+			label: 'Save .oto',
+			icon: FloppyDisk,
+			run: () => void import('$lib/io/files').then((m) => m.downloadOto())
+		},
+		{
+			id: 'file-pdf',
+			label: 'Export PDF',
+			icon: FilePdf,
+			run: () => void import('$lib/io/files').then((m) => m.exportPdf())
+		},
+		{
+			id: 'file-open',
+			label: 'Open / Import',
+			icon: FolderOpen,
+			run: () => void import('$lib/io/files').then((m) => m.openFile())
+		}
 	];
 }
 

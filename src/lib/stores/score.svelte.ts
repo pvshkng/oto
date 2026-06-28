@@ -179,6 +179,17 @@ export class ScoreStore {
 	/** Set while a continuous mixer drag is in flight (see beginGesture). */
 	#gestureActive = false;
 
+	/** Bumped whenever the score's *compiled* content changes (notes, tempo,
+	 *  tuning, mute/solo, …) — anything that goes through commit()/commitLive()
+	 *  or undo/redo. Live mixer setters (volume/pan/EQ) deliberately don't bump
+	 *  this: they're applied to audio nodes directly and never baked into the
+	 *  compiled schedule, so the playback engine can cache its compiled score
+	 *  keyed on this number instead of recompiling on every Play press. */
+	#scoreVersion = $state(0);
+	get scoreVersion(): number {
+		return this.#scoreVersion;
+	}
+
 	get track(): OtoTrack {
 		return this.score.tracks[this.cursor.track] ?? this.score.tracks[0];
 	}
@@ -262,6 +273,7 @@ export class ScoreStore {
 	commit(mutate: () => void) {
 		this.#pushUndo();
 		mutate();
+		this.#scoreVersion++;
 		this.persist();
 	}
 
@@ -269,6 +281,7 @@ export class ScoreStore {
 	 *  (see beginGesture) where the snapshot was already taken once up front. */
 	commitLive(mutate: () => void) {
 		mutate();
+		this.#scoreVersion++;
 		this.persist();
 	}
 
@@ -301,6 +314,7 @@ export class ScoreStore {
 		this.#redoStack.push(JSON.stringify(this.score));
 		this.score = JSON.parse(prev);
 		this.clampCursor();
+		this.#scoreVersion++;
 		this.persist();
 	}
 
@@ -310,6 +324,7 @@ export class ScoreStore {
 		this.#undoStack.push(JSON.stringify(this.score));
 		this.score = JSON.parse(next);
 		this.clampCursor();
+		this.#scoreVersion++;
 		this.persist();
 	}
 
@@ -705,6 +720,38 @@ export class ScoreStore {
 
 	clearSelection() {
 		this.selection = null;
+	}
+
+	/** Drop the loop's start marker at the cursor, keeping the current end (or
+	 *  starting a single-beat loop at the cursor if nothing was selected yet). */
+	setLoopStartAtCursor() {
+		const c = this.cursor;
+		this.selection = this.selection
+			? { ...this.selection, startMeasure: c.measure, startBeat: c.beat }
+			: {
+					track: c.track,
+					startMeasure: c.measure,
+					startBeat: c.beat,
+					endMeasure: c.measure,
+					endBeat: c.beat
+				};
+		this.loopEnabled = true;
+	}
+
+	/** Drop the loop's end marker at the cursor, keeping the current start (or
+	 *  starting a single-beat loop at the cursor if nothing was selected yet). */
+	setLoopEndAtCursor() {
+		const c = this.cursor;
+		this.selection = this.selection
+			? { ...this.selection, endMeasure: c.measure, endBeat: c.beat }
+			: {
+					track: c.track,
+					startMeasure: c.measure,
+					startBeat: c.beat,
+					endMeasure: c.measure,
+					endBeat: c.beat
+				};
+		this.loopEnabled = true;
 	}
 
 	/** Anchor the selection at the current cursor and extend its end to (measure, beat). */

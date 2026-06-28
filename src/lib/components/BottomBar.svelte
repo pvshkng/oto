@@ -8,7 +8,6 @@
 
 	import { store } from '$lib/stores/score.svelte';
 	import { play, pausePlayback, stopPlayback, goToStart } from '$lib/audio/playback';
-	import { downloadOto, openFile, exportPdf } from '$lib/io/files';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Command from '$lib/components/ui/command';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
@@ -25,6 +24,7 @@
 	import Metronome from 'phosphor-svelte/lib/Metronome';
 	import ClockCountdown from 'phosphor-svelte/lib/ClockCountdown';
 	import Repeat from 'phosphor-svelte/lib/Repeat';
+	import Flag from 'phosphor-svelte/lib/Flag';
 	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
 	import Sliders from 'phosphor-svelte/lib/Sliders';
 	import GearSix from 'phosphor-svelte/lib/GearSix';
@@ -45,7 +45,7 @@
 	function confirmNew() {
 		if (confirm('Start a new score? Your current one stays in the last save.')) store.newScore();
 	}
-	function runFile(fn: () => void) {
+	function runFile(fn: () => void | Promise<void>) {
 		fn();
 		fileOpen = false;
 	}
@@ -83,16 +83,22 @@
 						<Command.Item onSelect={() => runFile(confirmNew)}>
 							<FilePlus class="size-4" /> New
 						</Command.Item>
-						<Command.Item onSelect={() => runFile(() => downloadOto())}>
+						<Command.Item
+							onSelect={() => runFile(() => import('$lib/io/files').then((m) => m.downloadOto()))}
+						>
 							<FloppyDisk class="size-4" /> Save .oto
 						</Command.Item>
-						<Command.Item onSelect={() => runFile(() => exportPdf())}>
+						<Command.Item
+							onSelect={() => runFile(() => import('$lib/io/files').then((m) => m.exportPdf()))}
+						>
 							<FilePdf class="size-4" /> Export PDF
 						</Command.Item>
 					</Command.Group>
 					<Command.Separator />
 					<Command.Group>
-						<Command.Item onSelect={() => runFile(() => void openFile())}>
+						<Command.Item
+							onSelect={() => runFile(() => import('$lib/io/files').then((m) => m.openFile()))}
+						>
 							<FolderOpen class="size-4" /> Open / Import
 						</Command.Item>
 					</Command.Group>
@@ -221,22 +227,55 @@
 		</Button>
 	</div>
 
-	<!-- Loop stays a standalone control, not part of the transport group. -->
-	<Button
-		variant="outline"
-		size="icon"
-		class={cn(
-			'size-9 shrink-0',
-			store.loopEnabled && 'sunk',
-			store.selection && !store.loopEnabled && 'border-foreground'
-		)}
-		title="Loop selection"
-		aria-label="Toggle loop"
-		aria-pressed={store.loopEnabled}
-		onclick={() => (store.loopEnabled = !store.loopEnabled)}
-	>
-		<Repeat class="size-5" />
-	</Button>
+	<!-- Loop on/off + start/end markers, stuck together as one control: the
+	     toggle is the rounded-left third, the end marker the rounded-right
+	     third, dropping the markers at the cursor (creating a single-beat
+	     loop selection on first use) and turning looping on. -->
+	<div class="flex shrink-0 items-stretch">
+		<Button
+			variant="outline"
+			size="icon"
+			class={cn(
+				'size-9 rounded-r-none',
+				store.loopEnabled && 'sunk',
+				store.selection && !store.loopEnabled && 'border-foreground'
+			)}
+			title="Loop selection"
+			aria-label="Toggle loop"
+			aria-pressed={store.loopEnabled}
+			onclick={() => (store.loopEnabled = !store.loopEnabled)}
+		>
+			<Repeat class="size-5" />
+		</Button>
+		<Button
+			variant="outline"
+			size="icon"
+			class="relative size-9 rounded-none border-l-0"
+			title="Set loop start at cursor"
+			aria-label="Set loop start marker"
+			onclick={() => store.setLoopStartAtCursor()}
+		>
+			<Flag class="size-5" />
+			<span
+				class="pointer-events-none absolute top-0.5 right-1 text-[7px] leading-none font-extrabold select-none"
+				>A</span
+			>
+		</Button>
+		<Button
+			variant="outline"
+			size="icon"
+			class="relative size-9 rounded-l-none border-l-0"
+			title="Set loop end at cursor"
+			aria-label="Set loop end marker"
+			onclick={() => store.setLoopEndAtCursor()}
+		>
+			<Flag class="size-5" />
+			<span
+				class="pointer-events-none absolute top-0.5 right-1 text-[7px] leading-none font-extrabold select-none"
+				>B</span
+			>
+		</Button>
+	</div>
 	<!-- Metronome + count-in + tempo: one split control. The metronome is the
 	     rounded-left half, BPM the rounded-right half, with the count-in toggle
 	     joined in the middle so they read as a single button cut into thirds. -->

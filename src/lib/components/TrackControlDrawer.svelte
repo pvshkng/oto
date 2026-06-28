@@ -206,17 +206,19 @@
 
 				<div class="grid gap-2">
 					<Label>Notation</Label>
-					<div class="bg-muted flex gap-1 rounded-md p-1">
-						{#each [['standard', 'Standard'], ['tab', 'Tab'], ['rhythm', 'Rhythm']] as [key, label] (key)}
+					<div class="flex items-stretch">
+						{#each [['standard', 'Standard'], ['tab', 'Tab'], ['rhythm', 'Rhythm']] as [key, label], i (key)}
 							{@const k = key as 'standard' | 'tab' | 'rhythm'}
 							<button
 								type="button"
 								class={cn(
-									'flex-1 rounded-sm px-2 py-1.5 text-sm font-medium transition-colors',
-									track.view[k]
-										? 'bg-primary text-primary-foreground'
-										: 'text-muted-foreground hover:text-foreground'
+									'border-input bg-background hover:bg-accent hover:text-accent-foreground flex-1 border px-2 py-1.5 text-sm font-medium transition-colors',
+									i > 0 && 'border-l-0',
+									i === 0 && 'rounded-l-md',
+									i === 2 && 'rounded-r-md',
+									track.view[k] ? 'sunk' : 'text-muted-foreground'
 								)}
+								aria-pressed={track.view[k]}
 								onclick={() => store.toggleTrackView(index, k)}>{label}</button
 							>
 						{/each}

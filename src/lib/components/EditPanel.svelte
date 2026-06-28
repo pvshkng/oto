@@ -355,10 +355,10 @@
 		font-size: 18px;
 		line-height: 1;
 		width: 20px;
+		padding-top: 6px;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		transform: translateY(0.08em);
 	}
 	/* The dotted button packs two glyphs (note + augmentation dot) into one
 	   span, so it needs its own width instead of the single-glyph fixed box. */
