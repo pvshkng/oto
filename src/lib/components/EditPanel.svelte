@@ -10,8 +10,6 @@
 	import { DURATION_LABELS, type DurationValue, type Technique } from '$lib/oto/types';
 	import * as Popover from '$lib/components/ui/popover';
 	import { cn } from '$lib/utils';
-	import Fretboard from './Fretboard.svelte';
-	import Piano from './Piano.svelte';
 	import X from 'phosphor-svelte/lib/X';
 	import Numpad from 'phosphor-svelte/lib/Numpad';
 	import Guitar from 'phosphor-svelte/lib/Guitar';
@@ -206,11 +204,15 @@
 		</div>
 	{:else if store.editTool === 'fretboard'}
 		<div class="fretboard-wrap">
-			<Fretboard />
+			{#await import('./Fretboard.svelte') then { default: Fretboard }}
+				<Fretboard />
+			{/await}
 		</div>
 	{:else}
 		<div class="fretboard-wrap">
-			<Piano />
+			{#await import('./Piano.svelte') then { default: Piano }}
+				<Piano />
+			{/await}
 		</div>
 	{/if}
 </div>
