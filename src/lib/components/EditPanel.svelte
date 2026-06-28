@@ -11,7 +11,11 @@
 	import * as Popover from '$lib/components/ui/popover';
 	import { cn } from '$lib/utils';
 	import Fretboard from './Fretboard.svelte';
-	import CaretLineDown from 'phosphor-svelte/lib/CaretLineDown';
+	import Piano from './Piano.svelte';
+	import X from 'phosphor-svelte/lib/X';
+	import Numpad from 'phosphor-svelte/lib/Numpad';
+	import Guitar from 'phosphor-svelte/lib/Guitar';
+	import PianoKeys from 'phosphor-svelte/lib/PianoKeys';
 
 	let tsOpen = $state(false);
 
@@ -63,14 +67,35 @@
 <div class="edit-panel">
 	<div class="tabs">
 		<div class="seg">
-			<button class:on={store.editTool === 'keypad'} onclick={() => (store.editTool = 'keypad')}>
-				Keypad
+			<button
+				class="seg-btn"
+				class:sunk={store.editTool === 'keypad'}
+				title="Keypad"
+				aria-label="Keypad"
+				aria-pressed={store.editTool === 'keypad'}
+				onclick={() => (store.editTool = 'keypad')}
+			>
+				<Numpad class="size-4" />
 			</button>
 			<button
-				class:on={store.editTool === 'fretboard'}
+				class="seg-btn"
+				class:sunk={store.editTool === 'fretboard'}
+				title="Fretboard"
+				aria-label="Fretboard"
+				aria-pressed={store.editTool === 'fretboard'}
 				onclick={() => (store.editTool = 'fretboard')}
 			>
-				Fretboard
+				<Guitar class="size-4" />
+			</button>
+			<button
+				class="seg-btn"
+				class:sunk={store.editTool === 'piano'}
+				title="Piano"
+				aria-label="Piano"
+				aria-pressed={store.editTool === 'piano'}
+				onclick={() => (store.editTool = 'piano')}
+			>
+				<PianoKeys class="size-4" />
 			</button>
 		</div>
 		<button
@@ -79,7 +104,7 @@
 			title="Hide edit panel"
 			aria-label="Hide edit panel"
 		>
-			<CaretLineDown class="size-4" weight="bold" />
+			<X class="size-5" />
 		</button>
 	</div>
 
@@ -89,12 +114,12 @@
 			{#each DURATION_ORDER as d (d)}
 				<button
 					class="ctl gl"
-					class:on={store.activeDuration === d}
+					class:sunk={store.activeDuration === d}
 					title={DURATION_LABELS[d]}
 					onclick={() => pickDuration(d)}>{GLYPHS[d]}</button
 				>
 			{/each}
-			<button class="ctl gl" class:on={store.activeDotted} title="Dotted" onclick={toggleDot}
+			<button class="ctl gl" class:sunk={store.activeDotted} title="Dotted" onclick={toggleDot}
 				>♩<b>.</b></button
 			>
 		</div>
@@ -102,12 +127,12 @@
 		<span class="div"></span>
 
 		<div class="grp">
-			<button class="ctl" class:on={store.cursor.voice === 0} onclick={() => store.setVoice(0)}
+			<button class="ctl" class:sunk={store.cursor.voice === 0} onclick={() => store.setVoice(0)}
 				>V1</button
 			>
 			<button
 				class="ctl v2"
-				class:on={store.cursor.voice === 1}
+				class:sunk={store.cursor.voice === 1}
 				title="Second voice"
 				onclick={() => store.setVoice(1)}>V2</button
 			>
@@ -159,7 +184,7 @@
 		{#each EFFECTS as e (e.tech)}
 			<button
 				class="fx"
-				class:on={hasTech(e.tech)}
+				class:sunk={hasTech(e.tech)}
 				disabled={!note}
 				title={e.label}
 				onclick={() => store.toggleTechnique(e.tech)}>{e.sym}</button
@@ -179,9 +204,13 @@
 			<button class="key" onclick={() => store.moveCursor('left')}>◀</button>
 			<button class="key" onclick={() => store.moveCursor('right')}>▶</button>
 		</div>
-	{:else}
+	{:else if store.editTool === 'fretboard'}
 		<div class="fretboard-wrap">
 			<Fretboard />
+		</div>
+	{:else}
+		<div class="fretboard-wrap">
+			<Piano />
 		</div>
 	{/if}
 </div>
@@ -202,37 +231,43 @@
 	}
 	.seg {
 		display: inline-flex;
-		background: var(--bg);
-		border: 1px solid var(--border-strong);
-		border-radius: var(--r-sm);
-		padding: 2px;
-		gap: 2px;
+		align-items: stretch;
 	}
-	.seg button {
-		border: none;
-		background: transparent;
-		padding: 5px 14px;
-		font-size: 12px;
-		font-weight: 600;
+	.seg-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 38px;
+		height: 32px;
+		border: 1px solid var(--border-strong);
+		border-left-width: 0;
+		background: var(--paper);
 		color: var(--text-muted);
-		border-radius: var(--r-xs);
 		cursor: pointer;
 	}
-	.seg button.on {
-		background: var(--ink);
-		color: var(--accent-ink);
+	.seg-btn:first-child {
+		border-left-width: 1px;
+		border-radius: var(--r-xs) 0 0 var(--r-xs);
+	}
+	.seg-btn:last-child {
+		border-radius: 0 var(--r-xs) var(--r-xs) 0;
+	}
+	.seg-btn.sunk {
+		color: var(--ink);
 	}
 	.hide {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		border: 1px solid var(--border-strong);
-		background: var(--bg);
-		border-radius: var(--r-xs);
+		border: none;
+		background: transparent;
 		width: 32px;
 		height: 32px;
 		color: var(--text-muted);
 		cursor: pointer;
+	}
+	.hide:hover {
+		color: var(--ink);
 	}
 	.controls,
 	.effects {
@@ -279,16 +314,6 @@
 	.ctl.gl {
 		font-size: 19px;
 		line-height: 1;
-	}
-	.ctl.on,
-	.fx.on {
-		background: var(--ink);
-		border-color: var(--ink);
-		color: var(--accent-ink);
-	}
-	.ctl.v2.on {
-		background: var(--accent-2);
-		border-color: var(--accent-2);
 	}
 	.fx:disabled {
 		opacity: 0.4;

@@ -10,7 +10,6 @@
 	import { audio } from '$lib/audio/engine';
 	import { analyzeMeasure } from '$lib/oto/duration';
 	import * as Popover from '$lib/components/ui/popover';
-	import { Button } from '$lib/components/ui/button';
 	import { cn } from '$lib/utils';
 	import Knob from './Knob.svelte';
 	import TrackControlDrawer from './TrackControlDrawer.svelte';
@@ -182,9 +181,9 @@
 			</span>
 		</div>
 		<div class="flex items-center gap-1.5">
-			<div class="mr-1 flex items-center gap-0.5">
+			<div class="mr-1 flex shrink-0 items-stretch">
 				<button
-					class="text-muted-foreground hover:text-foreground flex size-7 items-center justify-center rounded-md border disabled:opacity-40"
+					class="text-muted-foreground hover:text-foreground flex size-7 items-center justify-center rounded-md rounded-r-none border disabled:opacity-40"
 					title="Zoom out timeline"
 					aria-label="Zoom out timeline"
 					disabled={cell <= MIN_CELL}
@@ -193,7 +192,7 @@
 					<MagnifyingGlassMinus class="size-4" />
 				</button>
 				<button
-					class="text-muted-foreground hover:text-foreground flex size-7 items-center justify-center rounded-md border disabled:opacity-40"
+					class="text-muted-foreground hover:text-foreground flex size-7 items-center justify-center rounded-md rounded-l-none border border-l-0 disabled:opacity-40"
 					title="Zoom in timeline"
 					aria-label="Zoom in timeline"
 					disabled={cell >= MAX_CELL}
@@ -202,9 +201,6 @@
 					<MagnifyingGlassPlus class="size-4" />
 				</button>
 			</div>
-			<Button variant="outline" size="sm" class="h-8" onclick={addTrack}>
-				<Plus class="size-4" /> Track
-			</Button>
 			<button
 				class="text-muted-foreground hover:text-foreground p-1"
 				title="Close tracks panel"
@@ -244,6 +240,14 @@
 					<span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
 						>Track</span
 					>
+					<button
+						class="text-muted-foreground hover:text-foreground hover:border-border ml-auto flex size-5 shrink-0 items-center justify-center rounded-sm border border-transparent"
+						title="Add track"
+						aria-label="Add track"
+						onclick={addTrack}
+					>
+						<Plus class="size-3.5" />
+					</button>
 				</div>
 				<div class="relative shrink-0" style="width:{timelineW}px">
 					<div class="flex h-full">

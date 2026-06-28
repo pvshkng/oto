@@ -25,9 +25,12 @@ function timeAt(measure: number, beat: number): number {
 	return t;
 }
 
+/** Play from the current position, or resume from where playback was paused.
+ *  Pressing this while already playing pauses (see `pausePlayback`) — it does
+ *  not stop, so a second press resumes exactly where it left off. */
 export async function togglePlayback() {
 	if (store.isPlaying) {
-		stopPlayback();
+		pausePlayback();
 		return;
 	}
 	const compiled = compileScore(store.score);
@@ -35,6 +38,11 @@ export async function togglePlayback() {
 	let window: { start: number; end: number } | null = null;
 	let repeat = false;
 	const bounds = store.loopEnabled ? store.loopBounds : null;
+	// Resuming from a pause takes priority over the loop/cursor start so
+	// "play again" continues from the exact note it was paused at, never from
+	// the selection or the top of the loop.
+	const resumeAt = !bounds && store.isPaused ? store.pausePosition : null;
+
 	if (bounds) {
 		// Loop the selected region.
 		const start = timeAt(bounds.startMeasure, bounds.startBeat);
@@ -47,6 +55,9 @@ export async function togglePlayback() {
 				: timeAt(bounds.endMeasure + 1, 0) || compiled.totalTime;
 		window = { start, end };
 		repeat = true;
+	} else if (resumeAt) {
+		const start = timeAt(resumeAt.measure, resumeAt.beat);
+		if (start > 0.01) window = { start, end: compiled.totalTime };
 	} else if (store.cursor.measure > 0 || store.cursor.beat > 0) {
 		// Otherwise start one-shot playback from the cursor position.
 		const start = timeAt(store.cursor.measure, store.cursor.beat);
@@ -54,7 +65,9 @@ export async function togglePlayback() {
 	}
 
 	store.isPlaying = true;
-	store.playhead = { measure: bounds?.startMeasure ?? store.cursor.measure, beat: 0 };
+	store.isPaused = false;
+	store.pausePosition = null;
+	store.playhead = resumeAt ?? { measure: bounds?.startMeasure ?? store.cursor.measure, beat: 0 };
 
 	try {
 		await audio.play(store.score, compiled, {
@@ -80,15 +93,28 @@ export async function togglePlayback() {
 	}
 }
 
+/** Pause in place: freezes the audio at the current beat and remembers it, so
+ *  the next Play resumes from here rather than the selection or bar 1. */
+export function pausePlayback() {
+	audio.stop();
+	store.isPlaying = false;
+	store.isPaused = true;
+	store.pausePosition = store.playhead ?? { measure: store.cursor.measure, beat: store.cursor.beat };
+}
+
+/** Full stop: drops the paused position too, so the next Play restarts from
+ *  the selection cursor. */
 export function stopPlayback() {
 	audio.stop();
 	store.isPlaying = false;
+	store.isPaused = false;
+	store.pausePosition = null;
 	store.playhead = null;
 }
 
 /** Stop playback (if running), rewind the cursor to bar 1 and scroll the score back up. */
 export function goToStart() {
-	if (store.isPlaying) stopPlayback();
+	if (store.isPlaying || store.isPaused) stopPlayback();
 	store.setCursor({ measure: 0, beat: 0 });
 	store.scrollToStart();
 }

@@ -378,9 +378,21 @@
 	/* The lift shadow rides on the sliding panel (not the static dock) so it
 	   animates in with the panel rather than snapping to the open position while
 	   the panel is still travelling. The bottom bar keeps its own top border for
-	   separation when no panel is open. */
+	   separation when no panel is open.
+	   Both children get an explicit stacking position: the panel sits in a
+	   higher layer than the bar so that while it's sliding up from below (its
+	   `fly` transition translates it downward past its own resting spot) it
+	   passes *over* the bar instead of being painted under it. At rest the two
+	   never overlap — the panel occupies the flow space directly above the bar
+	   — so the raised z-index only ever matters mid-animation. */
 	.dock-panel {
+		position: relative;
+		z-index: 2;
 		box-shadow: var(--shadow-3);
+	}
+	.bottom-dock > :global(.bottom-bar) {
+		position: relative;
+		z-index: 1;
 	}
 	@media (max-width: 720px) {
 		.score-area {

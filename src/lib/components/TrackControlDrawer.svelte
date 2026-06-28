@@ -17,9 +17,11 @@
 	import { INSTRUMENTS, presetFor, type InstrumentPreset } from '$lib/oto/instruments';
 	import { TUNINGS } from '$lib/oto/pitch';
 	import { TRACK_COLOR_SWATCHES } from '$lib/oto/format';
+	import CustomTuningDrawer from './CustomTuningDrawer.svelte';
 	import Check from 'phosphor-svelte/lib/Check';
 	import CaretUpDown from 'phosphor-svelte/lib/CaretUpDown';
 	import Trash from 'phosphor-svelte/lib/Trash';
+	import SlidersHorizontal from 'phosphor-svelte/lib/SlidersHorizontal';
 
 	let { open = $bindable(false), index = -1 }: { open: boolean; index?: number } = $props();
 
@@ -27,19 +29,22 @@
 
 	let instOpen = $state(false);
 	let tuneOpen = $state(false);
+	let customTuningOpen = $state(false);
 
 	const track = $derived(store.score.tracks[index]);
 	const selectedPreset = $derived(
 		track ? presetFor(track.instrument, track.tuning) : INSTRUMENTS[0]
 	);
 	const tuningName = $derived(track ? tuningNameFor(track.tuning) : TUNING_NAMES[0]);
+	const tuningLabel = $derived(tuningName ?? 'Custom');
+	const tuningNotes = $derived(track ? track.tuning.map((t) => t.replace(/\d/, '')).join(' ') : '');
 	const instGroups = $derived([...new Set(INSTRUMENTS.map((p) => p.group))]);
 
-	function tuningNameFor(tuning: string[]): string {
+	function tuningNameFor(tuning: string[]): string | null {
 		for (const [n, t] of Object.entries(TUNINGS)) {
 			if (t.length === tuning.length && t.every((x, i) => x === tuning[i])) return n;
 		}
-		return TUNING_NAMES[0];
+		return null;
 	}
 
 	function pickInstrument(p: InstrumentPreset) {
@@ -128,9 +133,9 @@
 								'w-full justify-between font-normal'
 							)}
 						>
-							<span>{tuningName}</span>
+							<span>{tuningLabel}</span>
 							<span class="text-muted-foreground ml-2 truncate text-xs">
-								{(TUNINGS[tuningName] ?? []).map((t) => t.replace(/\d/, '')).join(' ')}
+								{tuningNotes}
 							</span>
 						</Popover.Trigger>
 						<Popover.Content class="w-(--bits-popover-anchor-width) p-0">
@@ -147,6 +152,19 @@
 												{n}
 											</Command.Item>
 										{/each}
+									</Command.Group>
+									<Command.Separator />
+									<Command.Group>
+										<Command.Item
+											value="Custom"
+											onSelect={() => {
+												tuneOpen = false;
+												customTuningOpen = true;
+											}}
+										>
+											<SlidersHorizontal class="size-4" />
+											Custom tuning…
+										</Command.Item>
 									</Command.Group>
 								</Command.List>
 							</Command.Root>
@@ -233,3 +251,5 @@
 		</Drawer.Footer>
 	</Drawer.Content>
 </Drawer.Root>
+
+<CustomTuningDrawer bind:open={customTuningOpen} {index} />
