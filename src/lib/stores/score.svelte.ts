@@ -14,7 +14,7 @@ import {
 	uid
 } from '$lib/oto/format';
 import { analyzeMeasure, beatsFilled, measureCapacity } from '$lib/oto/duration';
-import { detuneTrack, transposeTrackFrets } from '$lib/oto/transpose';
+import { detuneTrack, transposeTrackFrets, retuneTrack } from '$lib/oto/transpose';
 import type { MetronomeSound } from '$lib/audio/engine';
 import type {
 	DurationValue,
@@ -58,7 +58,7 @@ export class ScoreStore {
 	// the other.
 	#editModeState = $state(false);
 	#mixerOpenState = $state(false);
-	editTool = $state<'keypad' | 'fretboard'>('keypad');
+	editTool = $state<'keypad' | 'fretboard' | 'piano'>('keypad');
 	songModalOpen = $state(false);
 
 	get editMode(): boolean {
@@ -84,6 +84,11 @@ export class ScoreStore {
 
 	// Playback
 	isPlaying = $state(false);
+	/** True after Pause — distinct from a full Stop, so the next Play resumes
+	 *  from `pausePosition` instead of restarting at the selection cursor. */
+	isPaused = $state(false);
+	/** Exact (measure, beat) playback was paused at. Cleared on Stop. */
+	pausePosition = $state<{ measure: number; beat: number } | null>(null);
 	playhead = $state<{ measure: number; beat: number } | null>(null);
 	metronomeOn = $state(false);
 	metronomeSound = $state<MetronomeSound>('click');
@@ -422,6 +427,15 @@ export class ScoreStore {
 
 	setCapo(index: number, capo: number) {
 		this.commit(() => (this.score.tracks[index].capo = Math.max(0, capo)));
+	}
+
+	/** Apply a custom tuning. `mode: 'transpose'` shifts frets so existing notes
+	 *  keep the same sound; `mode: 'keep'` leaves frets as-is so the sound
+	 *  changes on playback instead. */
+	retune(index: number, newTuning: string[], mode: 'transpose' | 'keep') {
+		this.commit(() => {
+			this.score.tracks[index] = retuneTrack(this.score.tracks[index], newTuning, mode);
+		});
 	}
 
 	// ---- measures ----------------------------------------------------------

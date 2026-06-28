@@ -51,7 +51,7 @@
 </script>
 
 <div
-	class="bg-background flex items-center gap-1.5 overflow-x-auto border-t px-2 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+	class="bottom-bar bg-background flex items-center gap-1.5 overflow-x-auto border-t px-2 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 	style="padding-bottom: calc(0.375rem + env(safe-area-inset-bottom))"
 >
 	<!-- Omni command palette trigger -->
@@ -100,29 +100,31 @@
 		</Popover.Content>
 	</Popover.Root>
 
-	<!-- Undo / redo, promoted out of the old Edit dropdown -->
-	<Button
-		variant="outline"
-		size="icon"
-		class="size-9 shrink-0"
-		title="Undo"
-		aria-label="Undo"
-		disabled={!store.canUndo}
-		onclick={() => store.undo()}
-	>
-		<ArrowCounterClockwise class="size-4" />
-	</Button>
-	<Button
-		variant="outline"
-		size="icon"
-		class="size-9 shrink-0"
-		title="Redo"
-		aria-label="Redo"
-		disabled={!store.canRedo}
-		onclick={() => store.redo()}
-	>
-		<ArrowClockwise class="size-4" />
-	</Button>
+	<!-- Undo / redo, stuck together like the metronome/BPM split control -->
+	<div class="flex shrink-0 items-stretch">
+		<Button
+			variant="outline"
+			size="icon"
+			class="size-9 rounded-r-none"
+			title="Undo"
+			aria-label="Undo"
+			disabled={!store.canUndo}
+			onclick={() => store.undo()}
+		>
+			<ArrowCounterClockwise class="size-4" />
+		</Button>
+		<Button
+			variant="outline"
+			size="icon"
+			class="size-9 rounded-l-none border-l-0"
+			title="Redo"
+			aria-label="Redo"
+			disabled={!store.canRedo}
+			onclick={() => store.redo()}
+		>
+			<ArrowClockwise class="size-4" />
+		</Button>
+	</div>
 
 	<!-- Add / remove bars and tracks, opens a drawer (not a dropdown) -->
 	<Button
@@ -136,13 +138,15 @@
 		<PlusMinus class="size-4" />
 	</Button>
 
-	<!-- Track mixer: levels, pan, EQ, arrangement and section markers -->
+	<!-- Track mixer: levels, pan, EQ, arrangement and section markers. Toggled
+	     on/off controls read as physically pressed in (sunk), not accent-filled. -->
 	<Button
-		variant={store.mixerOpen ? 'default' : 'outline'}
+		variant="outline"
 		size="sm"
-		class="h-9 shrink-0"
+		class={cn('h-9 shrink-0', store.mixerOpen && 'sunk')}
 		title="Tracks"
 		aria-label="Open track mixer"
+		aria-pressed={store.mixerOpen}
 		onclick={() => (store.mixerOpen = !store.mixerOpen)}
 	>
 		<Sliders class="size-4" />
@@ -151,10 +155,11 @@
 
 	<!-- Note editor toggle, kept at the top level for one-tap access -->
 	<Button
-		variant={store.editMode ? 'default' : 'outline'}
+		variant="outline"
 		size="sm"
-		class="h-9 shrink-0"
+		class={cn('h-9 shrink-0', store.editMode && 'sunk')}
 		title="Toggle note editor"
+		aria-pressed={store.editMode}
 		onclick={() => (store.editMode = !store.editMode)}
 	>
 		<PencilSimple class="size-4" />
@@ -163,45 +168,60 @@
 
 	<div class="bg-border mx-1 h-6 w-px shrink-0"></div>
 
-	<!-- Transport -->
-	<Button
-		size="icon"
-		class={cn('size-9 shrink-0', store.isPlaying && 'bg-primary/80')}
-		title="Play / Stop (Space)"
-		aria-label="Play or stop"
-		onclick={togglePlayback}
-	>
-		{#if store.isPlaying}<Pause class="size-5" weight="fill" />{:else}<Play
-				class="size-5"
-				weight="fill"
-			/>{/if}
-	</Button>
+	<!-- Transport: Play/Pause, Stop and Back-to-start stuck together as one
+	     control (rounded only on the outer ends). Play/Pause is a single toggle
+	     button — pressing it while playing pauses in place rather than
+	     stopping, so pressing it again resumes from that exact note. Stop
+	     drops back to the selection cursor; Back-to-start rewinds to bar 1. -->
+	<div class="flex shrink-0 items-stretch">
+		<Button
+			variant="outline"
+			size="icon"
+			class={cn('size-9 rounded-r-none', store.isPlaying && 'sunk')}
+			title="Play / pause (Space)"
+			aria-label="Play or pause"
+			aria-pressed={store.isPlaying}
+			onclick={togglePlayback}
+		>
+			{#if store.isPlaying}<Pause class="size-5" weight="fill" />{:else}<Play
+					class="size-5"
+					weight="fill"
+				/>{/if}
+		</Button>
+		<Button
+			variant="outline"
+			size="icon"
+			class="size-9 rounded-none border-l-0"
+			title="Stop"
+			aria-label="Stop"
+			onclick={stopPlayback}
+		>
+			<Stop class="size-5" weight="fill" />
+		</Button>
+		<Button
+			variant="outline"
+			size="icon"
+			class="size-9 rounded-l-none border-l-0"
+			title="Back to the beginning"
+			aria-label="Back to the beginning"
+			onclick={goToStart}
+		>
+			<SkipBack class="size-5" weight="fill" />
+		</Button>
+	</div>
+
+	<!-- Loop stays a standalone control, not part of the transport group. -->
 	<Button
 		variant="outline"
 		size="icon"
-		class="size-9 shrink-0"
-		title="Stop"
-		aria-label="Stop"
-		onclick={stopPlayback}
-	>
-		<Stop class="size-5" weight="fill" />
-	</Button>
-	<Button
-		variant="outline"
-		size="icon"
-		class="size-9 shrink-0"
-		title="Back to the beginning"
-		aria-label="Back to the beginning"
-		onclick={goToStart}
-	>
-		<SkipBack class="size-5" weight="fill" />
-	</Button>
-	<Button
-		variant={store.loopEnabled ? 'default' : 'outline'}
-		size="icon"
-		class={cn('size-9 shrink-0', store.selection && !store.loopEnabled && 'border-foreground')}
+		class={cn(
+			'size-9 shrink-0',
+			store.loopEnabled && 'sunk',
+			store.selection && !store.loopEnabled && 'border-foreground'
+		)}
 		title="Loop selection"
 		aria-label="Toggle loop"
+		aria-pressed={store.loopEnabled}
 		onclick={() => (store.loopEnabled = !store.loopEnabled)}
 	>
 		<Repeat class="size-5" />
@@ -211,11 +231,12 @@
 	     cut down the middle. -->
 	<div class="flex shrink-0 items-stretch">
 		<Button
-			variant={store.metronomeOn ? 'default' : 'outline'}
+			variant="outline"
 			size="icon"
-			class="size-9 rounded-r-none"
+			class={cn('size-9 rounded-r-none', store.metronomeOn && 'sunk')}
 			title="Metronome"
 			aria-label="Toggle metronome"
+			aria-pressed={store.metronomeOn}
 			onclick={() => (store.metronomeOn = !store.metronomeOn)}
 		>
 			<Metronome class="size-5" />

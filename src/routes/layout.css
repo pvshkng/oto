@@ -136,9 +136,27 @@ body {
 button:not(:disabled) {
 	transition:
 		transform 0.08s ease-out,
-		box-shadow 0.08s ease-out;
+		box-shadow 0.08s ease-out,
+		background-color 0.08s ease-out;
 }
 button:not(:disabled):active {
 	transform: translateY(1px);
 	box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+/*
+ * "Sunk" toggle affordance — used in place of an accent-filled background for
+ * controls that are simply on/off (metronome, tracks, note editor, transport,
+ * note-entry duration/effect/input-mode pickers). Reads as a hardware button
+ * held down: the surface recedes and an inner shadow falls across it, rather
+ * than inverting to a solid accent color.
+ */
+.sunk {
+	background-color: var(--panel-2) !important;
+	box-shadow:
+		inset 0 2px 5px rgba(0, 0, 0, 0.22),
+		inset 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+}
+.sunk:hover {
+	background-color: var(--panel-2) !important;
 }
