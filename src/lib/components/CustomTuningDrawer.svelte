@@ -33,6 +33,11 @@
 
 	const newTuning = $derived(pitches.map((p, i) => `${p}${octaves[i] ?? 4}`));
 
+	// Guard against the degenerate case of every string sharing the exact same
+	// pitch — technically valid data but not a playable tuning (no distinct
+	// strings left to sound).
+	const allSamePitch = $derived(newTuning.length > 1 && newTuning.every((t) => t === newTuning[0]));
+
 	function stringLabel(i: number, total: number): string {
 		if (i === 0) return 'Highest string';
 		if (i === total - 1) return 'Lowest string';
@@ -102,14 +107,22 @@
 						</div>
 					</div>
 				{/each}
+
+				{#if allSamePitch}
+					<p class="text-destructive text-sm">
+						Every string is tuned to the same pitch — pick at least one different note.
+					</p>
+				{/if}
 			</div>
 		{/if}
 
 		<Drawer.Footer class="flex-row justify-end gap-2 border-t">
-			<Drawer.Close class="border-input bg-background hover:bg-accent inline-flex h-9 items-center rounded-md border px-4 text-sm font-medium">
+			<Drawer.Close
+				class="border-input bg-background hover:bg-accent inline-flex h-9 items-center rounded-md border px-4 text-sm font-medium"
+			>
 				Cancel
 			</Drawer.Close>
-			<Button onclick={apply}>Apply tuning</Button>
+			<Button onclick={apply} disabled={allSamePitch}>Apply tuning</Button>
 		</Drawer.Footer>
 	</Drawer.Content>
 </Drawer.Root>
@@ -118,15 +131,12 @@
 	<Dialog.Content showCloseButton={false} class="max-w-sm">
 		<Dialog.Title>Transpose or keep the current notes?</Dialog.Title>
 		<Dialog.Description>
-			You're changing this track's tuning. Transpose shifts every fret so the existing notes
-			still sound the same. Keep leaves the fret numbers untouched, so the same tab will sound
-			different.
+			You're changing this track's tuning. Transpose shifts every fret so the existing notes still
+			sound the same. Keep leaves the fret numbers untouched, so the same tab will sound different.
 		</Dialog.Description>
 		<div class="mt-2 flex flex-col gap-2">
 			<Button onclick={() => confirm('transpose')}>Transpose (keep the sound)</Button>
-			<Button variant="outline" onclick={() => confirm('keep')}>
-				Keep frets (sound changes)
-			</Button>
+			<Button variant="outline" onclick={() => confirm('keep')}>Keep frets (sound changes)</Button>
 		</div>
 	</Dialog.Content>
 </Dialog.Root>
