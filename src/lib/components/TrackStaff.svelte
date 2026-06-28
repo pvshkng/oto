@@ -85,6 +85,12 @@
 		return Math.max(...members.map((b) => b.stdStemBottom));
 	}
 
+	// Stems attach to the side of the notehead column: right for up-stems, left
+	// for down-stems. Half a notehead width keeps them flush against the heads.
+	function stemX(b: LaidBeat): number {
+		return b.x + b.stemDir * 6.5;
+	}
+
 	/** Nearest (beat, string) for a pointer event within a band's <g>. */
 	function locate(
 		e: MouseEvent | PointerEvent,
@@ -201,17 +207,43 @@
 		{@const members = beats.filter((b) => b.beamGroup === group)}
 		{@const by = beamY(beats, group)}
 		{@const dir = members[0].stemDir}
-		<line x1={members[0].x} y1={by} x2={members[members.length - 1].x} y2={by} class="beam" />
-		{#each members as m (m.index)}
+		<line
+			x1={stemX(members[0])}
+			y1={by}
+			x2={stemX(members[members.length - 1])}
+			y2={by}
+			class="beam"
+		/>
+		{#each members as m, mi (m.index)}
+			<!-- Stem runs from the notehead column straight to the beam, so heads,
+			     stems and beam always meet. -->
 			<line
-				x1={m.x}
-				y1={dir === 1 ? m.stdStemBottom - 26 : m.stdStemTop + 26}
-				x2={m.x}
+				x1={stemX(m)}
+				y1={dir === 1 ? m.stdStemBottom : m.stdStemTop}
+				x2={stemX(m)}
 				y2={by}
 				class="stem"
 			/>
 			{#if m.beams >= 2}
-				<line x1={m.x} y1={by + dir * 4} x2={m.x + 8} y2={by + dir * 4} class="beam" />
+				{#if mi < members.length - 1 && members[mi + 1].beams >= 2}
+					<!-- Secondary (16th/32nd) beam fully connects neighbouring members. -->
+					<line
+						x1={stemX(m)}
+						y1={by + dir * 4.5}
+						x2={stemX(members[mi + 1])}
+						y2={by + dir * 4.5}
+						class="beam"
+					/>
+				{:else if mi === 0 || members[mi - 1].beams < 2}
+					<!-- Isolated short note: stub points back toward its group. -->
+					<line
+						x1={stemX(m)}
+						y1={by + dir * 4.5}
+						x2={stemX(m) + (mi === members.length - 1 ? -7 : 7)}
+						y2={by + dir * 4.5}
+						class="beam"
+					/>
+				{/if}
 			{/if}
 		{/each}
 	{/each}
