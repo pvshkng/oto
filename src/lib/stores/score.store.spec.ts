@@ -94,6 +94,23 @@ describe('ScoreStore selection & loop', () => {
 		s.moveCursor('right');
 		expect(s.selection).toBeNull();
 	});
+
+	it('setCursor (as used by pause/stop) never pushes undo history or touches an active loop selection', () => {
+		s.insertBeat();
+		s.setCursor({ measure: 0, beat: 0 });
+		s.extendSelection('right');
+		const bounds = s.loopBounds;
+		s.loopEnabled = true;
+		const undoDepthBefore = s.canUndo;
+
+		// Mimic pausePlayback()/stopPlayback() syncing the cursor mid-loop.
+		s.setCursor({ measure: 0, beat: 1 });
+
+		expect(s.canUndo).toBe(undoDepthBefore);
+		expect(s.selection).not.toBeNull();
+		expect(s.loopBounds).toEqual(bounds);
+		expect(s.loopEnabled).toBe(true);
+	});
 });
 
 describe('ScoreStore voices (mixed durations)', () => {

@@ -6,7 +6,11 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { alphaTab } from '@coderline/alphatab-vite';
 
 export default defineConfig({
-	plugins: [tailwindcss(), sveltekit(), devtoolsJson(), alphaTab()],
+	// alphaTab is only used for Guitar Pro import/export, never its live audio
+	// player, so the audio worklet it configures for playback is dead weight.
+	// (Disabling webWorkers too hits a bug in the plugin's generateBundle hook
+	// when both are off, so only audioWorklets is turned off here.)
+	plugins: [tailwindcss(), sveltekit(), devtoolsJson(), alphaTab({ audioWorklets: false })],
 	assetsInclude: ['**/*.otf', '**/*.ttf', '**/*.woff', '**/*.woff2'],
 	resolve: {
 		alias: {

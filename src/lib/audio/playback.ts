@@ -5,6 +5,20 @@
 import { audio, compileScore, type CompiledScore } from './engine';
 import { store } from '$lib/stores/score.svelte';
 
+// Compiling builds the full note/marker schedule for the whole score, which is
+// wasted work on a resume (or repeated Play presses without an edit in between).
+// Cache the result and only recompile when the store's scoreVersion has moved.
+let cachedCompiled: CompiledScore | null = null;
+let cachedVersion = -1;
+
+function getCompiledScore(): CompiledScore {
+	if (!cachedCompiled || cachedVersion !== store.scoreVersion) {
+		cachedCompiled = compileScore(store.score);
+		cachedVersion = store.scoreVersion;
+	}
+	return cachedCompiled;
+}
+
 /** Seconds offset of the start of a (measure, beat) in the compiled timeline.
  *  Takes an already-compiled score so a single play cycle compiles once rather
  *  than re-compiling the whole score on every timing lookup. */
@@ -42,7 +56,7 @@ function countInFor(measure: number): { beats: number; interval: number } {
  *  playback begins, whether this is a fresh play or a resume after pause. */
 export async function play() {
 	if (store.isPlaying) return;
-	const compiled = compileScore(store.score);
+	const compiled = getCompiledScore();
 
 	let window: { start: number; end: number } | null = null;
 	let repeat = false;

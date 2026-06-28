@@ -453,7 +453,7 @@
 				<div
 					class="bg-muted/40 sticky left-0 z-10 flex w-[184px] shrink-0 items-center gap-2 border-r px-2.5 py-2.5"
 				>
-					<span class="text-foreground flex-1 text-[13px] font-bold">Master</span>
+					<span class="text-foreground shrink-0 text-[13px] font-bold">Master</span>
 					<input
 						type="range"
 						min="0"
@@ -461,7 +461,7 @@
 						step="0.01"
 						aria-label="Master volume"
 						title="Master volume"
-						class="mixer-fader w-24"
+						class="mixer-fader min-w-0 flex-1"
 						value={store.score.masterVolume}
 						aria-valuetext={`${Math.round(store.score.masterVolume * 100)} percent`}
 						onpointerdown={() => store.beginGesture()}

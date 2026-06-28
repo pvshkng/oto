@@ -19,9 +19,7 @@
 
 	// Start the keyboard an octave below the lowest open string, rounded down
 	// to a C, so the range always covers what the instrument can actually play.
-	const baseMidi = $derived(
-		Math.floor((Math.min(...track.tuning.map(noteToMidi)) - 12) / 12) * 12
-	);
+	const baseMidi = $derived(Math.floor((Math.min(...track.tuning.map(noteToMidi)) - 12) / 12) * 12);
 
 	const whiteKeys = $derived(
 		Array.from({ length: OCTAVES * 7 }, (_, i) => {

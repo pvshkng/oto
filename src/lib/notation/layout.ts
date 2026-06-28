@@ -157,7 +157,10 @@ const KEY_SIG_START_DX = 26; // right after the clef glyph
 
 /** Accidental glyphs to render for a key signature in a given clef, positioned
  *  left to right starting just after the clef. */
-function keySignatureGlyphs(fifths: number, clef: Clef): { glyph: string; dx: number; y: number }[] {
+function keySignatureGlyphs(
+	fifths: number,
+	clef: Clef
+): { glyph: string; dx: number; y: number }[] {
 	if (fifths === 0) return [];
 	const type = fifths > 0 ? 'sharp' : 'flat';
 	const steps = KEY_SIG_STEPS[clef][type].slice(0, Math.min(Math.abs(fifths), 7));
@@ -180,7 +183,11 @@ export interface Band {
 	height: number;
 }
 
-function intrinsicMeasureWidth(beatCount: number, showHeader: boolean, headerWidth: number): number {
+function intrinsicMeasureWidth(
+	beatCount: number,
+	showHeader: boolean,
+	headerWidth: number
+): number {
 	const w =
 		METRICS.measurePadStart +
 		Math.max(1, beatCount) * (METRICS.beatMinWidth + METRICS.beatPadding) +
