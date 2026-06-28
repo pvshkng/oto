@@ -339,11 +339,16 @@
 									title="Volume"
 									class="mixer-fader min-w-0 flex-1"
 									value={track.volume}
+									aria-valuetext={`${Math.round(track.volume * 100)} percent`}
 									onpointerdown={() => store.beginGesture()}
 									onpointerup={() => store.endGesture()}
 									onpointercancel={() => store.endGesture()}
 									oninput={(e) => setVolume(i, e.currentTarget.valueAsNumber)}
 								/>
+								<span
+									class="text-muted-foreground w-9 shrink-0 text-right text-[11px] tabular-nums"
+									title="Volume">{Math.round(track.volume * 100)}%</span
+								>
 								<Knob
 									value={track.pan}
 									min={-1}
@@ -458,11 +463,16 @@
 						title="Master volume"
 						class="mixer-fader w-24"
 						value={store.score.masterVolume}
+						aria-valuetext={`${Math.round(store.score.masterVolume * 100)} percent`}
 						onpointerdown={() => store.beginGesture()}
 						onpointerup={() => store.endGesture()}
 						onpointercancel={() => store.endGesture()}
 						oninput={(e) => setMaster(e.currentTarget.valueAsNumber)}
 					/>
+					<span
+						class="text-muted-foreground w-9 shrink-0 text-right text-[11px] tabular-nums"
+						title="Master volume">{Math.round(store.score.masterVolume * 100)}%</span
+					>
 				</div>
 				<div class="shrink-0" style="width:{timelineW}px"></div>
 			</div>

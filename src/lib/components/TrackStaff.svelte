@@ -333,16 +333,24 @@
 						>{accidentalGlyph(n.accidental)}</text
 					>
 				{/if}
-				<ellipse
-					cx={n.x + n.headXOffset}
-					cy={n.stdY}
-					rx="6"
-					ry="4.4"
-					class="notehead"
-					class:hollow={beat.duration <= 2}
-					class:v2={vIdx === 1}
-					transform="rotate(-20 {n.x + n.headXOffset} {n.stdY})"
-				/>
+				{#if n.dead}
+					<!-- Dead/muted note: an X notehead (no pitched ellipse), drawn at the
+					     open-string staff position computed in layout. -->
+					<text x={n.x + n.headXOffset} y={n.stdY + 4} class="dead-head" class:v2={vIdx === 1}
+						>✕</text
+					>
+				{:else}
+					<ellipse
+						cx={n.x + n.headXOffset}
+						cy={n.stdY}
+						rx="6"
+						ry="4.4"
+						class="notehead"
+						class:hollow={beat.duration <= 2}
+						class:v2={vIdx === 1}
+						transform="rotate(-20 {n.x + n.headXOffset} {n.stdY})"
+					/>
+				{/if}
 				{#if beat.dotted}
 					<circle cx={n.x + n.headXOffset + 11} cy={n.stdY} r="1.6" class="dot" />
 				{/if}
@@ -755,6 +763,15 @@
 	.notehead.v2.hollow {
 		fill: #fff;
 		stroke: #71717a;
+	}
+	.dead-head {
+		fill: #18181b;
+		font-size: 13px;
+		font-weight: 700;
+		text-anchor: middle;
+	}
+	.dead-head.v2 {
+		fill: #71717a;
 	}
 	.stem,
 	.beam {

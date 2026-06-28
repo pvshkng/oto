@@ -423,6 +423,9 @@ export interface PlayOptions {
 	window: { start: number; end: number } | null;
 	/** Loop the window indefinitely (used for loop-selection playback). */
 	repeat: boolean;
+	/** Count-in: click `beats` times, `interval` seconds apart, before the music
+	 *  starts. null = no count-in. The clicks play once, even when looping. */
+	countIn: { beats: number; interval: number } | null;
 	onMarker: (measure: number) => void;
 	/** Fired as the playhead reaches each beat of the primary voice. */
 	onBeatMarker: (measure: number, beat: number) => void;
@@ -497,6 +500,11 @@ export class AudioEngine {
 		const { instrument, nodes } = buildMetronomeVoice(sound, this.metroGain);
 		this.metro = instrument;
 		this.metroNodes = nodes;
+	}
+
+	/** Current metronome click level (0..1), after clamping. */
+	get metronomeVolume(): number {
+		return this.metroVolume;
 	}
 
 	/** Set the metronome's click level (0..1). Remembered and applied on first
@@ -633,12 +641,26 @@ export class AudioEngine {
 		const windowStart = opts.window ? opts.window.start : 0;
 		const windowEnd = opts.window ? opts.window.end : compiled.totalTime;
 
+		// Count-in: a fixed lead of metronome clicks before the music. Everything
+		// scheduled below is pushed back by `lead` seconds so it lands after the
+		// count, and the clicks themselves are scheduled in [0, lead).
+		const lead =
+			opts.countIn && opts.countIn.beats > 0 ? opts.countIn.beats * opts.countIn.interval : 0;
+		if (lead > 0 && opts.countIn) {
+			for (let i = 0; i < opts.countIn.beats; i++) {
+				transport.schedule((time) => {
+					this.metro?.triggerAttackRelease('C2', 0.05, time, 0.6);
+					opts.onBeat(time);
+				}, i * opts.countIn.interval);
+			}
+		}
+
 		// Schedule notes inside the window.
 		for (const ev of compiled.notes) {
 			if (ev.muted) continue;
 			if (ev.time < windowStart - 1e-6 || ev.time >= windowEnd - 1e-6) continue;
 			const instrument = this.instrumentFor(score.tracks.find((t) => t.id === ev.trackId)!);
-			const rel = ev.time - windowStart;
+			const rel = ev.time - windowStart + lead;
 			const wantsBend = ev.bend !== undefined || ev.slideToFreq !== undefined || ev.vibrato;
 			transport.schedule((time) => {
 				const dur = ev.palmMute ? Math.min(ev.duration, 0.12) : ev.duration;
@@ -658,7 +680,7 @@ export class AudioEngine {
 		if (opts.metronome) {
 			for (const t of compiled.beatTimes) {
 				if (t < windowStart - 1e-6 || t >= windowEnd - 1e-6) continue;
-				const rel = t - windowStart;
+				const rel = t - windowStart + lead;
 				transport.schedule((time) => {
 					this.metro?.triggerAttackRelease('C2', 0.05, time, 0.6);
 					opts.onBeat(time);
@@ -669,7 +691,7 @@ export class AudioEngine {
 		// Playhead markers (per measure, kept for callers that only need the bar).
 		for (const m of compiled.markers) {
 			if (m.time < windowStart - 1e-6 || m.time >= windowEnd - 1e-6) continue;
-			const rel = m.time - windowStart;
+			const rel = m.time - windowStart + lead;
 			transport.schedule((time) => {
 				Tone.getDraw().schedule(() => opts.onMarker(m.measure), time);
 			}, rel);
@@ -678,7 +700,7 @@ export class AudioEngine {
 		// Per-beat playhead — drives the moving note cursor during playback.
 		for (const m of compiled.beatMarkers) {
 			if (m.time < windowStart - 1e-6 || m.time >= windowEnd - 1e-6) continue;
-			const rel = m.time - windowStart;
+			const rel = m.time - windowStart + lead;
 			transport.schedule((time) => {
 				Tone.getDraw().schedule(() => opts.onBeatMarker(m.measure, m.beat), time);
 			}, rel);
@@ -688,8 +710,10 @@ export class AudioEngine {
 		transport.position = 0;
 		if (opts.repeat) {
 			transport.loop = true;
-			transport.loopStart = 0;
-			transport.loopEnd = windowDur;
+			// Loop only the music, not the count-in: start the loop after the lead so
+			// the count plays once and the region repeats from the first real beat.
+			transport.loopStart = lead;
+			transport.loopEnd = lead + windowDur;
 		} else {
 			transport.loop = false;
 			transport.schedule((time) => {
@@ -697,7 +721,7 @@ export class AudioEngine {
 					this.stop();
 					opts.onStop();
 				}, time);
-			}, windowDur);
+			}, lead + windowDur);
 		}
 		transport.start();
 	}

@@ -56,6 +56,27 @@ export function accidentalGlyph(kind: 'sharp' | 'flat' | 'natural' | null): stri
 	}
 }
 
+// Single-note glyphs (notehead + stem) for the duration picker UI. Drawn from
+// the Bravura font so the picker matches the engraved score and renders
+// identically across platforms, instead of relying on the system font's
+// Musical-Symbol code points (which size inconsistently and may be missing).
+const NOTE_GLYPHS: Record<DurationValue, string> = {
+	1: cp(0xe1d2), // noteWhole
+	2: cp(0xe1d3), // noteHalfUp
+	4: cp(0xe1d5), // noteQuarterUp
+	8: cp(0xe1d7), // note8thUp
+	16: cp(0xe1d9), // note16thUp
+	32: cp(0xe1db) // note32ndUp
+};
+
+/** Bravura single-note glyph for a duration (notehead + stem + flags). */
+export function durationGlyph(d: DurationValue): string {
+	return NOTE_GLYPHS[d] ?? '';
+}
+
+/** Bravura augmentation (dot) glyph, for the dotted-note button. */
+export const AUGMENTATION_DOT = GLYPH.augmentationDot;
+
 export function restGlyph(d: DurationValue): string {
 	switch (d) {
 		case 1:

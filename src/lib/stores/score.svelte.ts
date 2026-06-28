@@ -32,7 +32,19 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 const STORAGE_KEY = 'oto.score';
+const PREFS_KEY = 'oto.prefs';
 const AUTOSAVE = true;
+
+const METRONOME_SOUNDS: MetronomeSound[] = ['click', 'beep', 'wood', 'bell'];
+
+/** Persisted user-preference shape (a subset of the store's session fields). */
+interface StoredPrefs {
+	metronomeOn?: boolean;
+	metronomeSound?: MetronomeSound;
+	metronomeVolume?: number;
+	loopEnabled?: boolean;
+	countInOn?: boolean;
+}
 
 export interface Selection {
 	track: number;
@@ -90,11 +102,51 @@ export class ScoreStore {
 	/** Exact (measure, beat) playback was paused at. Cleared on Stop. */
 	pausePosition = $state<{ measure: number; beat: number } | null>(null);
 	playhead = $state<{ measure: number; beat: number } | null>(null);
-	metronomeOn = $state(false);
-	metronomeSound = $state<MetronomeSound>('click');
-	metronomeVolume = $state(1);
-	loopEnabled = $state(false);
-	countInOn = $state(false);
+
+	// User preferences (persisted to localStorage, see loadPrefs/#persistPrefs).
+	// These are device/session settings rather than document data, so they live
+	// apart from the .oto score and survive a page reload.
+	#metronomeOn = $state(false);
+	#metronomeSound = $state<MetronomeSound>('click');
+	#metronomeVolume = $state(1);
+	#loopEnabled = $state(false);
+	#countInOn = $state(false);
+
+	get metronomeOn(): boolean {
+		return this.#metronomeOn;
+	}
+	set metronomeOn(v: boolean) {
+		this.#metronomeOn = v;
+		this.#persistPrefs();
+	}
+	get metronomeSound(): MetronomeSound {
+		return this.#metronomeSound;
+	}
+	set metronomeSound(v: MetronomeSound) {
+		this.#metronomeSound = v;
+		this.#persistPrefs();
+	}
+	get metronomeVolume(): number {
+		return this.#metronomeVolume;
+	}
+	set metronomeVolume(v: number) {
+		this.#metronomeVolume = clamp(v, 0, 1);
+		this.#persistPrefs();
+	}
+	get loopEnabled(): boolean {
+		return this.#loopEnabled;
+	}
+	set loopEnabled(v: boolean) {
+		this.#loopEnabled = v;
+		this.#persistPrefs();
+	}
+	get countInOn(): boolean {
+		return this.#countInOn;
+	}
+	set countInOn(v: boolean) {
+		this.#countInOn = v;
+		this.#persistPrefs();
+	}
 	/** Set when the audio engine failed to start (e.g. blocked autoplay), so the
 	 *  UI can surface a clear, actionable message instead of silent no-sound. */
 	audioError = $state<string | null>(null);
@@ -154,6 +206,43 @@ export class ScoreStore {
 			} catch {
 				/* keep default */
 			}
+		}
+		this.loadPrefs();
+	}
+
+	/** Restore persisted user preferences (metronome/loop/count-in). Safe to call
+	 *  once on startup; missing or malformed values keep their defaults. */
+	loadPrefs() {
+		if (typeof localStorage === 'undefined') return;
+		const raw = localStorage.getItem(PREFS_KEY);
+		if (!raw) return;
+		try {
+			const p = JSON.parse(raw) as StoredPrefs;
+			if (typeof p.metronomeOn === 'boolean') this.#metronomeOn = p.metronomeOn;
+			if (p.metronomeSound && METRONOME_SOUNDS.includes(p.metronomeSound))
+				this.#metronomeSound = p.metronomeSound;
+			if (typeof p.metronomeVolume === 'number')
+				this.#metronomeVolume = clamp(p.metronomeVolume, 0, 1);
+			if (typeof p.loopEnabled === 'boolean') this.#loopEnabled = p.loopEnabled;
+			if (typeof p.countInOn === 'boolean') this.#countInOn = p.countInOn;
+		} catch {
+			/* keep defaults */
+		}
+	}
+
+	#persistPrefs() {
+		if (typeof localStorage === 'undefined') return;
+		try {
+			const prefs: StoredPrefs = {
+				metronomeOn: this.#metronomeOn,
+				metronomeSound: this.#metronomeSound,
+				metronomeVolume: this.#metronomeVolume,
+				loopEnabled: this.#loopEnabled,
+				countInOn: this.#countInOn
+			};
+			localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+		} catch {
+			/* quota / private mode */
 		}
 	}
 

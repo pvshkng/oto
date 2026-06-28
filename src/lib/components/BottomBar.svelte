@@ -23,6 +23,7 @@
 	import Stop from 'phosphor-svelte/lib/Stop';
 	import SkipBack from 'phosphor-svelte/lib/SkipBack';
 	import Metronome from 'phosphor-svelte/lib/Metronome';
+	import ClockCountdown from 'phosphor-svelte/lib/ClockCountdown';
 	import Repeat from 'phosphor-svelte/lib/Repeat';
 	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
 	import Sliders from 'phosphor-svelte/lib/Sliders';
@@ -226,9 +227,9 @@
 	>
 		<Repeat class="size-5" />
 	</Button>
-	<!-- Metronome + tempo: one split control. The metronome is the rounded-left
-	     half, BPM the rounded-right half, joined so they read as a single button
-	     cut down the middle. -->
+	<!-- Metronome + count-in + tempo: one split control. The metronome is the
+	     rounded-left half, BPM the rounded-right half, with the count-in toggle
+	     joined in the middle so they read as a single button cut into thirds. -->
 	<div class="flex shrink-0 items-stretch">
 		<Button
 			variant="outline"
@@ -240,6 +241,17 @@
 			onclick={() => (store.metronomeOn = !store.metronomeOn)}
 		>
 			<Metronome class="size-5" />
+		</Button>
+		<Button
+			variant="outline"
+			size="icon"
+			class={cn('size-9 rounded-none border-l-0', store.countInOn && 'sunk')}
+			title="Count-in (one bar of clicks before play)"
+			aria-label="Toggle count-in"
+			aria-pressed={store.countInOn}
+			onclick={() => (store.countInOn = !store.countInOn)}
+		>
+			<ClockCountdown class="size-5" />
 		</Button>
 		<Button
 			variant="outline"

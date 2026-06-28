@@ -119,9 +119,14 @@
 			</div>
 
 			<div class="flex w-full flex-col items-center gap-2">
-				<span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-					Metronome volume
-				</span>
+				<div class="flex w-full items-baseline justify-between">
+					<span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+						Metronome volume
+					</span>
+					<span class="text-foreground text-xs font-semibold tabular-nums">
+						{Math.round(store.metronomeVolume * 100)}%
+					</span>
+				</div>
 				<div class="flex w-full items-center gap-3">
 					<SpeakerSimpleHigh class="text-muted-foreground size-5 shrink-0" />
 					<input
@@ -133,6 +138,7 @@
 						value={store.metronomeVolume}
 						oninput={(e) => setMetronomeVolume(+e.currentTarget.value)}
 						aria-label="Metronome volume"
+						aria-valuetext={`${Math.round(store.metronomeVolume * 100)} percent`}
 					/>
 				</div>
 			</div>
