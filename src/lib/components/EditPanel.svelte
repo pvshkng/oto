@@ -7,6 +7,7 @@
 	import { store } from '$lib/stores/score.svelte';
 	import { enterDigit } from '$lib/editing/entry';
 	import { DURATION_ORDER } from '$lib/oto/duration';
+	import { durationGlyph, AUGMENTATION_DOT } from '$lib/notation/glyphs';
 	import { DURATION_LABELS, type DurationValue, type Technique } from '$lib/oto/types';
 	import * as Popover from '$lib/components/ui/popover';
 	import { cn } from '$lib/utils';
@@ -19,15 +20,6 @@
 	import Eraser from 'phosphor-svelte/lib/Eraser';
 
 	let tsOpen = $state(false);
-
-	const GLYPHS: Record<DurationValue, string> = {
-		1: '𝅝',
-		2: '𝅗𝅥',
-		4: '♩',
-		8: '♪',
-		16: '𝅘𝅥𝅯',
-		32: '𝅘𝅥𝅰'
-	};
 
 	const EFFECTS: { tech: Technique; label: string; sym: string }[] = [
 		{ tech: 'hammer', label: 'Hammer / Pull', sym: 'H/P' },
@@ -117,17 +109,21 @@
 					<button
 						class="ctl gl seg-item"
 						class:sunk={store.activeDuration === d}
-						class:gl-sm={d === 4 || d === 8}
 						title={DURATION_LABELS[d]}
-						onclick={() => pickDuration(d)}>{GLYPHS[d]}</button
+						aria-label={DURATION_LABELS[d]}
+						aria-pressed={store.activeDuration === d}
+						onclick={() => pickDuration(d)}><span class="bravura">{durationGlyph(d)}</span></button
 					>
 				{/each}
 			</div>
 			<button
-				class="ctl gl gl-sm dotted"
+				class="ctl gl dotted"
 				class:sunk={store.activeDotted}
 				title="Dotted"
-				onclick={toggleDot}>♩<b>.</b></button
+				aria-label="Dotted"
+				aria-pressed={store.activeDotted}
+				onclick={toggleDot}
+				><span class="bravura">{durationGlyph(4)}{AUGMENTATION_DOT}</span></button
 			>
 		</div>
 
@@ -345,14 +341,15 @@
 		align-items: center;
 		justify-content: center;
 	}
-	.ctl.gl {
-		font-size: 24px;
+	/* Duration glyphs are drawn from Bravura (see notation/glyphs.ts) so every
+	   note value renders at one consistent size across platforms, instead of the
+	   system font's Musical-Symbol code points which sized inconsistently. */
+	.ctl.gl .bravura {
+		font-family: 'Bravura', serif;
+		font-size: 26px;
 		line-height: 1;
-	}
-	/* The plain quarter/eighth note glyphs (♩ ♪) render visually smaller than the
-	   stacked Musical-Symbol glyphs, so bump them up to match the others' size. */
-	.ctl.gl.gl-sm {
-		font-size: 30px;
+		display: inline-block;
+		transform: translateY(0.12em);
 	}
 	.ctl.icon {
 		color: var(--ink);

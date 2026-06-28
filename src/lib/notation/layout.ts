@@ -42,6 +42,8 @@ export interface LaidNote {
 	/** Horizontal notehead displacement (px) so clustered seconds don't overlap. */
 	headXOffset: number;
 	techniques: string[];
+	/** Dead/muted note (x). Drawn as an X notehead at the open-string position. */
+	dead: boolean;
 	bend?: number;
 	slideTo?: number;
 	tied?: boolean;
@@ -194,7 +196,11 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 					acc += frac;
 
 					const notes: LaidNote[] = beat.notes.map((n) => {
-						const midi = frettedMidi(track.tuning, n.string, n.fret, {
+						const dead = !!n.techniques?.includes('dead');
+						// A dead note has no real pitch — it's an X. Place it on the staff
+						// at the open string's position (fret 0) so it reads as "this
+						// string, muted", and never draw an accidental for it.
+						const midi = frettedMidi(track.tuning, n.string, dead ? 0 : n.fret, {
 							capo: track.capo,
 							transpose: track.transpose
 						});
@@ -210,9 +216,10 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 							stdY,
 							step,
 							sharp,
-							accidental: accidentalFor(step, sharp, accMap),
+							accidental: dead ? null : accidentalFor(step, sharp, accMap),
 							headXOffset: 0,
 							techniques: n.techniques ?? [],
+							dead,
 							bend: n.bend,
 							slideTo: n.slideTo,
 							tied: n.tied,
