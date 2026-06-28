@@ -5,7 +5,7 @@
 
 	import { store } from '$lib/stores/score.svelte';
 	import { layoutTrack, METRICS, type LaidBeat, type LaidMeasure } from '$lib/notation/layout';
-	import { GLYPH, restGlyph } from '$lib/notation/glyphs';
+	import { GLYPH, restGlyph, timeSigGlyphs, accidentalGlyph } from '$lib/notation/glyphs';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import { DURATION_ORDER } from '$lib/oto/duration';
 	import { DURATION_LABELS, TECHNIQUE_LABELS, type DurationValue } from '$lib/oto/types';
@@ -46,14 +46,6 @@
 
 	const isActiveTrack = $derived(store.cursor.track === trackIndex);
 
-	const TS_DIGITS = '';
-	function tsGlyph(n: number): string {
-		return String(n)
-			.split('')
-			.map((d) => TS_DIGITS[+d])
-			.join('');
-	}
-
 	// Runs of consecutive beats that contain a let-ring note → drawn as a bracket.
 	function letRingSpans(beats: LaidBeat[]): { x1: number; x2: number }[] {
 		const spans: { x1: number; x2: number }[] = [];
@@ -77,18 +69,67 @@
 		return groups.sort((a, b) => a - b);
 	}
 
-	// Beam geometry per system: map beamGroup -> { y, dir }.
-	function beamY(beats: LaidBeat[], group: number): number {
-		const members = beats.filter((b) => b.beamGroup === group);
-		const dir = members[0]?.stemDir ?? 1;
-		if (dir === 1) return Math.min(...members.map((b) => b.stdStemTop));
-		return Math.max(...members.map((b) => b.stdStemBottom));
-	}
-
 	// Stems attach to the side of the notehead column: right for up-stems, left
 	// for down-stems. Half a notehead width keeps them flush against the heads.
 	function stemX(b: LaidBeat): number {
 		return b.x + b.stemDir * 6.5;
+	}
+
+	const STEM = 26; // nominal stem length beyond the furthest notehead
+	const MIN_STEM = 14; // never let a stem get shorter than this
+	const MAX_SLOPE = 0.22; // cap beam slant so it stays legible
+	const SEC_BEAM_GAP = 4.5; // vertical offset of secondary (16th) beams
+
+	interface BeamGeom {
+		x1: number;
+		y1: number;
+		x2: number;
+		y2: number;
+		dir: 1 | -1;
+	}
+
+	// A slanted beam line for a group: follows the pitch contour of its first and
+	// last members, clamps the slope, then shifts so every stem clears its
+	// noteheads with at least MIN_STEM of length.
+	function beamLine(members: LaidBeat[]): BeamGeom {
+		const dir = members[0].stemDir;
+		const x1 = stemX(members[0]);
+		const x2 = stemX(members[members.length - 1]);
+		const dx = x2 - x1 || 1;
+		const edge = (b: LaidBeat) => (dir === 1 ? b.noteTop - STEM : b.noteBottom + STEM);
+		let y1 = edge(members[0]);
+		let y2 = edge(members[members.length - 1]);
+
+		// Clamp slope around the midpoint.
+		let slope = (y2 - y1) / dx;
+		slope = Math.max(-MAX_SLOPE, Math.min(MAX_SLOPE, slope));
+		const midX = (x1 + x2) / 2;
+		const midY = (y1 + y2) / 2;
+		y1 = midY - slope * (midX - x1);
+		y2 = midY + slope * (x2 - midX);
+
+		// Lift/lower the whole line until no stem is shorter than MIN_STEM.
+		for (const m of members) {
+			const yAt = y1 + (y2 - y1) * ((stemX(m) - x1) / dx);
+			if (dir === 1) {
+				const required = m.noteTop - MIN_STEM;
+				if (yAt > required) {
+					y1 -= yAt - required;
+					y2 -= yAt - required;
+				}
+			} else {
+				const required = m.noteBottom + MIN_STEM;
+				if (yAt < required) {
+					y1 += required - yAt;
+					y2 += required - yAt;
+				}
+			}
+		}
+		return { x1, y1, x2, y2, dir };
+	}
+
+	function beamYAt(bl: BeamGeom, x: number): number {
+		return bl.y1 + (bl.y2 - bl.y1) * ((x - bl.x1) / (bl.x2 - bl.x1 || 1));
 	}
 
 	/** Nearest (beat, string) for a pointer event within a band's <g>. */
@@ -205,42 +246,33 @@
 {#snippet stdVoice(beats: LaidBeat[], measureIndex: number, vIdx: number, bandHeight: number)}
 	{#each beamGroups(beats) as group (group)}
 		{@const members = beats.filter((b) => b.beamGroup === group)}
-		{@const by = beamY(beats, group)}
-		{@const dir = members[0].stemDir}
-		<line
-			x1={stemX(members[0])}
-			y1={by}
-			x2={stemX(members[members.length - 1])}
-			y2={by}
-			class="beam"
-		/>
+		{@const bl = beamLine(members)}
+		<line x1={bl.x1} y1={bl.y1} x2={bl.x2} y2={bl.y2} class="beam" />
 		{#each members as m, mi (m.index)}
+			{@const sx = stemX(m)}
+			{@const yb = beamYAt(bl, sx)}
 			<!-- Stem runs from the notehead column straight to the beam, so heads,
 			     stems and beam always meet. -->
-			<line
-				x1={stemX(m)}
-				y1={dir === 1 ? m.stdStemBottom : m.stdStemTop}
-				x2={stemX(m)}
-				y2={by}
-				class="stem"
-			/>
+			<line x1={sx} y1={m.stemDir === 1 ? m.noteBottom : m.noteTop} x2={sx} y2={yb} class="stem" />
 			{#if m.beams >= 2}
 				{#if mi < members.length - 1 && members[mi + 1].beams >= 2}
 					<!-- Secondary (16th/32nd) beam fully connects neighbouring members. -->
+					{@const sx2 = stemX(members[mi + 1])}
 					<line
-						x1={stemX(m)}
-						y1={by + dir * 4.5}
-						x2={stemX(members[mi + 1])}
-						y2={by + dir * 4.5}
+						x1={sx}
+						y1={yb + bl.dir * SEC_BEAM_GAP}
+						x2={sx2}
+						y2={beamYAt(bl, sx2) + bl.dir * SEC_BEAM_GAP}
 						class="beam"
 					/>
 				{:else if mi === 0 || members[mi - 1].beams < 2}
 					<!-- Isolated short note: stub points back toward its group. -->
+					{@const sxe = sx + (mi === members.length - 1 ? -7 : 7)}
 					<line
-						x1={stemX(m)}
-						y1={by + dir * 4.5}
-						x2={stemX(m) + (mi === members.length - 1 ? -7 : 7)}
-						y2={by + dir * 4.5}
+						x1={sx}
+						y1={yb + bl.dir * SEC_BEAM_GAP}
+						x2={sxe}
+						y2={beamYAt(bl, sxe) + bl.dir * SEC_BEAM_GAP}
 						class="beam"
 					/>
 				{/if}
@@ -259,23 +291,32 @@
 			<text x={beat.x - 4} y={12 + 3 * METRICS.staffLineGap} class="bravura rest"
 				>{restGlyph(beat.duration)}</text
 			>
+			{#if beat.dotted}
+				<circle cx={beat.x + 9} cy={12 + 3 * METRICS.staffLineGap - 3} r="1.6" class="dot" />
+			{/if}
 		{:else}
 			{#each beat.notes as n (n.string)}
 				{#each n.ledgerLines as ly (ly)}
-					<line x1={n.x - 9} y1={ly} x2={n.x + 9} y2={ly} class="ledger" />
+					<line
+						x1={n.x + n.headXOffset - 9}
+						y1={ly}
+						x2={n.x + n.headXOffset + 9}
+						y2={ly}
+						class="ledger"
+					/>
 				{/each}
 			{/each}
 			{#if beat.duration !== 1 && beat.beamGroup === -1}
 				<line
-					x1={beat.stemDir === 1 ? beat.x + 6.5 : beat.x - 6.5}
+					x1={stemX(beat)}
 					y1={beat.stemDir === 1 ? beat.stdStemBottom : beat.stdStemTop}
-					x2={beat.stemDir === 1 ? beat.x + 6.5 : beat.x - 6.5}
+					x2={stemX(beat)}
 					y2={beat.stemDir === 1 ? beat.stdStemTop : beat.stdStemBottom}
 					class="stem"
 				/>
 				{#if beat.beams > 0}
 					<text
-						x={beat.stemDir === 1 ? beat.x + 6.5 : beat.x - 6.5}
+						x={stemX(beat)}
 						y={beat.stemDir === 1 ? beat.stdStemTop : beat.stdStemBottom}
 						class="bravura flag"
 						>{beat.beams === 1
@@ -287,21 +328,31 @@
 				{/if}
 			{/if}
 			{#each beat.notes as n (n.string)}
-				{#if n.sharp}
-					<text x={n.x - 16} y={n.stdY + 4} class="accidental">♯</text>
+				{#if n.accidental}
+					<text x={n.x - 15} y={n.stdY + 4} class="bravura accidental"
+						>{accidentalGlyph(n.accidental)}</text
+					>
 				{/if}
 				<ellipse
-					cx={n.x}
+					cx={n.x + n.headXOffset}
 					cy={n.stdY}
 					rx="6"
 					ry="4.4"
 					class="notehead"
 					class:hollow={beat.duration <= 2}
 					class:v2={vIdx === 1}
-					transform="rotate(-20 {n.x} {n.stdY})"
+					transform="rotate(-20 {n.x + n.headXOffset} {n.stdY})"
 				/>
 				{#if beat.dotted}
-					<circle cx={n.x + 11} cy={n.stdY} r="1.6" class="dot" />
+					<circle cx={n.x + n.headXOffset + 11} cy={n.stdY} r="1.6" class="dot" />
+				{/if}
+				{#if n.tie}
+					{@const ud = beat.stemDir === 1 ? 1 : -1}
+					<path
+						d="M {n.x + n.headXOffset + 7} {n.stdY + ud * 3} Q {(n.x + n.headXOffset + n.tie.x2) /
+							2} {n.stdY + ud * 11} {n.tie.x2 - 7} {n.tie.stdY2 + ud * 3}"
+						class="tie"
+					/>
 				{/if}
 			{/each}
 		{/if}
@@ -365,6 +416,13 @@
 			{#if n.techniques.includes('harmonic')}
 				<text x={n.x} y={n.tabY - 9} class="fx">◇</text>
 			{/if}
+			{#if n.tie}
+				<path
+					d="M {n.x + 7} {n.tabY - 5} Q {(n.x + n.tie.x2) / 2} {n.tabY - 13} {n.tie.x2 - 7} {n.tie
+						.tabY2 - 5}"
+					class="tie"
+				/>
+			{/if}
 		{/each}
 	{/each}
 {/snippet}
@@ -425,12 +483,12 @@
 									<text
 										x={measure.x + (measure.showHeader ? 34 : 6)}
 										y={12 + 2 * METRICS.staffLineGap + 1}
-										class="bravura tsig">{tsGlyph(measure.timeSignature[0])}</text
+										class="bravura tsig">{timeSigGlyphs(measure.timeSignature[0])}</text
 									>
 									<text
 										x={measure.x + (measure.showHeader ? 34 : 6)}
 										y={12 + 4 * METRICS.staffLineGap + 1}
-										class="bravura tsig">{tsGlyph(measure.timeSignature[1])}</text
+										class="bravura tsig">{timeSigGlyphs(measure.timeSignature[1])}</text
 									>
 								{/if}
 
@@ -713,8 +771,12 @@
 		fill: #18181b;
 	}
 	.accidental {
-		font-size: 14px;
-		fill: #18181b;
+		font-size: 24px;
+	}
+	.tie {
+		fill: none;
+		stroke: #18181b;
+		stroke-width: 1.3;
 	}
 	.bravura {
 		font-family: 'Bravura', serif;
