@@ -22,3 +22,7 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Assets copied in by @coderline/alphatab-vite at dev/build time
+/static/font
+/static/soundfont
