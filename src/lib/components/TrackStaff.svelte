@@ -9,6 +9,7 @@
 	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import { DURATION_ORDER } from '$lib/oto/duration';
 	import { DURATION_LABELS, TECHNIQUE_LABELS, type DurationValue } from '$lib/oto/types';
+	import { midiToNote } from '$lib/oto/pitch';
 	import {
 		EFFECT_LIST,
 		TIME_SIGS,
@@ -349,7 +350,8 @@
 						class:hollow={beat.duration <= 2}
 						class:v2={vIdx === 1}
 						transform="rotate(-20 {n.x + n.headXOffset} {n.stdY})"
-					/>
+						><title>{midiToNote(n.midi)}</title></ellipse
+					>
 				{/if}
 				{#if beat.dotted}
 					<circle cx={n.x + n.headXOffset + 11} cy={n.stdY} r="1.6" class="dot" />
@@ -483,18 +485,33 @@
 								/>
 
 								{#if measure.showHeader}
-									<text x={measure.x + 8} y={12 + 3.4 * METRICS.staffLineGap} class="bravura clef"
-										>{GLYPH.trebleClef}</text
-									>
+									{#if layout.clef === 'bass'}
+										<text
+											x={measure.x + 8}
+											y={12 + 2.5 * METRICS.staffLineGap}
+											class="bravura clef">{GLYPH.bassClef}</text
+										>
+									{:else}
+										<text
+											x={measure.x + 8}
+											y={12 + 3.4 * METRICS.staffLineGap}
+											class="bravura clef">{GLYPH.trebleClef}</text
+										>
+									{/if}
+								{/if}
+								{#if measure.showHeader}
+									{#each layout.keySigGlyphs as g, gi (gi)}
+										<text x={measure.x + g.dx} y={g.y} class="bravura keysig">{g.glyph}</text>
+									{/each}
 								{/if}
 								{#if measure.timeSignature}
 									<text
-										x={measure.x + (measure.showHeader ? 34 : 6)}
+										x={measure.x + (measure.showHeader ? 34 + layout.keySigWidth : 6)}
 										y={12 + 2 * METRICS.staffLineGap + 1}
 										class="bravura tsig">{timeSigGlyphs(measure.timeSignature[0])}</text
 									>
 									<text
-										x={measure.x + (measure.showHeader ? 34 : 6)}
+										x={measure.x + (measure.showHeader ? 34 + layout.keySigWidth : 6)}
 										y={12 + 4 * METRICS.staffLineGap + 1}
 										class="bravura tsig">{timeSigGlyphs(measure.timeSignature[1])}</text
 									>
@@ -788,6 +805,9 @@
 		fill: #18181b;
 	}
 	.accidental {
+		font-size: 24px;
+	}
+	.keysig {
 		font-size: 24px;
 	}
 	.tie {

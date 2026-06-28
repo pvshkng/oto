@@ -165,6 +165,9 @@ export interface OtoScore {
 	tempo: number;
 	/** Global default time signature. Measures may override. */
 	timeSignature: [number, number];
+	/** Key signature as a circle-of-fifths count: 0 = C/Am, positive = sharps,
+	 *  negative = flats (range -7..7). */
+	keySignature: number;
 	/** Master output level, 0..1. */
 	masterVolume: number;
 	tracks: OtoTrack[];

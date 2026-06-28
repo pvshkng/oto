@@ -18,6 +18,30 @@
 		const [n, d] = v.split('/').map(Number);
 		store.setTimeSignature(n, d);
 	}
+
+	// Circle of fifths, flats through sharps. Major key name shown; relative
+	// minor is a third below (e.g. "C" also reads as A minor).
+	const KEY_SIGS: { fifths: number; major: string; minor: string }[] = [
+		{ fifths: -7, major: 'Cb', minor: 'Ab' },
+		{ fifths: -6, major: 'Gb', minor: 'Eb' },
+		{ fifths: -5, major: 'Db', minor: 'Bb' },
+		{ fifths: -4, major: 'Ab', minor: 'F' },
+		{ fifths: -3, major: 'Eb', minor: 'C' },
+		{ fifths: -2, major: 'Bb', minor: 'G' },
+		{ fifths: -1, major: 'F', minor: 'D' },
+		{ fifths: 0, major: 'C', minor: 'A' },
+		{ fifths: 1, major: 'G', minor: 'E' },
+		{ fifths: 2, major: 'D', minor: 'B' },
+		{ fifths: 3, major: 'A', minor: 'F#' },
+		{ fifths: 4, major: 'E', minor: 'C#' },
+		{ fifths: 5, major: 'B', minor: 'G#' },
+		{ fifths: 6, major: 'F#', minor: 'D#' },
+		{ fifths: 7, major: 'C#', minor: 'A#' }
+	];
+	const currentKey = $derived(
+		KEY_SIGS.find((k) => k.fifths === store.score.keySignature) ?? KEY_SIGS[7]
+	);
+	let keyOpen = $state(false);
 </script>
 
 <Drawer.Root bind:open={store.songModalOpen} direction="bottom">
@@ -92,6 +116,34 @@
 						</Popover.Content>
 					</Popover.Root>
 				</div>
+			</div>
+			<div class="grid gap-2">
+				<Label>Key signature</Label>
+				<Popover.Root bind:open={keyOpen}>
+					<Popover.Trigger
+						class="border-input bg-background hover:bg-accent flex h-9 w-full items-center justify-center rounded-md border text-sm font-semibold"
+					>
+						{currentKey.major} major / {currentKey.minor} minor
+					</Popover.Trigger>
+					<Popover.Content class="w-56 p-1">
+						<div class="grid grid-cols-3 gap-1">
+							{#each KEY_SIGS as k (k.fifths)}
+								<button
+									class={cn(
+										'rounded-sm px-2 py-1.5 text-sm font-semibold',
+										currentKey.fifths === k.fifths
+											? 'bg-primary text-primary-foreground'
+											: 'hover:bg-accent text-foreground'
+									)}
+									onclick={() => {
+										store.setKeySignature(k.fifths);
+										keyOpen = false;
+									}}>{k.major}</button
+								>
+							{/each}
+						</div>
+					</Popover.Content>
+				</Popover.Root>
 			</div>
 			<p class="text-muted-foreground text-xs">
 				Tip: change the time signature of a single bar from the staff right-click menu.

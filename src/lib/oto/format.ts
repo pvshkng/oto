@@ -6,6 +6,9 @@
 //            optional on disk — `parse()` backfills sensible defaults (pan 0,
 //            flat EQ, masterVolume 0.85, no sections), so v1 documents load
 //            unchanged and are silently upgraded to v2 on the next save.
+//   v2 → v3  Added score-level `keySignature` (circle-of-fifths count, 0 =
+//            C/Am). Optional on disk — `parse()` backfills 0 (no sharps/flats)
+//            for older documents.
 
 import { TUNINGS } from './pitch';
 import type {
@@ -18,7 +21,7 @@ import type {
 	TrackKind
 } from './types';
 
-export const OTO_VERSION = 2;
+export const OTO_VERSION = 3;
 
 let idCounter = 0;
 export function uid(prefix = 'id'): string {
@@ -102,6 +105,7 @@ export function makeScore(opts: Partial<OtoScore> = {}): OtoScore {
 		artist: opts.artist ?? 'Unknown Artist',
 		tempo: opts.tempo ?? 120,
 		timeSignature: opts.timeSignature ?? [4, 4],
+		keySignature: opts.keySignature ?? 0,
 		masterVolume: opts.masterVolume ?? 0.85,
 		tracks: opts.tracks ?? [makeTrack()],
 		sections: opts.sections ?? [],
@@ -136,6 +140,8 @@ export function parse(text: string): OtoScore {
 		artist: typeof d.artist === 'string' ? d.artist : 'Unknown Artist',
 		tempo: typeof d.tempo === 'number' ? d.tempo : 120,
 		timeSignature: isTimeSig(d.timeSignature) ? d.timeSignature : [4, 4],
+		keySignature:
+			typeof d.keySignature === 'number' ? Math.max(-7, Math.min(7, d.keySignature)) : 0,
 		masterVolume: typeof d.masterVolume === 'number' ? d.masterVolume : undefined,
 		tracks,
 		sections: Array.isArray(d.sections) ? (d.sections as unknown[]).map(normaliseSection) : [],

@@ -356,6 +356,9 @@ export class ScoreStore {
 	setTimeSignature(num: number, den: number) {
 		this.commit(() => (this.score.timeSignature = [num, den]));
 	}
+	setKeySignature(fifths: number) {
+		this.commit(() => (this.score.keySignature = Math.max(-7, Math.min(7, fifths))));
+	}
 
 	// ---- tracks ------------------------------------------------------------
 
