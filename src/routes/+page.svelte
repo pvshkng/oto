@@ -11,6 +11,8 @@
 	import TrackControlDrawer from '$lib/components/TrackControlDrawer.svelte';
 	import TracksPanel from '$lib/components/TracksPanel.svelte';
 	import StatusBanner from '$lib/components/StatusBanner.svelte';
+	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
+	import { audio } from '$lib/audio/engine';
 	import { fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 
@@ -18,6 +20,15 @@
 	// panel — they're not modal (the score below stays editable), so unlike a
 	// real Drawer there's no overlay/blur, just the entrance/exit motion.
 	const dockTransition = { y: '100%', opacity: 0.5, duration: 260, easing: cubicOut };
+
+	// The note editor and tracks panel are mutually exclusive and share one docked
+	// slot. Driving them through a single value means the slide only runs when
+	// opening from closed or closing to nothing — switching from one panel to the
+	// other swaps the contents in place (no overlapping enter/exit), which is what
+	// kept the old two-`{#if}` version glitchy. The slide-up shadow lives on the
+	// panel itself (see .dock-panel) so it travels with the motion instead of
+	// snapping to the final position before the panel arrives.
+	const dockPanel = $derived(store.editMode ? 'edit' : store.mixerOpen ? 'mixer' : null);
 
 	// Height of the fixed bottom dock, so the sheet can scroll clear of it.
 	let dockHeight = $state(56);
@@ -128,8 +139,6 @@
 		}
 	}
 
-	const fill = $derived(store.currentMeasureFill);
-
 	// React to scroll requests (back-to-start, jump to a track section) raised
 	// from the bottom bar / tracks panel.
 	$effect(() => {
@@ -146,6 +155,10 @@
 
 	onMount(() => {
 		store.loadFromStorage();
+		// Decode the recorded samples for whatever instruments this score uses up
+		// front, behind the loading screen, so the first play/audition is instant
+		// and glitch-free rather than waiting on a download mid-bar.
+		audio.ensureSamples(store.score.tracks.map((t) => t.instrument));
 		window.addEventListener('keydown', onKeydown);
 		return () => {
 			window.removeEventListener('keydown', onKeydown);
@@ -175,12 +188,6 @@
 				<p>{store.score.artist || 'Unknown'}</p>
 				<span class="edit-hint">edit ✎</span>
 			</button>
-
-			{#if fill?.overflow}
-				<div class="overflow-note">
-					Bar {store.cursor.measure + 1} is over-full, extra notes won't play.
-				</div>
-			{/if}
 
 			{#if store.isFocusMode}
 				<div class="focus-bar no-print">
@@ -215,14 +222,13 @@
 	</main>
 
 	<div class="bottom-dock no-print" bind:clientHeight={dockHeight}>
-		{#if store.editMode}
-			<div transition:fly={dockTransition}>
-				<EditPanel />
-			</div>
-		{/if}
-		{#if store.mixerOpen}
-			<div transition:fly={dockTransition}>
-				<TracksPanel />
+		{#if dockPanel}
+			<div class="dock-panel" transition:fly={dockTransition}>
+				{#if dockPanel === 'edit'}
+					<EditPanel />
+				{:else}
+					<TracksPanel />
+				{/if}
 			</div>
 		{/if}
 		<BottomBar />
@@ -231,6 +237,8 @@
 	<SongModal />
 	<TrackControlDrawer bind:open={trackEditOpen} index={trackEditIndex} />
 </div>
+
+<LoadingScreen />
 
 <style>
 	.app {
@@ -299,16 +307,6 @@
 	.score-head:hover .edit-hint {
 		opacity: 1;
 	}
-	.overflow-note {
-		margin: 0 0 14px;
-		font-size: 12px;
-		color: var(--brick);
-		background: var(--brick-soft);
-		border: 1px solid var(--brick-border);
-		border-radius: var(--r-xs);
-		padding: 8px 10px;
-		text-align: center;
-	}
 	.focus-bar {
 		display: flex;
 		align-items: center;
@@ -376,6 +374,12 @@
 		right: 0;
 		bottom: 0;
 		z-index: 50;
+	}
+	/* The lift shadow rides on the sliding panel (not the static dock) so it
+	   animates in with the panel rather than snapping to the open position while
+	   the panel is still travelling. The bottom bar keeps its own top border for
+	   separation when no panel is open. */
+	.dock-panel {
 		box-shadow: var(--shadow-3);
 	}
 	@media (max-width: 720px) {

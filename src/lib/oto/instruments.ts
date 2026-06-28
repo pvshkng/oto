@@ -11,7 +11,8 @@ import type { TrackKind } from './types';
 export interface InstrumentPreset {
 	value: string; // unique id
 	label: string;
-	/** Audio engine voice: nylon | acoustic | electric | bass | clean. */
+	/** Audio engine voice: nylon | acoustic | electric | bass | clean | piano | drums.
+	 *  Most map to a recorded sample set (see audio/samples.ts); drums stay synthesised. */
 	engine: string;
 	group: string;
 	kind: TrackKind;
@@ -82,6 +83,14 @@ export const INSTRUMENTS: InstrumentPreset[] = [
 		group: 'Other',
 		kind: 'ukulele',
 		tuning: TUNINGS['Ukulele']
+	},
+	{
+		value: 'piano',
+		label: 'Piano',
+		engine: 'piano',
+		group: 'Keys',
+		kind: 'guitar',
+		tuning: TUNINGS['Guitar Standard']
 	},
 	{
 		value: 'drums',

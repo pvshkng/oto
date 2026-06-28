@@ -15,6 +15,13 @@
 	const soloedNames = $derived(store.score.tracks.filter((t) => t.soloed).map((t) => t.name));
 	const focusedName = $derived(store.isFocusMode ? store.focusedTrackName : null);
 
+	// Over-full bar warning, promoted from the score sheet into this sticky banner
+	// so it's always visible. Reserved red — the only thing in the app that uses it
+	// — marks the "extra notes won't play" hazard. Tracks the cursor's bar.
+	const overflowBar = $derived(
+		store.currentMeasureFill?.overflow ? store.cursor.measure + 1 : null
+	);
+
 	// Many simultaneously-audible tracks compound CPU load (each has its own
 	// always-running EQ/pan/gain chain, on top of whatever instrument it plays),
 	// which is the kind of thing that turns into "choppy" audio on slower
@@ -40,6 +47,14 @@
 		dismissedSignature = signature;
 	}
 </script>
+
+{#if overflowBar}
+	<div class="banner warn no-print" role="alert">
+		<div class="text">
+			<span class="chip">Bar {overflowBar} is over-full — extra notes won't play</span>
+		</div>
+	</div>
+{/if}
 
 {#if store.audioError}
 	<div class="banner error no-print" role="alert">
@@ -94,7 +109,8 @@
 		font-size: 12px;
 		font-weight: 600;
 	}
-	.banner.error {
+	.banner.error,
+	.banner.warn {
 		background: var(--brick);
 	}
 	.text {

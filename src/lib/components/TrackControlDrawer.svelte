@@ -6,6 +6,7 @@
 	// combobox (the shadcn combobox pattern).
 
 	import { store } from '$lib/stores/score.svelte';
+	import { audio } from '$lib/audio/engine';
 	import * as Drawer from '$lib/components/ui/drawer';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Command from '$lib/components/ui/command';
@@ -43,6 +44,9 @@
 
 	function pickInstrument(p: InstrumentPreset) {
 		store.updateTrack(index, { instrument: p.engine, kind: p.kind, tuning: [...p.tuning] });
+		// Decode the new instrument's samples now (behind the loading screen) so the
+		// next play/audition uses the real sampler instead of the synth fallback.
+		audio.ensureSamples([p.engine]);
 		instOpen = false;
 	}
 	function pickTuning(n: string) {

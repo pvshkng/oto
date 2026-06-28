@@ -8,6 +8,7 @@
 
 	import { store } from '$lib/stores/score.svelte';
 	import { audio } from '$lib/audio/engine';
+	import { analyzeMeasure } from '$lib/oto/duration';
 	import * as Popover from '$lib/components/ui/popover';
 	import { Button } from '$lib/components/ui/button';
 	import { cn } from '$lib/utils';
@@ -90,6 +91,14 @@
 		const m = t.measures[mi];
 		if (!m) return false;
 		return m.beats.some((b) => b.notes.length > 0) || !!m.voice2?.some((b) => b.notes.length > 0);
+	}
+
+	// A bar whose notes exceed its capacity (the overflow won't play) — flagged
+	// red here in the arrangement, mirroring the sticky over-full warning.
+	function barOverflow(t: OtoTrack, mi: number): boolean {
+		const m = t.measures[mi];
+		if (!m) return false;
+		return analyzeMeasure(m, store.score.timeSignature).overflow;
 	}
 
 	function addTrack() {
@@ -419,7 +428,13 @@
 								style="width:{cell}px"
 							>
 								{#if trackHasContent(track, mi)}
-									<div class="m-px flex-1 rounded-sm" style="background:{track.color}"></div>
+									<div
+										class="m-px flex-1 rounded-sm"
+										style="background:{barOverflow(track, mi) ? 'var(--brick)' : track.color}"
+										title={barOverflow(track, mi)
+											? 'Over-full bar — extra notes won’t play'
+											: undefined}
+									></div>
 								{/if}
 							</div>
 						{/each}
