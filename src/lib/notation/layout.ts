@@ -5,7 +5,7 @@
 import { analyzeMeasure, beatFraction } from '$lib/oto/duration';
 import { frettedMidi } from '$lib/oto/pitch';
 import { beamCount, midiToStaffStep } from './glyphs';
-import type { OtoScore, OtoTrack, DurationValue } from '$lib/oto/types';
+import type { OtoScore, OtoTrack, DurationValue, TrackKind } from '$lib/oto/types';
 
 export interface LayoutOptions {
 	containerWidth: number;
@@ -204,7 +204,11 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 							capo: track.capo,
 							transpose: track.transpose
 						});
-						const { step, sharp } = midiToStaffStep(midi);
+						// Guitar/bass standard notation is conventionally written one
+						// octave above the instrument's actual sounding pitch (like the
+						// double bass) so the staff doesn't need a thicket of ledger
+						// lines; the tab/audio paths keep using the real `midi` above.
+						const { step, sharp } = midiToStaffStep(midi + notationOctaveShift(track.kind));
 						const tabY = bands.tab ? n.string * METRICS.tabLineGap + 14 : 0;
 						const stdY = standardNoteY(step);
 						return {
@@ -306,6 +310,18 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 		stringCount,
 		bands
 	};
+}
+
+/**
+ * Semitones added to the sounding pitch before placing a notehead on the
+ * standard staff. Guitar and bass are transposing instruments in standard
+ * notation — written one octave higher than they actually sound — the same
+ * convention used by double bass, to avoid stacking ledger lines below the
+ * staff. Open B (2nd string) therefore sits on the middle staff line, not
+ * a ledger line and a half below it.
+ */
+function notationOctaveShift(kind: TrackKind): number {
+	return kind === 'guitar' || kind === 'bass' ? 12 : 0;
 }
 
 /** Standard-staff y for a diatonic step (C4 = 0). Top line F5 step=10. */
