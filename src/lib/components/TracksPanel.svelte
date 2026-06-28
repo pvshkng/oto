@@ -117,7 +117,7 @@
 		if (!t || !trackHasContent(t, measure)) return;
 		jumpTo(measure, i);
 		store.mixerOpen = false;
-		store.scrollToTrack(t.id);
+		store.scrollToTrack(t.id, measure);
 	}
 
 	// Native `dblclick` doesn't fire reliably from touch double-taps, so track

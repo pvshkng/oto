@@ -147,9 +147,18 @@
 		if (req.kind === 'start') {
 			scoreAreaEl.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
 		} else if (req.kind === 'track' && req.trackId) {
-			document
-				.getElementById(`track-${req.trackId}`)
-				?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			const trackEl = document.getElementById(`track-${req.trackId}`);
+			if (!trackEl) return;
+			let target: Element = trackEl;
+			if (req.measure != null) {
+				const system = [...trackEl.querySelectorAll('svg.system')].find((el) => {
+					const first = Number(el.getAttribute('data-first-measure'));
+					const last = Number(el.getAttribute('data-last-measure'));
+					return req.measure! >= first && req.measure! <= last;
+				});
+				if (system) target = system;
+			}
+			target.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		}
 	});
 

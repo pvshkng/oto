@@ -37,23 +37,16 @@ function countInFor(measure: number): { beats: number; interval: number } {
 	return { beats: ts[0], interval };
 }
 
-/** Play from the current position, or resume from where playback was paused.
- *  Pressing this while already playing pauses (see `pausePlayback`) — it does
- *  not stop, so a second press resumes exactly where it left off. */
-export async function togglePlayback() {
-	if (store.isPlaying) {
-		pausePlayback();
-		return;
-	}
+/** Start playback from the cursor (or the loop region, if looping). A no-op if
+ *  already playing — the cursor is always the single source of truth for where
+ *  playback begins, whether this is a fresh play or a resume after pause. */
+export async function play() {
+	if (store.isPlaying) return;
 	const compiled = compileScore(store.score);
 
 	let window: { start: number; end: number } | null = null;
 	let repeat = false;
 	const bounds = store.loopEnabled ? store.loopBounds : null;
-	// Resuming from a pause takes priority over the loop/cursor start so
-	// "play again" continues from the exact note it was paused at, never from
-	// the selection or the top of the loop.
-	const resumeAt = !bounds && store.isPaused ? store.pausePosition : null;
 
 	if (bounds) {
 		// Loop the selected region.
@@ -67,9 +60,6 @@ export async function togglePlayback() {
 				: timeAt(compiled, bounds.endMeasure + 1, 0) || compiled.totalTime;
 		window = { start, end };
 		repeat = true;
-	} else if (resumeAt) {
-		const start = timeAt(compiled, resumeAt.measure, resumeAt.beat);
-		if (start > 0.01) window = { start, end: compiled.totalTime };
 	} else if (store.cursor.measure > 0 || store.cursor.beat > 0) {
 		// Otherwise start one-shot playback from the cursor position.
 		const start = timeAt(compiled, store.cursor.measure, store.cursor.beat);
@@ -78,13 +68,13 @@ export async function togglePlayback() {
 
 	// Count-in: a bar of clicks (one per beat of the starting bar's metre) before
 	// the music. Uses the metre and tempo in effect at the first played measure.
-	const startMeasure = bounds?.startMeasure ?? resumeAt?.measure ?? store.cursor.measure;
+	const startMeasure = bounds?.startMeasure ?? store.cursor.measure;
+	const startBeat = bounds?.startBeat ?? store.cursor.beat;
 	const countIn = store.countInOn ? countInFor(startMeasure) : null;
 
 	store.isPlaying = true;
 	store.isPaused = false;
-	store.pausePosition = null;
-	store.playhead = resumeAt ?? { measure: bounds?.startMeasure ?? store.cursor.measure, beat: 0 };
+	store.playhead = { measure: startMeasure, beat: startBeat };
 
 	try {
 		await audio.play(store.score, compiled, {
@@ -112,26 +102,34 @@ export async function togglePlayback() {
 	}
 }
 
-/** Pause in place: freezes the audio at the current beat and remembers it, so
- *  the next Play resumes from here rather than the selection or bar 1. */
+/** Pause in place: freezes the audio and syncs the cursor to the exact beat it
+ *  stopped on, so the next Play resumes from there — and so the user can
+ *  navigate the cursor anywhere else and have Play start from there instead. */
 export function pausePlayback() {
+	if (!store.isPlaying) return;
 	audio.stop();
+	const at = store.playhead ?? { measure: store.cursor.measure, beat: store.cursor.beat };
+	store.setCursor({ measure: at.measure, beat: at.beat });
 	store.isPlaying = false;
 	store.isPaused = true;
-	store.pausePosition = store.playhead ?? {
-		measure: store.cursor.measure,
-		beat: store.cursor.beat
-	};
+	store.playhead = null;
 }
 
-/** Full stop: drops the paused position too, so the next Play restarts from
- *  the selection cursor. */
+/** Full stop: rewinds the cursor to bar 1, but doesn't scroll the score view
+ *  (that's reserved for the explicit "back to start" button). */
 export function stopPlayback() {
 	audio.stop();
 	store.isPlaying = false;
 	store.isPaused = false;
-	store.pausePosition = null;
 	store.playhead = null;
+	store.setCursor({ measure: 0, beat: 0 });
+}
+
+/** Toggle between play and pause, for the spacebar shortcut and the command
+ *  palette — Play/Pause are otherwise driven by their own dedicated buttons. */
+export function togglePlayback() {
+	if (store.isPlaying) pausePlayback();
+	else play();
 }
 
 /** Stop playback (if running), rewind the cursor to bar 1 and scroll the score back up. */

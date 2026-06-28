@@ -343,13 +343,28 @@
 	}
 	/* Duration glyphs are drawn from Bravura (see notation/glyphs.ts) so every
 	   note value renders at one consistent size across platforms, instead of the
-	   system font's Musical-Symbol code points which sized inconsistently. */
+	   system font's Musical-Symbol code points which sized inconsistently. Each
+	   glyph has a different natural width (whole vs. 32nd note), so the glyph
+	   sits in a fixed-width, centered box rather than sizing to its own content —
+	   that's what keeps every duration button the same small footprint. */
+	.ctl.gl {
+		padding: 0 6px;
+	}
 	.ctl.gl .bravura {
 		font-family: 'Bravura', serif;
-		font-size: 26px;
+		font-size: 18px;
 		line-height: 1;
-		display: inline-block;
-		transform: translateY(0.12em);
+		width: 20px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		transform: translateY(0.08em);
+	}
+	/* The dotted button packs two glyphs (note + augmentation dot) into one
+	   span, so it needs its own width instead of the single-glyph fixed box. */
+	.ctl.gl.dotted .bravura {
+		width: auto;
+		gap: 1px;
 	}
 	.ctl.icon {
 		color: var(--ink);
