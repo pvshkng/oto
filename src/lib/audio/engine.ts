@@ -13,6 +13,7 @@ import { beatFraction, beatsCutoff } from '$lib/oto/duration';
 import { measureVoices, type OtoScore, type OtoTrack } from '$lib/oto/types';
 import {
 	createSampler,
+	isSampledInstrument,
 	isSetLoaded,
 	loadSets,
 	pendingSampleCount,
@@ -20,6 +21,7 @@ import {
 	type SampleSet
 } from './samples';
 import { loading } from '$lib/stores/loading.svelte';
+import { store } from '$lib/stores/score.svelte';
 
 // Tone's default context uses latencyHint "interactive" (the browser's smallest
 // safe buffer) with a 100ms scheduling look-ahead. That's tuned for things like
@@ -45,6 +47,7 @@ export interface ScheduledNote {
 	muted: boolean;
 	bend?: number;
 	slideToFreq?: number;
+	vibrato?: boolean;
 	palmMute?: boolean;
 }
 
@@ -132,6 +135,7 @@ export function compileScore(score: OtoScore): CompiledScore {
 								muted: track.muted || (anySolo && !track.soloed),
 								bend: note.techniques?.includes('bend') ? (note.bend ?? 1) : undefined,
 								slideToFreq,
+								vibrato: note.techniques?.includes('vibrato') || undefined,
 								palmMute: palm
 							});
 						}
@@ -532,8 +536,9 @@ export class AudioEngine {
 	 * cached before playback, driving the loading overlay's progress while they
 	 * download. Resolves immediately when everything needed is already cached, so
 	 * it's cheap to call on every play/audition. Loading failures are swallowed —
-	 * the synth fallback still makes sound — but the overlay is closed so the app
-	 * never gets stuck behind it.
+	 * the synth fallback still makes sound — but the overlay is closed (and a
+	 * warning surfaced) so the app never gets stuck behind it or pretends nothing
+	 * happened.
 	 */
 	async ensureSamples(engineNames: string[]): Promise<void> {
 		const sets = [
@@ -544,8 +549,10 @@ export class AudioEngine {
 		if (pending > 0) loading.begin(pending);
 		try {
 			await loadSets(sets, () => loading.tick());
+			store.sampleWarning = null;
 		} catch {
 			loading.finish();
+			store.sampleWarning = "Couldn't load instrument samples — using the basic synth sound.";
 		}
 	}
 
@@ -617,9 +624,18 @@ export class AudioEngine {
 			if (ev.time < windowStart - 1e-6 || ev.time >= windowEnd - 1e-6) continue;
 			const instrument = this.instrumentFor(score.tracks.find((t) => t.id === ev.trackId)!);
 			const rel = ev.time - windowStart;
+			const wantsBend = ev.bend !== undefined || ev.slideToFreq !== undefined || ev.vibrato;
 			transport.schedule((time) => {
 				const dur = ev.palmMute ? Math.min(ev.duration, 0.12) : ev.duration;
-				instrument.triggerAttackRelease(ev.freq, dur, time, ev.velocity);
+				if (wantsBend && isSampledInstrument(instrument)) {
+					instrument.triggerBent(ev.freq, dur, time, ev.velocity, {
+						slideToFreq: ev.slideToFreq,
+						bendSemitones: ev.bend,
+						vibrato: ev.vibrato
+					});
+				} else {
+					instrument.triggerAttackRelease(ev.freq, dur, time, ev.velocity);
+				}
 			}, rel);
 		}
 

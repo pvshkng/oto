@@ -42,6 +42,20 @@ export const TRACK_COLOR_SWATCHES: { name: string; hex: string }[] = [
 ];
 const TRACK_COLORS = TRACK_COLOR_SWATCHES.map((c) => c.hex);
 
+// Older saved documents may still carry one of the red/rose/pink swatches that
+// were dropped once red became reserved for warnings (see TRACK_COLOR_SWATCHES
+// above). Remap those deterministically (by track id) so loading an old score
+// doesn't put a "warning-red" track in the mix, but a given track always lands
+// on the same replacement swatch across reloads rather than reshuffling.
+const LEGACY_RED_HEXES = new Set(['#fee2e2', '#ffe4e6']);
+
+function migrateLegacyColor(hex: string | undefined, id: string): string | undefined {
+	if (!hex || !LEGACY_RED_HEXES.has(hex)) return hex;
+	let hash = 0;
+	for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
+	return TRACK_COLORS[Math.abs(hash) % TRACK_COLORS.length];
+}
+
 export function emptyMeasure(): OtoMeasure {
 	return { beats: [restBeat(4)] };
 }
@@ -138,8 +152,9 @@ function normaliseTrack(t: unknown): OtoTrack {
 	const measures = Array.isArray(o.measures)
 		? (o.measures as unknown[]).map(normaliseMeasure)
 		: [emptyMeasure()];
+	const id = typeof o.id === 'string' ? o.id : uid('trk');
 	return makeTrack({
-		id: typeof o.id === 'string' ? o.id : undefined,
+		id,
 		name: typeof o.name === 'string' ? o.name : undefined,
 		kind: typeof o.kind === 'string' ? (o.kind as TrackKind) : undefined,
 		tuning: Array.isArray(o.tuning) ? (o.tuning as string[]) : undefined,
@@ -160,7 +175,7 @@ function normaliseTrack(t: unknown): OtoTrack {
 					}
 				: undefined,
 		measures,
-		color: typeof o.color === 'string' ? o.color : undefined
+		color: migrateLegacyColor(typeof o.color === 'string' ? o.color : undefined, id)
 	});
 }
 

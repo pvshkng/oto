@@ -92,6 +92,10 @@ export class ScoreStore {
 	/** Set when the audio engine failed to start (e.g. blocked autoplay), so the
 	 *  UI can surface a clear, actionable message instead of silent no-sound. */
 	audioError = $state<string | null>(null);
+	/** Set when a recorded sample set fails to download/decode (e.g. offline), so
+	 *  the UI can be honest that playback fell back to the synthesised voice
+	 *  instead of silently sounding different from what was expected. */
+	sampleWarning = $state<string | null>(null);
 
 	// Score-area scroll requests (UI only). The main view listens for these to
 	// scroll itself back to the top of the song or to a specific track/measure;
