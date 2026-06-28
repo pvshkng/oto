@@ -322,20 +322,150 @@ export function pendingSampleCount(sets: SampleSet[]): number {
 
 export { SAMPLE_SETS };
 
+/** Per-note pitch effects a plain `Tone.Sampler` can't apply to an already-
+ *  playing voice (its `urls` map only retunes whole notes, not a held one). */
+export interface BendEffect {
+	/** Slide destination in Hz; the pitch ramps to it across the note's full duration. */
+	slideToFreq?: number;
+	/** Bend amount in semitones; ramps up quickly from the base pitch, then holds
+	 *  — mirroring a quick string pull-up that's sustained, not a slow glide. */
+	bendSemitones?: number;
+	/** Adds a small periodic pitch wobble for the remainder of the note. */
+	vibrato?: boolean;
+}
+
+/** What `buildInstrument` returns for a recorded multisample, in addition to
+ *  the plain `triggerAttackRelease` every instrument supports. */
+export interface SampledInstrument {
+	triggerAttackRelease(freq: number, dur: number, time?: number, velocity?: number): void;
+	triggerBent(freq: number, dur: number, time: number, velocity: number, bend: BendEffect): void;
+	releaseAll(): void;
+	dispose(): void;
+}
+
+export function isSampledInstrument(inst: unknown): inst is SampledInstrument {
+	return !!inst && typeof (inst as SampledInstrument).triggerBent === 'function';
+}
+
+function freqToMidi(freq: number): number {
+	return 69 + 12 * Math.log2(freq / 440);
+}
+
+/** Closest cached sample to `midi`, plus the playback rate that retunes it there. */
+function nearestSample(
+	buffers: Record<string, Tone.ToneAudioBuffer>,
+	midi: number
+): { buffer: Tone.ToneAudioBuffer; rate: number } {
+	let bestNote = '';
+	let bestDist = Infinity;
+	for (const note of Object.keys(buffers)) {
+		const d = Math.abs(Tone.Frequency(note).toMidi() - midi);
+		if (d < bestDist) {
+			bestDist = d;
+			bestNote = note;
+		}
+	}
+	const rate = Tone.intervalToFrequencyRatio(midi - Tone.Frequency(bestNote).toMidi());
+	return { buffer: buffers[bestNote], rate };
+}
+
+const VIBRATO_RATE = 5.5; // Hz — a natural guitar/voice wobble speed.
+const VIBRATO_DEPTH_SEMITONES = 0.18;
+
 /**
- * Build a Tone.Sampler for a set from its cached buffers and connect it to
+ * Wraps a `Tone.Sampler` (for plain notes — chords, polyphony, the common case)
+ * alongside a raw `Tone.ToneBufferSource` path used only for notes carrying
+ * bend/slide/vibrato: those need to retune a single *already-playing* voice,
+ * which Sampler's public API has no way to do, so we drive `playbackRate`
+ * directly on a one-off buffer source built from the same cached samples.
+ */
+class SamplerVoice implements SampledInstrument {
+	private sampler: Tone.Sampler;
+	private buffers: Record<string, Tone.ToneAudioBuffer>;
+	private dest: Tone.ToneAudioNode;
+	/** Bent/slid/vibrato notes in flight, so releaseAll/dispose can stop them
+	 *  too — they live outside the Sampler, which only tracks its own voices. */
+	private bent = new Set<Tone.ToneBufferSource>();
+
+	constructor(set: SampleSet, dest: Tone.InputNode) {
+		this.buffers = cache.get(set)!;
+		this.dest = dest as Tone.ToneAudioNode;
+		this.sampler = new Tone.Sampler({
+			urls: this.buffers,
+			// A short, natural release so notes don't click off when they end.
+			release: 0.6,
+			curve: 'exponential'
+		}).connect(this.dest);
+	}
+
+	triggerAttackRelease(freq: number, dur: number, time?: number, velocity = 1) {
+		this.sampler.triggerAttackRelease(freq, dur, time, velocity);
+	}
+
+	triggerBent(freq: number, dur: number, time: number, velocity: number, bend: BendEffect) {
+		const midi = freqToMidi(freq);
+		const { buffer, rate: startRate } = nearestSample(this.buffers, midi);
+		const source = new Tone.ToneBufferSource({
+			url: buffer,
+			curve: 'exponential',
+			fadeIn: 0.005,
+			fadeOut: Math.min(0.3, dur * 0.3),
+			onended: (s) => {
+				this.bent.delete(s as Tone.ToneBufferSource);
+				s.dispose();
+			}
+		}).connect(this.dest);
+		this.bent.add(source);
+		source.playbackRate.setValueAtTime(startRate, time);
+
+		let endRate = startRate;
+		if (bend.slideToFreq !== undefined) {
+			endRate = startRate * (bend.slideToFreq / freq);
+			source.playbackRate.linearRampToValueAtTime(endRate, time + dur);
+		} else if (bend.bendSemitones) {
+			endRate = startRate * Tone.intervalToFrequencyRatio(bend.bendSemitones);
+			const attack = Math.min(dur * 0.4, 0.18);
+			source.playbackRate.linearRampToValueAtTime(endRate, time + attack);
+		}
+		if (bend.vibrato) {
+			// Start wobbling once any bend/slide has settled, around whatever pitch
+			// the note is holding by then.
+			const settleIn = bend.slideToFreq !== undefined || bend.bendSemitones ? dur * 0.5 : 0.1;
+			const wobbleStart = time + Math.min(settleIn, dur * 0.5);
+			const depthUp = endRate * Tone.intervalToFrequencyRatio(VIBRATO_DEPTH_SEMITONES);
+			const depthDown = endRate * Tone.intervalToFrequencyRatio(-VIBRATO_DEPTH_SEMITONES);
+			const halfCycle = 1 / (VIBRATO_RATE * 2);
+			let t = wobbleStart;
+			let up = true;
+			while (t < time + dur) {
+				source.playbackRate.linearRampToValueAtTime(up ? depthUp : depthDown, t);
+				up = !up;
+				t += halfCycle;
+			}
+		}
+
+		source.start(time, 0, dur, velocity);
+		source.stop(time + dur + 0.05);
+	}
+
+	releaseAll() {
+		this.sampler.releaseAll();
+		for (const s of this.bent) s.stop();
+	}
+
+	dispose() {
+		this.sampler.dispose();
+		for (const s of this.bent) s.dispose();
+		this.bent.clear();
+	}
+}
+
+/**
+ * Build a sampled instrument for a set from its cached buffers, connected to
  * `dest`. The set must already be loaded (see loadSet); returns null otherwise
  * so the caller can fall back rather than throw mid-playback.
  */
-export function createSampler(set: SampleSet, dest: Tone.InputNode): Tone.Sampler | null {
-	const buffers = cache.get(set);
-	if (!buffers) return null;
-	const sampler = new Tone.Sampler({
-		urls: buffers,
-		// A short, natural release so notes don't click off when they end.
-		release: 0.6,
-		curve: 'exponential'
-	});
-	sampler.connect(dest as Tone.ToneAudioNode);
-	return sampler;
+export function createSampler(set: SampleSet, dest: Tone.InputNode): SampledInstrument | null {
+	if (!cache.has(set)) return null;
+	return new SamplerVoice(set, dest);
 }

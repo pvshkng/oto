@@ -72,6 +72,22 @@
 	</div>
 {/if}
 
+{#if store.sampleWarning}
+	<div class="banner warn no-print" role="status">
+		<div class="text">
+			<span class="chip">{store.sampleWarning}</span>
+		</div>
+		<button
+			class="close"
+			onclick={() => (store.sampleWarning = null)}
+			title="Dismiss"
+			aria-label="Dismiss sample warning"
+		>
+			<X class="size-3.5" weight="bold" />
+		</button>
+	</div>
+{/if}
+
 {#if visible}
 	<div class="banner no-print" role="status">
 		<div class="text">
