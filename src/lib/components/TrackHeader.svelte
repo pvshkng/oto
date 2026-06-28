@@ -39,8 +39,12 @@
 	<input
 		class="text-foreground min-w-0 flex-1 rounded-sm border border-transparent bg-transparent px-1.5 py-1 text-sm font-semibold hover:border-border focus:border-border focus:bg-background focus:outline-none"
 		value={track.name}
-		onfocus={() => store.setCursor({ track: index })}
-		onchange={(e) => store.updateTrack(index, { name: e.currentTarget.value })}
+		onfocus={() => {
+			store.setCursor({ track: index });
+			store.beginGesture();
+		}}
+		onblur={() => store.endGesture()}
+		oninput={(e) => store.updateTrackLive(index, { name: e.currentTarget.value })}
 	/>
 
 	<Button

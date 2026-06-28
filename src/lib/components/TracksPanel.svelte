@@ -59,10 +59,11 @@
 	});
 	const markerRows = $derived(Math.max(1, ...laidOutSections.map((m) => m.row + 1)));
 
-	// Live playhead position (px from the timeline's left edge) during playback.
+	// Playhead position (px from the timeline's left edge). During playback this
+	// tracks the live beat; otherwise it falls back to the edit cursor so
+	// scrubbing/seeking while stopped still shows where you are.
 	const playheadX = $derived.by(() => {
-		const p = store.playhead;
-		if (!p || !store.isPlaying) return null;
+		const p = store.isPlaying && store.playhead ? store.playhead : store.cursor;
 		const m = Math.min(p.measure, measureCount - 1);
 		const beats = tracks[0]?.measures[p.measure]?.beats.length ?? 1;
 		const frac = beats > 0 ? Math.min(p.beat, beats) / beats : 0;
@@ -215,14 +216,12 @@
 	<!-- Scrollable mixer body, both axes. Left column is sticky; timeline scrolls under it. -->
 	<div class="min-h-0 flex-1 overflow-auto overscroll-contain">
 		<div class="relative w-max min-w-full text-sm">
-			<!-- Moving playback position. Sits above track content but below the
+			<!-- Playback/cursor position. Sits above track content but below the
 				     frozen controls column (z-10) so it tucks away when scrolled. -->
-			{#if playheadX !== null}
-				<div
-					class="bg-primary pointer-events-none absolute top-0 bottom-0 z-[5] w-px"
-					style="left:{LEAD + playheadX}px"
-				></div>
-			{/if}
+			<div
+				class="bg-primary pointer-events-none absolute top-0 bottom-0 z-[5] w-px"
+				style="left:{LEAD + playheadX}px"
+			></div>
 
 			<!-- Measure ruler -->
 			<div class="bg-background sticky top-0 z-20 flex border-b">
@@ -282,8 +281,12 @@
 							<input
 								class="text-foreground hover:border-border focus:border-border focus:bg-background min-w-0 flex-1 rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-[13px] font-semibold focus:outline-none"
 								value={track.name}
-								onfocus={() => store.setCursor({ track: i })}
-								onchange={(e) => store.updateTrack(i, { name: e.currentTarget.value })}
+								onfocus={() => {
+									store.setCursor({ track: i });
+									store.beginGesture();
+								}}
+								onblur={() => store.endGesture()}
+								oninput={(e) => store.updateTrackLive(i, { name: e.currentTarget.value })}
 							/>
 							<button
 								class={cn(

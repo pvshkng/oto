@@ -78,7 +78,10 @@
 				max={MAX}
 				class="accent-primary w-full"
 				value={store.score.tempo}
-				oninput={(e) => store.setTempo(+e.currentTarget.value)}
+				onpointerdown={() => store.beginGesture()}
+				onpointerup={() => store.endGesture()}
+				onpointercancel={() => store.endGesture()}
+				oninput={(e) => store.setTempoLive(+e.currentTarget.value)}
 				aria-label="Tempo slider"
 			/>
 

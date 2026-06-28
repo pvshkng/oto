@@ -172,6 +172,13 @@ export class ScoreStore {
 		this.persist();
 	}
 
+	/** Mutate and persist without snapshotting — for use inside a gesture
+	 *  (see beginGesture) where the snapshot was already taken once up front. */
+	commitLive(mutate: () => void) {
+		mutate();
+		this.persist();
+	}
+
 	#pushUndo() {
 		this.#undoStack.push(JSON.stringify(this.score));
 		if (this.#undoStack.length > 100) this.#undoStack.shift();
@@ -239,11 +246,22 @@ export class ScoreStore {
 	setTitle(title: string) {
 		this.commit(() => (this.score.title = title));
 	}
+	/** Live variant for the title input — pair with beginGesture()/endGesture()
+	 *  on focus/blur so a whole typing session is one undo step. */
+	setTitleLive(title: string) {
+		this.commitLive(() => (this.score.title = title));
+	}
 	setArtist(artist: string) {
 		this.commit(() => (this.score.artist = artist));
 	}
+	setArtistLive(artist: string) {
+		this.commitLive(() => (this.score.artist = artist));
+	}
 	setTempo(tempo: number) {
 		this.commit(() => (this.score.tempo = Math.max(20, Math.min(400, tempo))));
+	}
+	setTempoLive(tempo: number) {
+		this.commitLive(() => (this.score.tempo = Math.max(20, Math.min(400, tempo))));
 	}
 	setTimeSignature(num: number, den: number) {
 		this.commit(() => (this.score.timeSignature = [num, den]));
@@ -283,6 +301,11 @@ export class ScoreStore {
 
 	updateTrack(index: number, patch: Partial<OtoTrack>) {
 		this.commit(() => {
+			Object.assign(this.score.tracks[index], patch);
+		});
+	}
+	updateTrackLive(index: number, patch: Partial<OtoTrack>) {
+		this.commitLive(() => {
 			Object.assign(this.score.tracks[index], patch);
 		});
 	}
@@ -424,9 +447,15 @@ export class ScoreStore {
 	setDisplayTranspose(index: number, semitones: number) {
 		this.commit(() => (this.score.tracks[index].transpose = semitones));
 	}
+	setDisplayTransposeLive(index: number, semitones: number) {
+		this.commitLive(() => (this.score.tracks[index].transpose = semitones));
+	}
 
 	setCapo(index: number, capo: number) {
 		this.commit(() => (this.score.tracks[index].capo = Math.max(0, capo)));
+	}
+	setCapoLive(index: number, capo: number) {
+		this.commitLive(() => (this.score.tracks[index].capo = Math.max(0, capo)));
 	}
 
 	/** Apply a custom tuning. `mode: 'transpose'` shifts frets so existing notes

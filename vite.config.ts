@@ -4,17 +4,9 @@ import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { alphaTab } from '@coderline/alphatab-vite';
-import path from 'path';
 
 export default defineConfig({
-	plugins: [
-		tailwindcss(),
-		sveltekit(),
-		devtoolsJson(),
-		alphaTab({
-			alphaTabSourceDir: path.resolve('../node_modules/@coderline/alphaTab-vite/dist')
-		})
-	],
+	plugins: [tailwindcss(), sveltekit(), devtoolsJson(), alphaTab()],
 	assetsInclude: ['**/*.otf', '**/*.ttf', '**/*.woff', '**/*.woff2'],
 	resolve: {
 		alias: {
