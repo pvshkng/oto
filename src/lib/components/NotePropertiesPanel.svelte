@@ -54,7 +54,11 @@
 		const ro = new ResizeObserver(update);
 		ro.observe(node);
 		update();
-		return { destroy() { ro.disconnect(); } };
+		return {
+			destroy() {
+				ro.disconnect();
+			}
+		};
 	}
 
 	function pickDuration(d: DurationValue) {

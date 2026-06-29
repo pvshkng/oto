@@ -37,7 +37,9 @@
 	const MIN_TRACKS_H = 88;
 	const MAX_TRACKS_H = 500;
 
-	const showRightPanel = $derived(store.tempoOpen || store.songModalOpen || store.addRemoveOpen || store.trackControlOpen);
+	const showRightPanel = $derived(
+		store.tempoOpen || store.songModalOpen || store.addRemoveOpen || store.trackControlOpen
+	);
 
 	function startLeftResize(e: PointerEvent) {
 		e.preventDefault();
@@ -250,10 +252,7 @@
 		<div class="desktop-main">
 			<!-- Left panel: note properties (when editMode is on) -->
 			{#if store.editMode}
-				<div
-					class="desktop-left-panel"
-					style="width:{leftPanelW}px"
-				>
+				<div class="desktop-left-panel" style="width:{leftPanelW}px">
 					<NotePropertiesPanel />
 					<div class="panel-resize-right" onpointerdown={startLeftResize}></div>
 				</div>
@@ -311,10 +310,7 @@
 
 			<!-- Right panel: tempo / song details / add-remove -->
 			{#if showRightPanel}
-				<div
-					class="desktop-right-wrapper"
-					style="width:{rightPanelW}px"
-				>
+				<div class="desktop-right-wrapper" style="width:{rightPanelW}px">
 					<div class="panel-resize-left" onpointerdown={startRightResize}></div>
 					<RightPanel />
 				</div>

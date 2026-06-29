@@ -7,14 +7,16 @@
 	import { enterDigit } from '$lib/editing/entry';
 	import { cn } from '$lib/utils';
 	import X from 'phosphor-svelte/lib/X';
-
-
 </script>
 
 <div class="key-input">
 	<div class="key-input-header">
 		<span class="tool-name">
-			{store.editTool === 'keypad' ? 'Keypad' : store.editTool === 'fretboard' ? 'Fretboard' : 'Piano'}
+			{store.editTool === 'keypad'
+				? 'Keypad'
+				: store.editTool === 'fretboard'
+					? 'Fretboard'
+					: 'Piano'}
 		</span>
 		<button
 			class="hide-btn"

@@ -11,7 +11,8 @@
 				destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-xs',
 				outline:
 					'border-input hover:bg-accent hover:text-accent-foreground border shadow-xs bg-gradient-to-b from-white to-stone-100', //bg-background
-				secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80 shadow-xs bg-gradient-to-b from-white to-stone-100',
+				secondary:
+					'bg-secondary text-secondary-foreground hover:bg-secondary/80 shadow-xs bg-gradient-to-b from-white to-stone-100',
 				ghost: 'hover:bg-accent hover:text-accent-foreground',
 				link: 'text-primary underline-offset-4 hover:underline'
 			},

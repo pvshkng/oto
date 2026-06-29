@@ -16,10 +16,7 @@
 	import Trash from 'phosphor-svelte/lib/Trash';
 	import SlidersHorizontal from 'phosphor-svelte/lib/SlidersHorizontal';
 
-	let {
-		index,
-		onClose = () => {}
-	}: { index: number; onClose?: () => void } = $props();
+	let { index, onClose = () => {} }: { index: number; onClose?: () => void } = $props();
 
 	const TUNING_NAMES = Object.keys(TUNINGS);
 
@@ -77,10 +74,7 @@
 			<Label>Instrument</Label>
 			<Popover.Root bind:open={instOpen}>
 				<Popover.Trigger
-					class={cn(
-						buttonVariants({ variant: 'outline' }),
-						'w-full justify-between font-normal'
-					)}
+					class={cn(buttonVariants({ variant: 'outline' }), 'w-full justify-between font-normal')}
 				>
 					{selectedPreset.label}
 					<CaretUpDown class="size-4 opacity-50" />
@@ -115,10 +109,7 @@
 			<Label>Tuning</Label>
 			<Popover.Root bind:open={tuneOpen}>
 				<Popover.Trigger
-					class={cn(
-						buttonVariants({ variant: 'outline' }),
-						'w-full justify-between font-normal'
-					)}
+					class={cn(buttonVariants({ variant: 'outline' }), 'w-full justify-between font-normal')}
 				>
 					<span>{tuningLabel}</span>
 					<span class="text-muted-foreground ml-2 truncate text-xs">
@@ -133,9 +124,7 @@
 							<Command.Group>
 								{#each TUNING_NAMES as n (n)}
 									<Command.Item value={n} onSelect={() => pickTuning(n)}>
-										<Check
-											class={cn('size-4', tuningName === n ? 'opacity-100' : 'opacity-0')}
-										/>
+										<Check class={cn('size-4', tuningName === n ? 'opacity-100' : 'opacity-0')} />
 										{n}
 									</Command.Item>
 								{/each}
@@ -183,8 +172,7 @@
 					value={track.transpose}
 					onfocus={() => store.beginGesture()}
 					onblur={() => store.endGesture()}
-					oninput={(e) =>
-						store.setDisplayTransposeLive(index, e.currentTarget.valueAsNumber || 0)}
+					oninput={(e) => store.setDisplayTransposeLive(index, e.currentTarget.valueAsNumber || 0)}
 				/>
 			</div>
 		</div>

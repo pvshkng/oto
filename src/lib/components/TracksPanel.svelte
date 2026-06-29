@@ -195,15 +195,15 @@
 </script>
 
 <div
-	class={cn(
-		'bg-background flex flex-col border-t',
-		store.isDesktop ? 'h-full' : 'max-h-[55vh]'
-	)}
+	class={cn('bg-background flex flex-col border-t', store.isDesktop ? 'h-full' : 'max-h-[55vh]')}
 >
 	<div class="flex flex-row items-center justify-between gap-2 border-b px-4 py-3">
 		<div class="mr-1 flex shrink-0 items-stretch">
 			<button
-				class={cn('text-muted-foreground flex size-7 items-center justify-center rounded-md rounded-r-none border', cell <= MIN_CELL ? 'sunk' : 'hover:text-foreground')}
+				class={cn(
+					'text-muted-foreground flex size-7 items-center justify-center rounded-md rounded-r-none border',
+					cell <= MIN_CELL ? 'sunk' : 'hover:text-foreground'
+				)}
 				title="Zoom out timeline"
 				aria-label="Zoom out timeline"
 				disabled={cell <= MIN_CELL}
@@ -212,7 +212,10 @@
 				<MagnifyingGlassMinus class="size-4" />
 			</button>
 			<button
-				class={cn('text-muted-foreground flex size-7 items-center justify-center rounded-md rounded-l-none border border-l-0', cell >= MAX_CELL ? 'sunk' : 'hover:text-foreground')}
+				class={cn(
+					'text-muted-foreground flex size-7 items-center justify-center rounded-md rounded-l-none border border-l-0',
+					cell >= MAX_CELL ? 'sunk' : 'hover:text-foreground'
+				)}
 				title="Zoom in timeline"
 				aria-label="Zoom in timeline"
 				disabled={cell >= MAX_CELL}
@@ -353,7 +356,9 @@
 								<button
 									class="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-md"
 									title={rowOpen[track.id] ? 'Collapse track controls' : 'Expand track controls'}
-									aria-label={rowOpen[track.id] ? 'Collapse track controls' : 'Expand track controls'}
+									aria-label={rowOpen[track.id]
+										? 'Collapse track controls'
+										: 'Expand track controls'}
 									aria-expanded={!!rowOpen[track.id]}
 									onclick={() => toggleRow(track.id)}
 								>
