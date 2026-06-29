@@ -64,6 +64,8 @@ export class ScoreStore {
 	activeDotted = $state(false);
 	/** Auto-advance the cursor to the next beat after a note is committed. */
 	autoAdvance = $state(true);
+	/** Clipboard for cut/copy/paste operations. */
+	clipboard = $state<OtoBeat[] | null>(null);
 
 	// Bottom edit panel UI. The note editor (keypad/fretboard) and the tracks
 	// panel share the same dock and are mutually exclusive — opening one closes
@@ -736,11 +738,22 @@ export class ScoreStore {
 				c.beat = this.beatsAt(track.measures[c.measure], c.voice).length - 1;
 			}
 		} else if (dir === 'right') {
-			const beats = this.beatsAt(track.measures[c.measure], c.voice).length;
-			if (c.beat < beats - 1) c.beat += 1;
-			else if (c.measure < track.measures.length - 1) {
-				c.measure += 1;
-				c.beat = 0;
+			const measure = track.measures[c.measure];
+			const beats = this.beatsAt(measure, c.voice);
+			if (c.beat < beats.length - 1) {
+				c.beat += 1;
+			} else {
+				const capacity = measureCapacity(measure.timeSignature ?? this.score.timeSignature);
+				const remaining = capacity - beatsFilled(beats);
+				const newFrac = (this.activeDotted ? 1.5 : 1) / this.activeDuration;
+				if (remaining >= newFrac - 1e-9) {
+					if (!keepSelection) this.selection = null;
+					this.insertBeat();
+					return;
+				} else if (c.measure < track.measures.length - 1) {
+					c.measure += 1;
+					c.beat = 0;
+				}
 			}
 		}
 		this.cursor = c;
@@ -925,10 +938,105 @@ export class ScoreStore {
 
 	deleteNoteAtCursor() {
 		this.commit(() => {
-			const beat = this.currentBeatRef();
+			const measure = this.track.measures[this.cursor.measure];
+			if (!measure) return;
+			const isV2 = this.cursor.voice === 1;
+			const beats = isV2 ? measure.voice2 : measure.beats;
+			if (!beats) return;
+			const beat = beats[this.cursor.beat];
 			if (!beat) return;
 			beat.notes = beat.notes.filter((n) => n.string !== this.cursor.string);
-			if (beat.notes.length === 0) beat.rest = true;
+			if (beat.notes.length > 0) return;
+			// Beat is now empty — remove it rather than leaving a rest.
+			if (isV2) {
+				beats.splice(this.cursor.beat, 1);
+				if (beats.length === 0) {
+					measure.voice2 = undefined;
+					this.cursor = { ...this.cursor, voice: 0, beat: 0 };
+				} else if (this.cursor.beat >= beats.length) {
+					this.cursor = { ...this.cursor, beat: beats.length - 1 };
+				}
+			} else {
+				if (beats.length <= 1) {
+					beats[0] = restBeat(this.activeDuration);
+				} else {
+					beats.splice(this.cursor.beat, 1);
+					if (this.cursor.beat >= beats.length) {
+						this.cursor = { ...this.cursor, beat: beats.length - 1 };
+					}
+				}
+			}
+		});
+	}
+
+	deleteNotesInSelection() {
+		const b = this.loopBounds;
+		if (!b) {
+			this.deleteNoteAtCursor();
+			return;
+		}
+		const t = this.selection?.track ?? this.cursor.track;
+		this.commit(() => {
+			const track = this.score.tracks[t];
+			if (!track) return;
+			for (let mi = b.startMeasure; mi <= b.endMeasure; mi++) {
+				const measure = track.measures[mi];
+				if (!measure) continue;
+				const firstBeat = mi === b.startMeasure ? b.startBeat : 0;
+				const lastBeat = mi === b.endMeasure ? b.endBeat : measure.beats.length - 1;
+				// Splice from end → start so indices stay valid.
+				for (let bi = lastBeat; bi >= firstBeat; bi--) {
+					if (measure.beats.length <= 1) {
+						measure.beats[0] = restBeat(this.activeDuration);
+						break;
+					}
+					measure.beats.splice(bi, 1);
+				}
+			}
+			this.clampCursor();
+		});
+	}
+
+	copySelection() {
+		const b = this.loopBounds;
+		if (!b) {
+			const beat = this.currentBeatRef();
+			if (beat) this.clipboard = [JSON.parse(JSON.stringify(beat))];
+			return;
+		}
+		const t = this.selection?.track ?? this.cursor.track;
+		const track = this.score.tracks[t];
+		if (!track) return;
+		const copied: OtoBeat[] = [];
+		for (let mi = b.startMeasure; mi <= b.endMeasure; mi++) {
+			const measure = track.measures[mi];
+			if (!measure) continue;
+			const firstBeat = mi === b.startMeasure ? b.startBeat : 0;
+			const lastBeat = mi === b.endMeasure ? b.endBeat : measure.beats.length - 1;
+			for (let bi = firstBeat; bi <= lastBeat; bi++) {
+				const beat = measure.beats[bi];
+				if (beat) copied.push(JSON.parse(JSON.stringify(beat)));
+			}
+		}
+		this.clipboard = copied;
+	}
+
+	cutSelection() {
+		this.copySelection();
+		this.deleteNotesInSelection();
+	}
+
+	pasteClipboard() {
+		if (!this.clipboard || this.clipboard.length === 0) return;
+		const clips = this.clipboard;
+		this.commit(() => {
+			const beats = this.editBeats();
+			let at = this.cursor.beat + 1;
+			for (const b of clips) {
+				beats.splice(at, 0, JSON.parse(JSON.stringify(b)));
+				at++;
+			}
+			this.cursor = { ...this.cursor, beat: this.cursor.beat + 1 };
 		});
 	}
 

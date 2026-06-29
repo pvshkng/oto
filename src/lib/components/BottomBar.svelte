@@ -38,6 +38,9 @@
 	import ArrowCounterClockwise from 'phosphor-svelte/lib/ArrowCounterClockwise';
 	import ArrowClockwise from 'phosphor-svelte/lib/ArrowClockwise';
 	import PlusMinus from 'phosphor-svelte/lib/PlusMinus';
+	import Scissors from 'phosphor-svelte/lib/Scissors';
+	import Copy from 'phosphor-svelte/lib/Copy';
+	import ClipboardText from 'phosphor-svelte/lib/ClipboardText';
 
 	let omniOpen = $state(false);
 	let fileOpen = $state(false);
@@ -170,6 +173,41 @@
 			onclick={() => store.redo()}
 		>
 			<ArrowClockwise class="size-4" />
+		</Button>
+	</div>
+
+	<!-- Cut / Copy / Paste -->
+	<div class="flex shrink-0 items-stretch">
+		<Button
+			variant="outline"
+			size="icon"
+			class="size-9 rounded-r-none"
+			title="Cut"
+			aria-label="Cut"
+			onclick={() => store.cutSelection()}
+		>
+			<Scissors class="size-4" />
+		</Button>
+		<Button
+			variant="outline"
+			size="icon"
+			class="size-9 rounded-none border-l-0"
+			title="Copy"
+			aria-label="Copy"
+			onclick={() => store.copySelection()}
+		>
+			<Copy class="size-4" />
+		</Button>
+		<Button
+			variant="outline"
+			size="icon"
+			class="size-9 rounded-l-none border-l-0"
+			title="Paste"
+			aria-label="Paste"
+			disabled={!store.clipboard}
+			onclick={() => store.pasteClipboard()}
+		>
+			<ClipboardText class="size-4" />
 		</Button>
 	</div>
 
@@ -343,8 +381,8 @@
 			variant="outline"
 			size="icon"
 			class="relative size-9 rounded-none border-l-0"
-			title="Set loop start at cursor"
-			aria-label="Set loop start marker"
+			title="Mark selection start"
+			aria-label="Mark selection start"
 			onclick={() => store.setLoopStartAtCursor()}
 		>
 			<Flag class="size-5" />
@@ -357,8 +395,8 @@
 			variant="outline"
 			size="icon"
 			class="relative size-9 rounded-l-none border-l-0"
-			title="Set loop end at cursor"
-			aria-label="Set loop end marker"
+			title="Mark selection end"
+			aria-label="Mark selection end"
 			onclick={() => store.setLoopEndAtCursor()}
 		>
 			<Flag class="size-5" />

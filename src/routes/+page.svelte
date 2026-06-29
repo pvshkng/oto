@@ -94,6 +94,21 @@
 			import('$lib/io/files').then((m) => m.downloadOto());
 			return;
 		}
+		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
+			e.preventDefault();
+			store.cutSelection();
+			return;
+		}
+		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+			e.preventDefault();
+			store.copySelection();
+			return;
+		}
+		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+			e.preventDefault();
+			store.pasteClipboard();
+			return;
+		}
 		if (store.isPlaying) return;
 
 		if (/^[0-9]$/.test(e.key)) {
@@ -125,7 +140,8 @@
 			case 'Backspace':
 			case 'Delete':
 				e.preventDefault();
-				store.deleteNoteAtCursor();
+				if (store.selection) store.deleteNotesInSelection();
+				else store.deleteNoteAtCursor();
 				break;
 			case 'Enter':
 				e.preventDefault();
@@ -157,6 +173,9 @@
 			case '.':
 				store.activeDotted = !store.activeDotted;
 				store.setBeatDuration(store.activeDuration, store.activeDotted);
+				break;
+			case 'x':
+				store.toggleTechnique('dead');
 				break;
 		}
 	}

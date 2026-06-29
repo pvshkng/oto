@@ -177,21 +177,14 @@
 		}
 	}
 
-	// Double tap/click on a note or the tab band toggles the note editor open
-	// (pulling up the keypad), so touch users get in and out of edit mode
-	// without reaching for the bottom bar.
+	// Double tap/click selects all beats in the tapped bar.
 	function handleDoubleClick(
-		e: MouseEvent,
+		_e: MouseEvent,
 		measure: LaidMeasure,
-		band: 'tab' | 'standard' | 'rhythm'
+		_band: 'tab' | 'standard' | 'rhythm'
 	) {
-		handleClick(e, measure, band);
-		if (store.editMode) {
-			store.editMode = false;
-		} else {
-			store.editTool = 'keypad';
-			store.editMode = true;
-		}
+		store.setCursor({ track: trackIndex, measure: measure.index, beat: 0 });
+		store.setSelectionTo(measure.index, measure.beats.length - 1);
 	}
 
 	// Prime the cursor on press so a long-press / right-click context menu acts on
@@ -838,12 +831,20 @@
 			</ContextMenu.SubContent>
 		</ContextMenu.Sub>
 
+		<ContextMenu.Separator />
+		<ContextMenu.Item onSelect={() => store.cutSelection()}>Cut</ContextMenu.Item>
+		<ContextMenu.Item onSelect={() => store.copySelection()}>Copy</ContextMenu.Item>
+		<ContextMenu.Item disabled={!store.clipboard} onSelect={() => store.pasteClipboard()}>
+			Paste
+		</ContextMenu.Item>
+		<ContextMenu.Separator />
 		<ContextMenu.Item
-			disabled={!ctxNote}
+			disabled={!ctxNote && !store.selection}
 			variant="destructive"
-			onSelect={() => store.deleteNoteAtCursor()}
+			onSelect={() =>
+				store.selection ? store.deleteNotesInSelection() : store.deleteNoteAtCursor()}
 		>
-			Delete note
+			{store.selection ? 'Delete note(s)' : 'Delete note'}
 		</ContextMenu.Item>
 
 		<ContextMenu.Separator />
@@ -851,14 +852,12 @@
 		<ContextMenu.Item onSelect={() => store.insertBeatBefore()}>
 			Insert beat before
 		</ContextMenu.Item>
-		<ContextMenu.Item onSelect={() => store.insertBeat()}>
-			Insert beat after
-		</ContextMenu.Item>
+		<ContextMenu.Item onSelect={() => store.insertBeat()}>Insert beat after</ContextMenu.Item>
 		<ContextMenu.Item onSelect={() => store.setLoopStartAtCursor()}>
-			Set as loop start
+			Mark selection start
 		</ContextMenu.Item>
 		<ContextMenu.Item onSelect={() => store.setLoopEndAtCursor()}>
-			Set as loop end
+			Mark selection end
 		</ContextMenu.Item>
 
 		<ContextMenu.Separator />

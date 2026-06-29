@@ -310,6 +310,7 @@
 		align-items: center;
 		gap: 4px;
 		overflow-x: auto;
+		overflow-y: hidden;
 		scrollbar-width: none;
 	}
 	.controls::-webkit-scrollbar,
