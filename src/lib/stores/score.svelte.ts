@@ -120,7 +120,8 @@ export class ScoreStore {
 
 	// Track focus / fold state (UI-only, keyed by track id, not persisted).
 	collapsed = $state<Record<string, boolean>>({});
-	focusedTrackId = $state<string | null>(null);
+	// Always initialized to the first track so the sheet never shows "all tracks"
+	focusedTrackId = $state<string | null>(this.score.tracks[0]?.id ?? null);
 
 	// Playback
 	isPlaying = $state(false);
@@ -248,6 +249,14 @@ export class ScoreStore {
 			} catch {
 				/* keep default */
 			}
+		}
+		// Ensure at least one track exists and focus is on a valid track
+		if (this.score.tracks.length === 0) {
+			this.score.tracks.push(makeTrack());
+		}
+		const focusValid = this.score.tracks.some((t) => t.id === this.focusedTrackId);
+		if (!focusValid) {
+			this.focusedTrackId = this.score.tracks[0]?.id ?? null;
 		}
 		this.loadPrefs();
 	}
@@ -425,6 +434,9 @@ export class ScoreStore {
 				voice: 0
 			};
 		});
+		// Focus the newly added track
+		const newTrack = this.score.tracks[this.score.tracks.length - 1];
+		if (newTrack) this.focusedTrackId = newTrack.id;
 	}
 
 	removeTrack(index: number) {
@@ -436,6 +448,11 @@ export class ScoreStore {
 			}
 			this.clampCursor();
 		});
+		// Re-anchor focus to a valid track if the removed track was focused
+		const focusValid = this.score.tracks.some((t) => t.id === this.focusedTrackId);
+		if (!focusValid) {
+			this.focusedTrackId = this.score.tracks[this.cursor.track]?.id ?? null;
+		}
 	}
 
 	updateTrack(index: number, patch: Partial<OtoTrack>) {
@@ -568,7 +585,7 @@ export class ScoreStore {
 	}
 
 	clearFocus() {
-		this.focusedTrackId = null;
+		this.focusedTrackId = this.score.tracks[0]?.id ?? null;
 	}
 
 	detune(index: number, semitones: number) {
@@ -974,8 +991,19 @@ export class ScoreStore {
 		this.commit(() => {
 			const beat = this.currentBeatRef();
 			if (!beat) return;
-			const note = beat.notes.find((n) => n.string === this.cursor.string);
-			if (!note) return;
+			let note = beat.notes.find((n) => n.string === this.cursor.string);
+			if (!note) {
+				// Dead notes can be added to an empty beat/string directly
+				if (tech !== 'dead') return;
+				if (beat.notes.length === 0) {
+					beat.duration = this.activeDuration;
+					beat.dotted = this.activeDotted;
+				}
+				beat.rest = false;
+				note = { string: this.cursor.string, fret: 0 };
+				beat.notes.push(note);
+				beat.notes.sort((a, b) => a.string - b.string);
+			}
 			const list = note.techniques ?? [];
 			note.techniques = list.includes(tech) ? list.filter((t) => t !== tech) : [...list, tech];
 		});

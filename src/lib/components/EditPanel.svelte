@@ -21,17 +21,22 @@
 
 	let tsOpen = $state(false);
 
-	const EFFECTS: { tech: Technique; label: string; sym: string }[] = [
+	const EFFECTS: { tech: Technique; label: string; sym: string; alwaysOn?: boolean }[] = [
 		{ tech: 'hammer', label: 'Hammer / Pull', sym: 'H/P' },
 		{ tech: 'slide', label: 'Slide', sym: '/' },
 		{ tech: 'bend', label: 'Bend', sym: '⤴' },
+		{ tech: 'release', label: 'Release', sym: '⤵' },
+		{ tech: 'bend-release', label: 'Bend/Release', sym: '⤴⤵' },
 		{ tech: 'vibrato', label: 'Vibrato', sym: '∿' },
-		{ tech: 'palm-mute', label: 'Palm mute', sym: 'P.M' },
-		{ tech: 'let-ring', label: 'Let ring', sym: 'L.R' },
-		{ tech: 'harmonic', label: 'Harmonic', sym: '◇' },
-		{ tech: 'dead', label: 'Dead', sym: '✕' },
+		{ tech: 'palm-mute', label: 'Palm mute', sym: 'PM' },
+		{ tech: 'let-ring', label: 'Let ring', sym: 'LR' },
+		{ tech: 'harmonic', label: 'Nat. Harmonic', sym: '◇' },
+		{ tech: 'artificial-harmonic', label: 'Art. Harmonic', sym: 'AH' },
+		{ tech: 'dead', label: 'Dead', sym: '✕', alwaysOn: true },
 		{ tech: 'staccato', label: 'Staccato', sym: '·' },
-		{ tech: 'ghost', label: 'Ghost', sym: '( )' }
+		{ tech: 'ghost', label: 'Ghost', sym: '()' },
+		{ tech: 'accent', label: 'Accent', sym: '>' },
+		{ tech: 'grace', label: 'Grace', sym: 'gr' }
 	];
 
 	const TIME_SIGS = ['4/4', '3/4', '2/4', '6/8', '12/8', '5/4', '7/8'];
@@ -211,7 +216,7 @@
 			<button
 				class="fx"
 				class:sunk={hasTech(e.tech)}
-				disabled={!note}
+				disabled={!note && !e.alwaysOn}
 				title={e.label}
 				onclick={() => store.toggleTechnique(e.tech)}>{e.sym}</button
 			>

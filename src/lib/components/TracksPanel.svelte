@@ -17,14 +17,16 @@
 
 	import Plus from 'phosphor-svelte/lib/Plus';
 	import X from 'phosphor-svelte/lib/X';
+	import Eye from 'phosphor-svelte/lib/Eye';
 	import MapPin from 'phosphor-svelte/lib/MapPin';
 	import MagnifyingGlassPlus from 'phosphor-svelte/lib/MagnifyingGlassPlus';
 	import MagnifyingGlassMinus from 'phosphor-svelte/lib/MagnifyingGlassMinus';
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 
-	// Width of the frozen track-controls column. On desktop the user can drag the
-	// resize handle to widen/narrow it between 180 px and 350 px.
-	let LEAD = $state(260);
+	// Width of the frozen track-controls column. Desktop: draggable 350–520 px.
+	// Mobile: fixed 250 px.
+	const LEAD_MOBILE = 250;
+	let LEAD = $state(350);
 
 	function startColumnResize(e: PointerEvent) {
 		if (!store.isDesktop) return;
@@ -32,7 +34,7 @@
 		const startX = e.clientX;
 		const startW = LEAD;
 		function onMove(ev: PointerEvent) {
-			LEAD = Math.max(220, Math.min(420, startW + ev.clientX - startX));
+			LEAD = Math.max(350, Math.min(520, startW + ev.clientX - startX));
 		}
 		function onUp() {
 			window.removeEventListener('pointermove', onMove);
@@ -138,6 +140,7 @@
 	function gotoSection(i: number, measure: number) {
 		const t = tracks[i];
 		if (!t || !trackHasContent(t, measure)) return;
+		store.focusedTrackId = t.id;
 		jumpTo(measure, i);
 		store.mixerOpen = false;
 		store.scrollToTrack(t.id, measure);
@@ -194,9 +197,7 @@
 	}
 </script>
 
-<div
-	class={cn('bg-background flex flex-col border-t', store.isDesktop ? 'h-full' : 'max-h-[55vh]')}
->
+<div class={cn('bg-background flex flex-col border-t', !store.isDesktop && 'max-h-[55vh]')}>
 	<div class="flex flex-row items-center justify-between gap-2 border-b px-4 py-3">
 		<div class="mr-1 flex shrink-0 items-stretch">
 			<button
@@ -225,7 +226,7 @@
 			</button>
 		</div>
 		<div class="flex items-center gap-1.5">
-			{#if !store.isDesktop}
+			
 				<button
 					class="text-muted-foreground hover:text-foreground p-1"
 					title="Close tracks panel"
@@ -234,25 +235,25 @@
 				>
 					<X class="size-5" />
 				</button>
-			{/if}
+			
 		</div>
 	</div>
 
 	<!-- Scrollable mixer body, both axes. Left column is sticky; timeline scrolls under it. -->
-	<div class="min-h-0 flex-1 overflow-auto overscroll-contain">
+	<div class={cn('overflow-auto overscroll-contain', !store.isDesktop && 'min-h-0 flex-1')}>
 		<div class="relative w-max min-w-full text-sm">
 			<!-- Playback/cursor position. Sits above track content but below the
 				     frozen controls column (z-10) so it tucks away when scrolled. -->
 			<div
 				class="bg-primary pointer-events-none absolute top-0 bottom-0 z-[5] w-px"
-				style="left:{LEAD + playheadX}px"
+				style="left:{(store.isDesktop ? LEAD : LEAD_MOBILE) + playheadX}px"
 			></div>
 
 			<!-- Measure ruler -->
 			<div class="bg-background sticky top-0 z-20 flex border-b">
 				<div
 					class="bg-background sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r px-3 py-1.5"
-					style="width:{LEAD}px"
+					style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px"
 				>
 					{#if !store.isDesktop}
 						<button
@@ -303,82 +304,79 @@
 							'bg-background sticky left-0 z-10 flex shrink-0 flex-col gap-1.5 border-r px-2.5 py-2',
 							active && 'bg-muted/60'
 						)}
-						style="width:{LEAD}px;border-left:3px solid {track.color}"
+						style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px;border-left:3px solid {track.color}"
 					>
-						<div class="flex items-center gap-1.5">
-							<!-- Name + Mute + Solo as one stuck-together control: the name opens
-							     this track's control drawer, M/S sink in when active. -->
-							<div class="flex min-w-0 flex-1 items-stretch">
-								<button
-									class="text-foreground hover:bg-muted flex h-7 min-w-0 flex-1 items-center rounded-md rounded-r-none border bg-transparent px-2 text-[13px] font-semibold"
-									title="Track control"
-									aria-label={`${track.name} track control`}
-									onclick={() => {
-										store.setCursor({ track: i });
-										if (store.isDesktop) {
+						{#if store.isDesktop}
+							<!-- Desktop: single row — Eye | Name | M | S · Vol · Pan · EQ -->
+							<div class="flex items-center gap-2">
+								<!-- Button group: Eye | Name | M | S (touching, no gap) -->
+								<div class="flex min-w-0 flex-1 items-stretch">
+									<!-- Focus (eye) button — rounded left -->
+									<button
+										class={cn(
+											'flex h-7 w-7 shrink-0 items-center justify-center rounded-l-md rounded-r-none border text-[11px]',
+											store.focusedTrackId === track.id
+												? 'sunk text-foreground'
+												: 'text-muted-foreground hover:text-foreground'
+										)}
+										title={store.focusedTrackId === track.id ? 'Viewing this track' : 'Focus this track'}
+										aria-label={store.focusedTrackId === track.id ? 'Viewing this track' : 'Focus this track'}
+										aria-pressed={store.focusedTrackId === track.id}
+										onclick={() => { store.focusedTrackId = track.id; }}
+									>
+										<Eye class="size-3.5" weight={store.focusedTrackId === track.id ? 'fill' : 'regular'} />
+									</button>
+									<!-- Track name — no rounding, opens control panel + sets focus -->
+									<button
+										class="text-foreground hover:bg-muted flex h-7 min-w-0 flex-1 items-center rounded-none border border-l-0 bg-transparent px-2 text-[13px] font-semibold"
+										title="Track settings"
+										aria-label={`${track.name} settings`}
+										onclick={() => {
+											store.focusedTrackId = track.id;
+											store.setCursor({ track: i });
 											store.tempoOpen = false;
 											store.songModalOpen = false;
 											store.addRemoveOpen = false;
 											store.trackControlOpen = true;
 											store.trackControlIndex = i;
-										} else {
-											editIndex = i;
-											editOpen = true;
-										}
-									}}
-								>
-									<span class="truncate">{track.name}</span>
-								</button>
-								<button
-									class={cn(
-										'flex h-7 w-7 shrink-0 items-center justify-center rounded-none border border-l-0 text-[11px] font-bold',
-										track.muted
-											? 'sunk text-foreground'
-											: 'text-muted-foreground hover:text-foreground'
-									)}
-									title="Mute"
-									aria-pressed={track.muted}
-									onclick={() => store.toggleMute(i)}>M</button
-								>
-								<button
-									class={cn(
-										'flex h-7 w-7 shrink-0 items-center justify-center rounded-md rounded-l-none border border-l-0 text-[11px] font-bold',
-										track.soloed
-											? 'sunk text-foreground'
-											: 'text-muted-foreground hover:text-foreground'
-									)}
-									title="Solo"
-									aria-pressed={track.soloed}
-									onclick={() => store.toggleSolo(i)}>S</button
-								>
-							</div>
-							{#if !store.isDesktop}
-								<button
-									class="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-md"
-									title={rowOpen[track.id] ? 'Collapse track controls' : 'Expand track controls'}
-									aria-label={rowOpen[track.id]
-										? 'Collapse track controls'
-										: 'Expand track controls'}
-									aria-expanded={!!rowOpen[track.id]}
-									onclick={() => toggleRow(track.id)}
-								>
-									<CaretDown
-										class={cn('size-4 transition-transform', rowOpen[track.id] && 'rotate-180')}
-									/>
-								</button>
-							{/if}
-						</div>
-
-						{#if rowOpen[track.id] || store.isDesktop}
-							<div class="flex items-center gap-2">
+										}}
+									>
+										<span class="truncate">{track.name}</span>
+									</button>
+									<!-- Mute -->
+									<button
+										class={cn(
+											'flex h-7 w-7 shrink-0 items-center justify-center rounded-none border border-l-0 text-[11px] font-bold',
+											track.muted
+												? 'sunk text-foreground'
+												: 'text-muted-foreground hover:text-foreground'
+										)}
+										title="Mute"
+										aria-pressed={track.muted}
+										onclick={() => store.toggleMute(i)}>M</button
+									>
+									<!-- Solo -->
+									<button
+										class={cn(
+											'flex h-7 w-7 shrink-0 items-center justify-center rounded-r-md rounded-l-none border border-l-0 text-[11px] font-bold',
+											track.soloed
+												? 'sunk text-foreground'
+												: 'text-muted-foreground hover:text-foreground'
+										)}
+										title="Solo"
+										aria-pressed={track.soloed}
+										onclick={() => store.toggleSolo(i)}>S</button
+									>
+								</div>
+								<!-- Mixer controls: Vol · Pan · EQ (with gap between each) -->
 								<input
 									type="range"
 									min="0"
 									max="1"
 									step="0.01"
 									aria-label={`${track.name} volume`}
-									title="Volume"
-									class="mixer-fader min-w-0 flex-1"
+									title={`Volume: ${Math.round(track.volume * 100)}%`}
+									class="mixer-fader w-20 shrink-0"
 									value={track.volume}
 									aria-valuetext={`${Math.round(track.volume * 100)} percent`}
 									onpointerdown={() => store.beginGesture()}
@@ -386,10 +384,7 @@
 									onpointercancel={() => store.endGesture()}
 									oninput={(e) => setVolume(i, e.currentTarget.valueAsNumber)}
 								/>
-								<span
-									class="text-muted-foreground w-9 shrink-0 text-right text-[11px] tabular-nums"
-									title="Volume">{Math.round(track.volume * 100)}%</span
-								>
+								<!-- Pan knob -->
 								<Knob
 									value={track.pan}
 									min={-1}
@@ -401,6 +396,7 @@
 									onDragStart={() => store.beginGesture()}
 									onDragEnd={() => store.endGesture()}
 								/>
+								<!-- EQ -->
 								<Popover.Root
 									open={!!eqOpen[track.id]}
 									onOpenChange={(v) => (eqOpen = { ...eqOpen, [track.id]: v })}
@@ -447,6 +443,159 @@
 									</Popover.Content>
 								</Popover.Root>
 							</div>
+						{:else}
+							<!-- Mobile: Eye | Name | M | S + expand chevron, then expandable vol/pan/EQ row -->
+							<div class="flex items-center gap-1.5">
+								<div class="flex min-w-0 flex-1 items-stretch">
+									<!-- Focus (eye) button — rounded left -->
+									<button
+										class={cn(
+											'flex h-7 w-7 shrink-0 items-center justify-center rounded-l-md rounded-r-none border text-[11px]',
+											store.focusedTrackId === track.id
+												? 'sunk text-foreground'
+												: 'text-muted-foreground hover:text-foreground'
+										)}
+										title={store.focusedTrackId === track.id ? 'Viewing this track' : 'Focus this track'}
+										aria-label={store.focusedTrackId === track.id ? 'Viewing this track' : 'Focus this track'}
+										aria-pressed={store.focusedTrackId === track.id}
+										onclick={() => { store.focusedTrackId = track.id; }}
+									>
+										<Eye class="size-3.5" weight={store.focusedTrackId === track.id ? 'fill' : 'regular'} />
+									</button>
+									<!-- Track name -->
+									<button
+										class="text-foreground hover:bg-muted flex h-7 min-w-0 flex-1 items-center rounded-none border border-l-0 bg-transparent px-2 text-[13px] font-semibold"
+										title="Track settings"
+										aria-label={`${track.name} settings`}
+										onclick={() => {
+											store.focusedTrackId = track.id;
+											store.setCursor({ track: i });
+											editIndex = i;
+											editOpen = true;
+										}}
+									>
+										<span class="truncate">{track.name}</span>
+									</button>
+									<!-- Mute -->
+									<button
+										class={cn(
+											'flex h-7 w-7 shrink-0 items-center justify-center rounded-none border border-l-0 text-[11px] font-bold',
+											track.muted
+												? 'sunk text-foreground'
+												: 'text-muted-foreground hover:text-foreground'
+										)}
+										title="Mute"
+										aria-pressed={track.muted}
+										onclick={() => store.toggleMute(i)}>M</button
+									>
+									<!-- Solo -->
+									<button
+										class={cn(
+											'flex h-7 w-7 shrink-0 items-center justify-center rounded-r-md rounded-l-none border border-l-0 text-[11px] font-bold',
+											track.soloed
+												? 'sunk text-foreground'
+												: 'text-muted-foreground hover:text-foreground'
+										)}
+										title="Solo"
+										aria-pressed={track.soloed}
+										onclick={() => store.toggleSolo(i)}>S</button
+									>
+								</div>
+								<!-- Expand chevron (mobile only) -->
+								<button
+									class="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-md"
+									title={rowOpen[track.id] ? 'Collapse track controls' : 'Expand track controls'}
+									aria-label={rowOpen[track.id]
+										? 'Collapse track controls'
+										: 'Expand track controls'}
+									aria-expanded={!!rowOpen[track.id]}
+									onclick={() => toggleRow(track.id)}
+								>
+									<CaretDown
+										class={cn('size-4 transition-transform', rowOpen[track.id] && 'rotate-180')}
+									/>
+								</button>
+							</div>
+
+							{#if rowOpen[track.id]}
+								<div class="flex items-center gap-2">
+									<input
+										type="range"
+										min="0"
+										max="1"
+										step="0.01"
+										aria-label={`${track.name} volume`}
+										title="Volume"
+										class="mixer-fader min-w-0 flex-1"
+										value={track.volume}
+										aria-valuetext={`${Math.round(track.volume * 100)} percent`}
+										onpointerdown={() => store.beginGesture()}
+										onpointerup={() => store.endGesture()}
+										onpointercancel={() => store.endGesture()}
+										oninput={(e) => setVolume(i, e.currentTarget.valueAsNumber)}
+									/>
+									<span
+										class="text-muted-foreground w-9 shrink-0 text-right text-[11px] tabular-nums"
+										title="Volume">{Math.round(track.volume * 100)}%</span
+									>
+									<Knob
+										value={track.pan}
+										min={-1}
+										max={1}
+										default={0}
+										label={`${track.name} pan`}
+										format={panLabel}
+										onInput={(v) => setPan(i, v)}
+										onDragStart={() => store.beginGesture()}
+										onDragEnd={() => store.endGesture()}
+									/>
+									<Popover.Root
+										open={!!eqOpen[track.id]}
+										onOpenChange={(v) => (eqOpen = { ...eqOpen, [track.id]: v })}
+									>
+										<Popover.Trigger
+											class={cn(
+												'flex size-7 shrink-0 items-center justify-center rounded-md border text-[10px] font-bold transition-colors',
+												eqActive(track)
+													? 'bg-primary text-primary-foreground border-primary'
+													: 'text-muted-foreground hover:text-foreground'
+											)}
+											title="Equaliser"
+											aria-label={`${track.name} equaliser`}>EQ</Popover.Trigger
+										>
+										<Popover.Content side="top" align="end" class="w-56 p-3">
+											<div class="mb-2 flex items-center justify-between">
+												<span class="text-xs font-semibold">Equaliser</span>
+												<button
+													class="text-muted-foreground hover:text-foreground text-[11px] underline"
+													onclick={() => resetEq(i)}>Reset</button
+												>
+											</div>
+											{#each [['low', 'Low'], ['mid', 'Mid'], ['high', 'High']] as [band, lbl] (band)}
+												{@const key = band as 'low' | 'mid' | 'high'}
+												<div class="mb-2 grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-2">
+													<span class="text-muted-foreground text-[11px]">{lbl}</span>
+													<input
+														type="range"
+														min="-12"
+														max="12"
+														step="0.5"
+														class="mixer-fader"
+														value={track.eq[key]}
+														onpointerdown={() => store.beginGesture()}
+														onpointerup={() => store.endGesture()}
+														onpointercancel={() => store.endGesture()}
+														oninput={(e) => setEqBand(i, key, e.currentTarget.valueAsNumber)}
+													/>
+													<span class="text-right text-[11px] tabular-nums">
+														{track.eq[key] > 0 ? '+' : ''}{track.eq[key]}
+													</span>
+												</div>
+											{/each}
+										</Popover.Content>
+									</Popover.Root>
+								</div>
+							{/if}
 						{/if}
 					</div>
 
@@ -464,10 +613,12 @@
 					<button
 						class="relative flex shrink-0 cursor-pointer"
 						style="width:{timelineW}px"
-						title="Double-tap a section to jump to it in the score"
+						title="Click to focus track · Double-tap a section to jump to it in the score"
 						onclick={(e) => {
 							const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
-							jumpTo(Math.min(measureCount - 1, Math.floor(x / cell)), i);
+							const measure = Math.min(measureCount - 1, Math.floor(x / cell));
+							store.focusedTrackId = track.id;
+							jumpTo(measure, i);
 						}}
 						ondblclick={(e) => {
 							const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
@@ -503,7 +654,7 @@
 			<div class="flex border-b bg-muted/30">
 				<div
 					class="bg-muted/40 sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r px-2.5 py-2.5"
-					style="width:{LEAD}px"
+					style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px"
 				>
 					<span class="text-foreground shrink-0 text-[13px] font-bold">Master</span>
 					<input
@@ -533,7 +684,7 @@
 			<div class="flex">
 				<div
 					class="bg-background sticky left-0 z-10 flex shrink-0 items-center justify-between gap-2 border-r px-2.5 py-2"
-					style="width:{LEAD}px"
+					style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px"
 				>
 					<span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
 						>Sections</span

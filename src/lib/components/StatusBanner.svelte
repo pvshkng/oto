@@ -13,7 +13,6 @@
 
 	const mutedNames = $derived(store.score.tracks.filter((t) => t.muted).map((t) => t.name));
 	const soloedNames = $derived(store.score.tracks.filter((t) => t.soloed).map((t) => t.name));
-	const focusedName = $derived(store.isFocusMode ? store.focusedTrackName : null);
 
 	// Over-full bar warning, promoted from the score sheet into this sticky banner
 	// so it's always visible. Reserved red — the only thing in the app that uses it
@@ -34,10 +33,10 @@
 	const heavyLoad = $derived(activeTrackCount >= HEAVY_TRACK_THRESHOLD);
 
 	const signature = $derived(
-		JSON.stringify({ m: mutedNames, s: soloedNames, f: focusedName, h: heavyLoad })
+		JSON.stringify({ m: mutedNames, s: soloedNames, h: heavyLoad })
 	);
 	const isActive = $derived(
-		mutedNames.length > 0 || soloedNames.length > 0 || focusedName !== null || heavyLoad
+		mutedNames.length > 0 || soloedNames.length > 0 || heavyLoad
 	);
 
 	let dismissedSignature = $state<string | null>(null);
@@ -95,10 +94,7 @@
 				<span class="chip">{mutedNames.length} muted</span>
 			{/if}
 			{#if soloedNames.length}
-				<span class="chip">{soloedNames.length} soloed</span>
-			{/if}
-			{#if focusedName}
-				<span class="chip">Focusing “{focusedName}”</span>
+				<span class=”chip”>{soloedNames.length} soloed</span>
 			{/if}
 			{#if heavyLoad}
 				<span class="chip">{activeTrackCount} tracks playing — may stutter on slower devices</span>

@@ -52,13 +52,18 @@ export const EFFECT_LIST: Technique[] = [
 	'hammer',
 	'slide',
 	'bend',
+	'release',
+	'bend-release',
 	'vibrato',
 	'palm-mute',
 	'let-ring',
 	'harmonic',
+	'artificial-harmonic',
 	'dead',
 	'staccato',
-	'ghost'
+	'ghost',
+	'accent',
+	'grace'
 ];
 
 export const TIME_SIGS = ['4/4', '3/4', '2/4', '6/8', '12/8', '5/4', '7/8'];

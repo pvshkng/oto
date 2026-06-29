@@ -32,14 +32,18 @@ export type Technique =
 	| 'slide' // slide up/down
 	| 'bend'
 	| 'release'
+	| 'bend-release' // bend then release back
 	| 'vibrato'
 	| 'palm-mute'
 	| 'let-ring'
 	| 'tap'
-	| 'harmonic'
+	| 'harmonic' // natural harmonic
+	| 'artificial-harmonic' // artificial harmonic (A.H.)
 	| 'dead' // dead/muted note (x)
 	| 'staccato'
-	| 'ghost';
+	| 'ghost' // ghost note (parentheses)
+	| 'accent' // accent (>)
+	| 'grace'; // grace note
 
 export const TECHNIQUE_LABELS: Record<Technique, string> = {
 	hammer: 'Hammer-on',
@@ -47,14 +51,18 @@ export const TECHNIQUE_LABELS: Record<Technique, string> = {
 	slide: 'Slide',
 	bend: 'Bend',
 	release: 'Release',
+	'bend-release': 'Bend/Release',
 	vibrato: 'Vibrato',
 	'palm-mute': 'Palm Mute',
 	'let-ring': 'Let Ring',
 	tap: 'Tap',
-	harmonic: 'Harmonic',
+	harmonic: 'Nat. Harmonic',
+	'artificial-harmonic': 'Art. Harmonic',
 	dead: 'Dead Note',
 	staccato: 'Staccato',
-	ghost: 'Ghost Note'
+	ghost: 'Ghost Note',
+	accent: 'Accent',
+	grace: 'Grace Note'
 };
 
 /** A single fretted note on a specific string within a beat. */

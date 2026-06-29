@@ -166,6 +166,7 @@
 	}
 
 	function handleClick(e: MouseEvent, measure: LaidMeasure, band: 'tab' | 'standard' | 'rhythm') {
+		if (suppressNextClick) return;
 		const { beat, string } = locate(e, measure, band);
 		if (e.shiftKey) {
 			store.setCursor({ track: trackIndex });
@@ -241,6 +242,80 @@
 		ro.observe(container);
 		return () => ro.disconnect();
 	});
+
+	// ---- Desktop drag-to-select ------------------------------------------
+
+	let dragAnchor: { measureIndex: number; beat: number } | null = null;
+	let dragging = false;
+	let suppressNextClick = false;
+	let dragStartClient = { x: 0, y: 0 };
+
+	/** Convert a client position to the nearest (measureIndex, beat) in this track. */
+	function findBeatAtClient(
+		clientX: number,
+		clientY: number
+	): { measureIndex: number; beat: number } | null {
+		if (!container) return null;
+		const svgEls = container.querySelectorAll<SVGSVGElement>('svg.system');
+		for (const svgEl of svgEls) {
+			const rect = svgEl.getBoundingClientRect();
+			if (clientY < rect.top || clientY > rect.bottom) continue;
+			const svgX = clientX - rect.left;
+			const firstIdx = Number(svgEl.dataset.firstMeasure ?? -1);
+			const sys = layout.systems.find((s) => s.measures[0]?.index === firstIdx);
+			if (!sys || !sys.measures.length) continue;
+			let bestMeasure = sys.measures[0];
+			for (const m of sys.measures) {
+				if (svgX >= m.x) bestMeasure = m;
+			}
+			if (!bestMeasure.beats.length) continue;
+			let bestBeat = 0,
+				bestD = Infinity;
+			for (let i = 0; i < bestMeasure.beats.length; i++) {
+				const d = Math.abs(bestMeasure.beats[i].x - svgX);
+				if (d < bestD) {
+					bestD = d;
+					bestBeat = i;
+				}
+			}
+			return { measureIndex: bestMeasure.index, beat: bestBeat };
+		}
+		return null;
+	}
+
+	function onDragPointerDown(e: PointerEvent) {
+		if (!store.isDesktop || e.button !== 0) return;
+		dragStartClient = { x: e.clientX, y: e.clientY };
+		dragAnchor = findBeatAtClient(e.clientX, e.clientY);
+		dragging = false;
+	}
+
+	function onDragPointerMove(e: PointerEvent) {
+		if (!dragAnchor || !(e.buttons & 1)) return;
+		const dist = Math.hypot(e.clientX - dragStartClient.x, e.clientY - dragStartClient.y);
+		if (dist < 8 && !dragging) return;
+		dragging = true;
+		const pos = findBeatAtClient(e.clientX, e.clientY);
+		if (!pos) return;
+		store.setCursor({
+			track: trackIndex,
+			measure: dragAnchor.measureIndex,
+			beat: dragAnchor.beat
+		});
+		store.setSelectionTo(pos.measureIndex, pos.beat);
+	}
+
+	function onDragPointerUp(_e: PointerEvent) {
+		if (dragging) {
+			store.loopEnabled = true;
+			suppressNextClick = true;
+			setTimeout(() => {
+				suppressNextClick = false;
+			}, 100);
+		}
+		dragAnchor = null;
+		dragging = false;
+	}
 </script>
 
 <!-- One voice of the standard staff: beams, then per-beat rests/noteheads/stems. -->
@@ -349,12 +424,23 @@
 						class="notehead"
 						class:hollow={beat.duration <= 2}
 						class:v2={vIdx === 1}
+						class:ghost={n.techniques.includes('ghost')}
 						transform="rotate(-20 {n.x + n.headXOffset} {n.stdY})"
 						><title>{midiToNote(n.midi)}</title></ellipse
 					>
 				{/if}
 				{#if beat.dotted}
 					<circle cx={n.x + n.headXOffset + 11} cy={n.stdY} r="1.6" class="dot" />
+				{/if}
+				{@const markY = beat.stemDir === 1 ? n.stdY - 12 : n.stdY + 14}
+				{#if n.techniques.includes('staccato')}
+					<circle cx={n.x + n.headXOffset} cy={markY} r="1.8" class="dot" />
+				{/if}
+				{#if n.techniques.includes('accent')}
+					<text x={n.x + n.headXOffset - 5} y={markY + 5} class="std-accent">›</text>
+				{/if}
+				{#if n.techniques.includes('artificial-harmonic')}
+					<text x={n.x + n.headXOffset} y={markY - 2} class="fx std-fx">A.H.</text>
 				{/if}
 				{#if n.tie}
 					{@const ud = beat.stemDir === 1 ? 1 : -1}
@@ -395,12 +481,35 @@
 		{/if}
 		{#each beat.notes as n (n.string)}
 			{@const isDead = n.techniques.includes('dead')}
-			<rect x={n.x - 6} y={n.tabY - 4} width="13" height="10" class="fret-bg" />
+			{@const isGhost = n.techniques.includes('ghost')}
+			{@const fretLabel = isDead ? 'x' : isGhost ? `(${n.fret})` : String(n.fret)}
+			<rect
+				x={n.x - (isGhost ? 10 : 6)}
+				y={n.tabY - 4}
+				width={isGhost ? 20 : 13}
+				height="10"
+				class="fret-bg"
+			/>
 			<text x={n.x} y={n.tabY + 4} class="fret" class:muted-note={isDead} class:v2={vIdx === 1}
-				>{isDead ? 'x' : n.fret}</text
+				>{fretLabel}</text
 			>
 			{#if n.techniques.includes('palm-mute')}
 				<text x={n.x} y={n.tabY - 9} class="fx">P.M.</text>
+			{/if}
+			{#if n.techniques.includes('harmonic')}
+				<text x={n.x} y={n.tabY - 9} class="fx">◇</text>
+			{/if}
+			{#if n.techniques.includes('artificial-harmonic')}
+				<text x={n.x} y={n.tabY - 18} class="fx">A.H.</text>
+			{/if}
+			{#if n.techniques.includes('staccato')}
+				<circle cx={n.x} cy={n.tabY - 9} r="1.8" class="dot" />
+			{/if}
+			{#if n.techniques.includes('accent')}
+				<text x={n.x} y={n.tabY - 9} class="fx accent-sym">›</text>
+			{/if}
+			{#if n.techniques.includes('grace')}
+				<text x={n.x - 9} y={n.tabY} class="fx grace-sym">𝆔</text>
 			{/if}
 			{#if n.techniques.includes('vibrato')}
 				<text x={n.x + 10} y={n.tabY + 4} class="fx-sym">∿</text>
@@ -410,6 +519,14 @@
 				<text x={n.x + 20} y={n.tabY - 12} class="fx"
 					>{n.bend === 0.5 ? '½' : n.bend === 1 ? 'full' : (n.bend ?? 'full')}</text
 				>
+			{/if}
+			{#if n.techniques.includes('release')}
+				<path d="M {n.x + 8} {n.tabY - 16} q 10 2 12 16" class="bend-arrow" />
+				<text x={n.x + 20} y={n.tabY - 12} class="fx">↓</text>
+			{/if}
+			{#if n.techniques.includes('bend-release')}
+				<path d="M {n.x + 8} {n.tabY} q 5 -2 6 -12 q 4 10 8 12" class="bend-arrow" />
+				<text x={n.x + 22} y={n.tabY - 12} class="fx">br</text>
 			{/if}
 			{#if n.techniques.includes('slide') && n.slideTo !== undefined}
 				<line
@@ -422,9 +539,6 @@
 			{/if}
 			{#if n.techniques.includes('hammer') || n.techniques.includes('pull')}
 				<path d="M {n.x + 8} {n.tabY - 4} q 8 -8 16 0" class="legato" />
-			{/if}
-			{#if n.techniques.includes('harmonic')}
-				<text x={n.x} y={n.tabY - 9} class="fx">◇</text>
 			{/if}
 			{#if n.tie}
 				<path
@@ -439,7 +553,14 @@
 
 <ContextMenu.Root>
 	<ContextMenu.Trigger class="ctx-anchor">
-		<div class="track-staff" bind:this={container} class:active={isActiveTrack}>
+		<div
+			class="track-staff"
+			bind:this={container}
+			class:active={isActiveTrack}
+			onpointerdown={onDragPointerDown}
+			onpointermove={onDragPointerMove}
+			onpointerup={onDragPointerUp}
+		>
 			{#each layout.systems as system (system.y)}
 				<svg
 					class="system"
@@ -703,10 +824,13 @@
 		</ContextMenu.Sub>
 
 		<ContextMenu.Sub>
-			<ContextMenu.SubTrigger disabled={!ctxNote}>Effects</ContextMenu.SubTrigger>
-			<ContextMenu.SubContent class="w-44">
+			<ContextMenu.SubTrigger>Effects</ContextMenu.SubTrigger>
+			<ContextMenu.SubContent class="w-48">
 				{#each EFFECT_LIST as t (t)}
-					<ContextMenu.Item onSelect={() => store.toggleTechnique(t)}>
+					<ContextMenu.Item
+						onSelect={() => store.toggleTechnique(t)}
+						disabled={t !== 'dead' && !ctxNote}
+					>
 						<span>{TECHNIQUE_LABELS[t]}</span>
 						{#if hasTech(t)}<span class="ml-auto">●</span>{/if}
 					</ContextMenu.Item>
@@ -720,6 +844,21 @@
 			onSelect={() => store.deleteNoteAtCursor()}
 		>
 			Delete note
+		</ContextMenu.Item>
+
+		<ContextMenu.Separator />
+		<div class="text-muted-foreground px-2 py-1.5 text-xs font-medium">Beat</div>
+		<ContextMenu.Item onSelect={() => store.insertBeatBefore()}>
+			Insert beat before
+		</ContextMenu.Item>
+		<ContextMenu.Item onSelect={() => store.insertBeat()}>
+			Insert beat after
+		</ContextMenu.Item>
+		<ContextMenu.Item onSelect={() => store.setLoopStartAtCursor()}>
+			Set as loop start
+		</ContextMenu.Item>
+		<ContextMenu.Item onSelect={() => store.setLoopEndAtCursor()}>
+			Set as loop end
 		</ContextMenu.Item>
 
 		<ContextMenu.Separator />
@@ -769,9 +908,6 @@
 		overflow-x: auto;
 		background: var(--paper, #fff);
 	}
-	.track-staff.active {
-		box-shadow: inset 0 0 0 2px var(--accent-soft, #e4e4e7);
-	}
 	.system {
 		display: block;
 	}
@@ -818,6 +954,25 @@
 	}
 	.dead-head.v2 {
 		fill: #71717a;
+	}
+	.notehead.ghost {
+		opacity: 0.35;
+	}
+	.std-accent {
+		font-size: 13px;
+		font-weight: 700;
+		fill: #18181b;
+		text-anchor: middle;
+	}
+	.std-fx {
+		text-anchor: middle;
+	}
+	.accent-sym {
+		font-size: 13px;
+		font-weight: 700;
+	}
+	.grace-sym {
+		font-size: 10px;
 	}
 	.stem,
 	.beam {
