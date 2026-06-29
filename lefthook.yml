@@ -1,0 +1,8 @@
+pre-commit:
+  commands:
+    prettier:
+      glob: "*.{js,ts,svelte,json,css,html,md}"
+      run: bunx prettier --write {staged_files} && git add {staged_files}
+    eslint:
+      glob: "*.{js,ts,svelte}"
+      run: bunx eslint --fix {staged_files} && git add {staged_files}
