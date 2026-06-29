@@ -3,14 +3,12 @@
 	import { store } from '$lib/stores/score.svelte';
 	import { togglePlayback, stopPlayback } from '$lib/audio/playback';
 	import { enterDigit, resetEntry } from '$lib/editing/entry';
-	import TrackHeader from '$lib/components/TrackHeader.svelte';
 	import TrackStaff from '$lib/components/TrackStaff.svelte';
 	import BottomBar from '$lib/components/BottomBar.svelte';
 	import EditPanel from '$lib/components/EditPanel.svelte';
 	import NotePropertiesPanel from '$lib/components/NotePropertiesPanel.svelte';
 	import KeyInput from '$lib/components/KeyInput.svelte';
 	import SongModal from '$lib/components/SongModal.svelte';
-	import TrackControlDrawer from '$lib/components/TrackControlDrawer.svelte';
 	import TracksPanel from '$lib/components/TracksPanel.svelte';
 	import RightPanel from '$lib/components/RightPanel.svelte';
 	import StatusBanner from '$lib/components/StatusBanner.svelte';
@@ -28,14 +26,9 @@
 	// Height of the fixed bottom dock (mobile only), so the sheet can scroll clear.
 	let dockHeight = $state(56);
 
-	let trackEditIndex = $state(-1);
-	let trackEditOpen = $state(false);
 	let scoreAreaEl = $state<HTMLElement | undefined>(undefined);
 	let leftPanelW = $state(260);
 	let rightPanelW = $state(280);
-	let tracksPanelH = $state(200);
-	const MIN_TRACKS_H = 88;
-	const MAX_TRACKS_H = 500;
 
 	const showRightPanel = $derived(
 		store.tempoOpen || store.songModalOpen || store.addRemoveOpen || store.trackControlOpen
@@ -47,21 +40,6 @@
 		const startW = leftPanelW;
 		function onMove(ev: PointerEvent) {
 			leftPanelW = Math.max(250, Math.min(500, startW + ev.clientX - startX));
-		}
-		function onUp() {
-			window.removeEventListener('pointermove', onMove);
-			window.removeEventListener('pointerup', onUp);
-		}
-		window.addEventListener('pointermove', onMove);
-		window.addEventListener('pointerup', onUp);
-	}
-
-	function startTracksResize(e: PointerEvent) {
-		e.preventDefault();
-		const startY = e.clientY;
-		const startH = tracksPanelH;
-		function onMove(ev: PointerEvent) {
-			tracksPanelH = Math.max(MIN_TRACKS_H, Math.min(MAX_TRACKS_H, startH - (ev.clientY - startY)));
 		}
 		function onUp() {
 			window.removeEventListener('pointermove', onMove);
@@ -84,12 +62,6 @@
 		}
 		window.addEventListener('pointermove', onMove);
 		window.addEventListener('pointerup', onUp);
-	}
-
-	function addTrack() {
-		store.addTrack();
-		trackEditIndex = store.cursor.track;
-		trackEditOpen = true;
 	}
 
 	function onKeydown(e: KeyboardEvent) {
@@ -275,36 +247,13 @@
 						<span class="edit-hint">edit ✎</span>
 					</button>
 
-					{#if store.isFocusMode}
-						<div class="focus-bar no-print">
-							<span>Focusing <strong>{store.focusedTrackName}</strong></span>
-							<button onclick={() => store.clearFocus()}>Show all tracks</button>
-						</div>
-					{/if}
-
 					{#each store.score.tracks as track, i (track.id)}
-						<section class="track-block" id="track-{track.id}">
-							<div class="no-print"><TrackHeader index={i} /></div>
-							{#if !store.isCollapsed(i)}
-								<div class="sheet">
-									<TrackStaff trackIndex={i} />
-								</div>
-							{/if}
-						</section>
-					{/each}
-
-					<div class="add-row no-print">
-						<button onclick={() => store.addMeasureToAll()}>+ Bar</button>
-						<button onclick={addTrack}>+ Track</button>
-						{#if store.score.tracks[0].measures.length > 1}
-							<button
-								class="ghost"
-								onclick={() =>
-									store.removeMeasureFromAll(store.score.tracks[0].measures.length - 1)}
-								>− Bar</button
-							>
+						{#if !store.isFocusMode || store.focusedTrackId === track.id}
+							<section class="track-block" id="track-{track.id}">
+								<TrackStaff trackIndex={i} />
+							</section>
 						{/if}
-					</div>
+					{/each}
 				</div>
 			</main>
 
@@ -321,8 +270,7 @@
 		<div class="desktop-bottom no-print">
 			<!-- Tracks Panel (toggleable on desktop, vertically resizable) -->
 			{#if store.mixerOpen}
-				<div class="tracks-resize-wrapper" style="height:{tracksPanelH}px">
-					<div class="tracks-resize-handle" onpointerdown={startTracksResize}></div>
+				<div class="tracks-panel-dock">
 					<TracksPanel />
 				</div>
 			{/if}
@@ -355,35 +303,13 @@
 					<span class="edit-hint">edit ✎</span>
 				</button>
 
-				{#if store.isFocusMode}
-					<div class="focus-bar no-print">
-						<span>Focusing <strong>{store.focusedTrackName}</strong></span>
-						<button onclick={() => store.clearFocus()}>Show all tracks</button>
-					</div>
-				{/if}
-
 				{#each store.score.tracks as track, i (track.id)}
-					<section class="track-block" id="track-{track.id}">
-						<div class="no-print"><TrackHeader index={i} /></div>
-						{#if !store.isCollapsed(i)}
-							<div class="sheet">
-								<TrackStaff trackIndex={i} />
-							</div>
-						{/if}
-					</section>
-				{/each}
-
-				<div class="add-row no-print">
-					<button onclick={() => store.addMeasureToAll()}>+ Bar</button>
-					<button onclick={addTrack}>+ Track</button>
-					{#if store.score.tracks[0].measures.length > 1}
-						<button
-							class="ghost"
-							onclick={() => store.removeMeasureFromAll(store.score.tracks[0].measures.length - 1)}
-							>− Bar</button
-						>
+					{#if !store.isFocusMode || store.focusedTrackId === track.id}
+						<section class="track-block" id="track-{track.id}">
+							<TrackStaff trackIndex={i} />
+						</section>
 					{/if}
-				</div>
+				{/each}
 			</div>
 		</main>
 
@@ -401,7 +327,6 @@
 		</div>
 
 		<SongModal />
-		<TrackControlDrawer bind:open={trackEditOpen} index={trackEditIndex} />
 	</div>
 {/if}
 
@@ -467,66 +392,8 @@
 	.score-head:hover .edit-hint {
 		opacity: 1;
 	}
-	.focus-bar {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 10px;
-		margin: 0 0 16px;
-		padding: 8px 12px;
-		font-size: 13px;
-		color: var(--ink);
-		background: var(--panel);
-		border: 1px solid var(--border-strong);
-		border-radius: var(--r-sm);
-	}
-	.focus-bar strong {
-		font-weight: 700;
-	}
-	.focus-bar button {
-		border: 1px solid var(--border-strong);
-		background: var(--paper);
-		color: var(--ink);
-		border-radius: var(--r-xs);
-		padding: 6px 12px;
-		font-size: 12px;
-		font-weight: 600;
-		cursor: pointer;
-	}
-	.focus-bar button:hover {
-		background: var(--panel-2);
-	}
 	.track-block {
-		margin-bottom: 18px;
-	}
-	.sheet {
-		border: 1px solid var(--border);
-		border-top: 0;
-		border-radius: 0 0 var(--r-md) var(--r-md);
-		overflow: hidden;
-		background: var(--paper);
-	}
-	.add-row {
-		display: flex;
-		gap: 7px;
-		margin-top: 8px;
-		flex-wrap: wrap;
-	}
-	.add-row button {
-		border: 1px dashed var(--border-strong);
-		background: var(--bg);
-		border-radius: var(--r-xs);
-		padding: 7px 13px;
-		font-size: 12px;
-		cursor: pointer;
-		color: var(--ink);
-		font-weight: 600;
-	}
-	.add-row button:hover {
-		background: var(--panel-2);
-	}
-	.add-row .ghost {
-		color: var(--text-muted);
+		margin-bottom: 12px;
 	}
 
 	/* ── DESKTOP ──────────────────────────────────────────────── */
@@ -584,22 +451,9 @@
 		display: flex;
 		flex-direction: column;
 	}
-	.tracks-resize-wrapper {
-		position: relative;
+	.tracks-panel-dock {
 		flex-shrink: 0;
 		overflow: hidden;
-	}
-	.tracks-resize-handle {
-		position: absolute;
-		top: -4px;
-		left: 0;
-		right: 0;
-		height: 8px;
-		cursor: row-resize;
-		z-index: 20;
-	}
-	.tracks-resize-handle:hover {
-		background: color-mix(in srgb, var(--primary) 15%, transparent);
 	}
 
 	/* ── MOBILE ───────────────────────────────────────────────── */
