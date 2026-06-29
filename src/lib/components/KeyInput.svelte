@@ -5,7 +5,6 @@
 
 	import { store } from '$lib/stores/score.svelte';
 	import { enterDigit } from '$lib/editing/entry';
-	import { cn } from '$lib/utils';
 	import X from 'phosphor-svelte/lib/X';
 </script>
 
