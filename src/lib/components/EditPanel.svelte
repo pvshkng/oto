@@ -271,7 +271,7 @@
 		height: 32px;
 		border: 1px solid var(--border-strong);
 		border-left-width: 0;
-		background: var(--paper);
+		background: linear-gradient(to bottom, #ffffff, #f5f5f4);
 		color: var(--text-muted);
 		cursor: pointer;
 	}
@@ -330,7 +330,7 @@
 		height: 36px;
 		padding: 0 9px;
 		border: 1px solid var(--border-strong);
-		background: var(--paper);
+		background: linear-gradient(to bottom, #ffffff, #f5f5f4);
 		border-radius: var(--r-xs);
 		font-size: 14px;
 		font-weight: 600;
@@ -355,7 +355,7 @@
 		font-size: 18px;
 		line-height: 1;
 		width: 20px;
-		padding-top: 6px;
+		padding-top: 12px;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;

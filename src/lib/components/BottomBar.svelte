@@ -1,10 +1,9 @@
 <script lang="ts">
-	// Bottom control bar. A minimal, horizontally scrollable strip: an omni
-	// command button (dots) opens the command palette, a File combobox and
-	// direct undo/redo/add-remove controls replace the old File/Edit dropdown
-	// menus (dropdowns don't work well on touch), the note-editor toggle sits
-	// at the top level, and the transport / metronome / loop / tempo controls
-	// follow.
+	// Bottom control bar. Horizontally scrollable strip with all top-level
+	// controls. On desktop (≥1024 px) the edit-notes button expands to a 4-part
+	// joined control (Edit Note | Keypad | Fretboard | Piano), the Tracks toggle
+	// is hidden (TracksPanel is always visible), and Tempo/Song/Add-Remove open a
+	// right panel instead of a bottom drawer.
 
 	import { store } from '$lib/stores/score.svelte';
 	import { play, pausePlayback, stopPlayback, goToStart } from '$lib/audio/playback';
@@ -26,6 +25,9 @@
 	import Repeat from 'phosphor-svelte/lib/Repeat';
 	import Flag from 'phosphor-svelte/lib/Flag';
 	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
+	import Numpad from 'phosphor-svelte/lib/Numpad';
+	import Guitar from 'phosphor-svelte/lib/Guitar';
+	import PianoKeys from 'phosphor-svelte/lib/PianoKeys';
 	import Sliders from 'phosphor-svelte/lib/Sliders';
 	import GearSix from 'phosphor-svelte/lib/GearSix';
 	import File from 'phosphor-svelte/lib/File';
@@ -39,8 +41,6 @@
 
 	let omniOpen = $state(false);
 	let fileOpen = $state(false);
-	let addRemoveOpen = $state(false);
-	let tempoOpen = $state(false);
 
 	function confirmNew() {
 		if (confirm('Start a new score? Your current one stays in the last save.')) store.newScore();
@@ -48,6 +48,46 @@
 	function runFile(fn: () => void | Promise<void>) {
 		fn();
 		fileOpen = false;
+	}
+
+	// Desktop edit tool buttons: pressing a tool button while it's active toggles
+	// the key-input strip off; pressing an inactive one opens the strip on that tool.
+	function toggleKeyTool(tool: 'keypad' | 'fretboard' | 'piano') {
+		if (store.editTool === tool && store.keyInputOpen) {
+			store.keyInputOpen = false;
+		} else {
+			store.editTool = tool;
+			store.keyInputOpen = true;
+		}
+	}
+
+	// Desktop right-panel toggles — clicking an already-open panel closes it.
+	function toggleTempo() {
+		if (store.tempoOpen) {
+			store.tempoOpen = false;
+		} else {
+			store.songModalOpen = false;
+			store.addRemoveOpen = false;
+			store.tempoOpen = true;
+		}
+	}
+	function toggleSong() {
+		if (store.songModalOpen) {
+			store.songModalOpen = false;
+		} else {
+			store.tempoOpen = false;
+			store.addRemoveOpen = false;
+			store.songModalOpen = true;
+		}
+	}
+	function toggleAddRemove() {
+		if (store.addRemoveOpen) {
+			store.addRemoveOpen = false;
+		} else {
+			store.tempoOpen = false;
+			store.songModalOpen = false;
+			store.addRemoveOpen = true;
+		}
 	}
 </script>
 
@@ -67,7 +107,7 @@
 		<DotsThreeVertical class="size-5" weight="bold" />
 	</Button>
 
-	<!-- File combobox: New / Save / Export on top, Open below -->
+	<!-- File combobox -->
 	<Popover.Root bind:open={fileOpen}>
 		<Popover.Trigger
 			class={cn(buttonVariants({ variant: 'outline', size: 'icon' }), 'size-9 shrink-0')}
@@ -107,7 +147,7 @@
 		</Popover.Content>
 	</Popover.Root>
 
-	<!-- Undo / redo, stuck together like the metronome/BPM split control -->
+	<!-- Undo / redo -->
 	<div class="flex shrink-0 items-stretch">
 		<Button
 			variant="outline"
@@ -133,20 +173,20 @@
 		</Button>
 	</div>
 
-	<!-- Add / remove bars and tracks, opens a drawer (not a dropdown) -->
+	<!-- Add / remove: drawer on mobile, right-panel toggle on desktop -->
 	<Button
 		variant="outline"
 		size="icon"
-		class="size-9 shrink-0"
+		class={cn('size-9 shrink-0', store.isDesktop && store.addRemoveOpen && 'sunk')}
 		title="Add or remove"
 		aria-label="Add or remove bars and tracks"
-		onclick={() => (addRemoveOpen = true)}
+		aria-pressed={store.isDesktop ? store.addRemoveOpen : undefined}
+		onclick={() => (store.isDesktop ? toggleAddRemove() : (store.addRemoveOpen = true))}
 	>
 		<PlusMinus class="size-4" />
 	</Button>
 
-	<!-- Track mixer: levels, pan, EQ, arrangement and section markers. Toggled
-	     on/off controls read as physically pressed in (sunk), not accent-filled. -->
+	<!-- Track mixer toggle -->
 	<Button
 		variant="outline"
 		size="sm"
@@ -160,28 +200,83 @@
 		<span class="hidden sm:inline">Tracks</span>
 	</Button>
 
-	<!-- Note editor toggle, kept at the top level for one-tap access -->
-	<Button
-		variant="outline"
-		size="sm"
-		class={cn('h-9 shrink-0', store.editMode && 'sunk')}
-		title="Toggle note editor"
-		aria-pressed={store.editMode}
-		onclick={() => (store.editMode = !store.editMode)}
-	>
-		<PencilSimple class="size-4" />
-		<span class="hidden sm:inline">{store.editMode ? 'Editing' : 'Edit notes'}</span>
-	</Button>
+	<!-- Edit controls:
+	     Mobile: single Edit Notes toggle (opens bottom dock EditPanel)
+	     Desktop: 4-part joined control — Edit Note (left panel) | Keypad | Fretboard | Piano -->
+	{#if store.isDesktop}
+		<div class="flex shrink-0 items-stretch">
+			<Button
+				variant="outline"
+				size="sm"
+				class={cn('h-9 rounded-r-none', store.editMode && 'sunk')}
+				title="Note properties panel"
+				aria-label="Toggle note properties"
+				aria-pressed={store.editMode}
+				onclick={() => (store.editMode = !store.editMode)}
+			>
+				<PencilSimple class="size-4" />
+				<span class="hidden sm:inline">Note</span>
+			</Button>
+			<Button
+				variant="outline"
+				size="icon"
+				class={cn(
+					'size-9 rounded-none border-l-0',
+					store.keyInputOpen && store.editTool === 'keypad' && 'sunk'
+				)}
+				title="Keypad"
+				aria-label="Keypad input"
+				aria-pressed={store.keyInputOpen && store.editTool === 'keypad'}
+				onclick={() => toggleKeyTool('keypad')}
+			>
+				<Numpad class="size-4" />
+			</Button>
+			<Button
+				variant="outline"
+				size="icon"
+				class={cn(
+					'size-9 rounded-none border-l-0',
+					store.keyInputOpen && store.editTool === 'fretboard' && 'sunk'
+				)}
+				title="Fretboard"
+				aria-label="Fretboard input"
+				aria-pressed={store.keyInputOpen && store.editTool === 'fretboard'}
+				onclick={() => toggleKeyTool('fretboard')}
+			>
+				<Guitar class="size-4" />
+			</Button>
+			<Button
+				variant="outline"
+				size="icon"
+				class={cn(
+					'size-9 rounded-l-none border-l-0',
+					store.keyInputOpen && store.editTool === 'piano' && 'sunk'
+				)}
+				title="Piano keys"
+				aria-label="Piano key input"
+				aria-pressed={store.keyInputOpen && store.editTool === 'piano'}
+				onclick={() => toggleKeyTool('piano')}
+			>
+				<PianoKeys class="size-4" />
+			</Button>
+		</div>
+	{:else}
+		<Button
+			variant="outline"
+			size="sm"
+			class={cn('h-9 shrink-0', store.editMode && 'sunk')}
+			title="Toggle note editor"
+			aria-pressed={store.editMode}
+			onclick={() => (store.editMode = !store.editMode)}
+		>
+			<PencilSimple class="size-4" />
+			<span class="hidden sm:inline">{store.editMode ? 'Editing' : 'Edit notes'}</span>
+		</Button>
+	{/if}
 
 	<div class="bg-border mx-1 h-6 w-px shrink-0"></div>
 
-	<!-- Transport: Play, Pause, Stop and Back-to-start stuck together as one
-	     control (rounded only on the outer ends). Play and Pause are separate
-	     buttons, each sinking while its state is active, so it's always clear
-	     whether playback is running or paused. Play always starts from the
-	     cursor, so navigating while paused and pressing Play resumes exactly
-	     there. Stop drops the cursor back to bar 1 without scrolling;
-	     Back-to-start rewinds to bar 1 and scrolls the score there. -->
+	<!-- Transport -->
 	<div class="flex shrink-0 items-stretch">
 		<Button
 			variant="outline"
@@ -227,10 +322,7 @@
 		</Button>
 	</div>
 
-	<!-- Loop on/off + start/end markers, stuck together as one control: the
-	     toggle is the rounded-left third, the end marker the rounded-right
-	     third, dropping the markers at the cursor (creating a single-beat
-	     loop selection on first use) and turning looping on. -->
+	<!-- Loop -->
 	<div class="flex shrink-0 items-stretch">
 		<Button
 			variant="outline"
@@ -276,9 +368,8 @@
 			>
 		</Button>
 	</div>
-	<!-- Metronome + count-in + tempo: one split control. The metronome is the
-	     rounded-left half, BPM the rounded-right half, with the count-in toggle
-	     joined in the middle so they read as a single button cut into thirds. -->
+
+	<!-- Metronome + count-in + tempo -->
 	<div class="flex shrink-0 items-stretch">
 		<Button
 			variant="outline"
@@ -305,27 +396,36 @@
 		<Button
 			variant="outline"
 			size="sm"
-			class="h-9 rounded-l-none border-l-0 tabular-nums"
+			class={cn(
+				'h-9 rounded-l-none border-l-0 tabular-nums',
+				store.isDesktop && store.tempoOpen && 'sunk'
+			)}
 			title="Tempo"
 			aria-label="Open tempo settings"
-			onclick={() => (tempoOpen = true)}
+			aria-pressed={store.isDesktop ? store.tempoOpen : undefined}
+			onclick={() => (store.isDesktop ? toggleTempo() : (store.tempoOpen = true))}
 		>
 			{store.score.tempo}<span class="text-muted-foreground text-[10px] font-semibold">bpm</span>
 		</Button>
 	</div>
 
+	<!-- Song settings: right panel on desktop, drawer on mobile -->
 	<Button
 		variant="ghost"
 		size="icon"
-		class="size-9 shrink-0"
+		class={cn('size-9 shrink-0', store.isDesktop && store.songModalOpen && 'sunk')}
 		title="Song settings"
 		aria-label="Song settings"
-		onclick={() => (store.songModalOpen = true)}
+		aria-pressed={store.isDesktop ? store.songModalOpen : undefined}
+		onclick={() => (store.isDesktop ? toggleSong() : (store.songModalOpen = true))}
 	>
 		<GearSix class="size-5" />
 	</Button>
 </div>
 
 <OmniCommand bind:open={omniOpen} />
-<AddRemoveDrawer bind:open={addRemoveOpen} />
-<TempoDrawer bind:open={tempoOpen} />
+<!-- Mobile drawers — suppressed on desktop because RightPanel handles those. -->
+{#if !store.isDesktop}
+	<AddRemoveDrawer />
+	<TempoDrawer />
+{/if}

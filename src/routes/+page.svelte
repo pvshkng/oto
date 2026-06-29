@@ -7,34 +7,82 @@
 	import TrackStaff from '$lib/components/TrackStaff.svelte';
 	import BottomBar from '$lib/components/BottomBar.svelte';
 	import EditPanel from '$lib/components/EditPanel.svelte';
+	import NotePropertiesPanel from '$lib/components/NotePropertiesPanel.svelte';
+	import KeyInput from '$lib/components/KeyInput.svelte';
 	import SongModal from '$lib/components/SongModal.svelte';
 	import TrackControlDrawer from '$lib/components/TrackControlDrawer.svelte';
 	import TracksPanel from '$lib/components/TracksPanel.svelte';
+	import RightPanel from '$lib/components/RightPanel.svelte';
 	import StatusBanner from '$lib/components/StatusBanner.svelte';
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
 	import { audio } from '$lib/audio/engine';
 	import { fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 
-	// Drawer-like slide/fade for the bottom dock's note editor and tracks
-	// panel — they're not modal (the score below stays editable), so unlike a
-	// real Drawer there's no overlay/blur, just the entrance/exit motion.
+	// Mobile-only: slide transition for the bottom dock note editor / tracks panel
 	const dockTransition = { y: '100%', opacity: 0.5, duration: 260, easing: cubicOut };
 
-	// The note editor and tracks panel are mutually exclusive and share one docked
-	// slot. Driving them through a single value means the slide only runs when
-	// opening from closed or closing to nothing — switching from one panel to the
-	// other swaps the contents in place (no overlapping enter/exit), which is what
-	// kept the old two-`{#if}` version glitchy. The slide-up shadow lives on the
-	// panel itself (see .dock-panel) so it travels with the motion instead of
-	// snapping to the final position before the panel arrives.
+	// Mobile dock panel — mutually exclusive (editMode vs mixerOpen)
 	const dockPanel = $derived(store.editMode ? 'edit' : store.mixerOpen ? 'mixer' : null);
 
-	// Height of the fixed bottom dock, so the sheet can scroll clear of it.
+	// Height of the fixed bottom dock (mobile only), so the sheet can scroll clear.
 	let dockHeight = $state(56);
+
 	let trackEditIndex = $state(-1);
 	let trackEditOpen = $state(false);
-	let scoreAreaEl: HTMLElement;
+	let scoreAreaEl = $state<HTMLElement | undefined>(undefined);
+	let leftPanelW = $state(260);
+	let rightPanelW = $state(280);
+	let tracksPanelH = $state(200);
+	const MIN_TRACKS_H = 88;
+	const MAX_TRACKS_H = 500;
+
+	const showRightPanel = $derived(store.tempoOpen || store.songModalOpen || store.addRemoveOpen || store.trackControlOpen);
+
+	function startLeftResize(e: PointerEvent) {
+		e.preventDefault();
+		const startX = e.clientX;
+		const startW = leftPanelW;
+		function onMove(ev: PointerEvent) {
+			leftPanelW = Math.max(250, Math.min(500, startW + ev.clientX - startX));
+		}
+		function onUp() {
+			window.removeEventListener('pointermove', onMove);
+			window.removeEventListener('pointerup', onUp);
+		}
+		window.addEventListener('pointermove', onMove);
+		window.addEventListener('pointerup', onUp);
+	}
+
+	function startTracksResize(e: PointerEvent) {
+		e.preventDefault();
+		const startY = e.clientY;
+		const startH = tracksPanelH;
+		function onMove(ev: PointerEvent) {
+			tracksPanelH = Math.max(MIN_TRACKS_H, Math.min(MAX_TRACKS_H, startH - (ev.clientY - startY)));
+		}
+		function onUp() {
+			window.removeEventListener('pointermove', onMove);
+			window.removeEventListener('pointerup', onUp);
+		}
+		window.addEventListener('pointermove', onMove);
+		window.addEventListener('pointerup', onUp);
+	}
+
+	function startRightResize(e: PointerEvent) {
+		e.preventDefault();
+		const startX = e.clientX;
+		const startW = rightPanelW;
+		function onMove(ev: PointerEvent) {
+			rightPanelW = Math.max(250, Math.min(500, startW - (ev.clientX - startX)));
+		}
+		function onUp() {
+			window.removeEventListener('pointermove', onMove);
+			window.removeEventListener('pointerup', onUp);
+		}
+		window.addEventListener('pointermove', onMove);
+		window.addEventListener('pointerup', onUp);
+	}
 
 	function addTrack() {
 		store.addTrack();
@@ -48,7 +96,7 @@
 			target &&
 			(target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
 		) {
-			return; // don't hijack typing in fields
+			return;
 		}
 
 		if (e.code === 'Space') {
@@ -139,8 +187,6 @@
 		}
 	}
 
-	// React to scroll requests (back-to-start, jump to a track section) raised
-	// from the bottom bar / tracks panel.
 	$effect(() => {
 		const req = store.scrollRequest;
 		if (!req || !scoreAreaEl) return;
@@ -164,9 +210,7 @@
 
 	onMount(() => {
 		store.loadFromStorage();
-		// Decode the recorded samples for whatever instruments this score uses up
-		// front, behind the loading screen, so the first play/audition is instant
-		// and glitch-free rather than waiting on a download mid-bar.
+		store.initLayout();
 		audio.ensureSamples(store.score.tracks.map((t) => t.instrument));
 		window.addEventListener('keydown', onKeydown);
 		return () => {
@@ -184,80 +228,191 @@
 	/>
 </svelte:head>
 
-<div class="app">
-	<StatusBanner />
-	<main class="score-area" bind:this={scoreAreaEl} style="padding-bottom: {dockHeight + 28}px">
-		<div class="paper">
-			<button
-				class="score-head"
-				onclick={() => (store.songModalOpen = true)}
-				title="Edit song details"
-			>
-				<h1>{store.score.title || 'Untitled Score'}</h1>
-				<p>{store.score.artist || 'Unknown'}</p>
-				<span class="edit-hint">edit ✎</span>
-			</button>
+{#if store.isDesktop}
+	<!-- ═══════════════════════════════════════════════════════════════
+	     DESKTOP LAYOUT  (≥ 1024 px)
+	     ┌──────────┬─────────────────────────────────┬───────────┐
+	     │ Note     │         Score area               │  Right    │
+	     │ Props    │         (scrollable)             │  Panel    │
+	     │ (left)   │                                  │ (details) │
+	     ├──────────┴─────────────────────────────────┴───────────┤
+	     │              Tracks Panel (always visible)              │
+	     ├─────────────────────────────────────────────────────────┤
+	     │          Key Input (keypad / fretboard / piano)         │
+	     ├─────────────────────────────────────────────────────────┤
+	     │                     Bottom Bar                          │
+	     └─────────────────────────────────────────────────────────┘
+	     ═══════════════════════════════════════════════════════════ -->
+	<div class="desktop-app">
+		<StatusBanner />
 
-			{#if store.isFocusMode}
-				<div class="focus-bar no-print">
-					<span>Focusing <strong>{store.focusedTrackName}</strong></span>
-					<button onclick={() => store.clearFocus()}>Show all tracks</button>
+		<!-- Main 3-column area: left panel | score | right panel -->
+		<div class="desktop-main">
+			<!-- Left panel: note properties (when editMode is on) -->
+			{#if store.editMode}
+				<div
+					class="desktop-left-panel"
+					style="width:{leftPanelW}px"
+				>
+					<NotePropertiesPanel />
+					<div class="panel-resize-right" onpointerdown={startLeftResize}></div>
 				</div>
 			{/if}
 
-			{#each store.score.tracks as track, i (track.id)}
-				<section class="track-block" id="track-{track.id}">
-					<div class="no-print"><TrackHeader index={i} /></div>
-					{#if !store.isCollapsed(i)}
-						<div class="sheet">
-							<TrackStaff trackIndex={i} />
+			<!-- Score area -->
+			<main class="score-area" bind:this={scoreAreaEl}>
+				<div class="paper">
+					<button
+						class="score-head"
+						onclick={() => {
+							store.tempoOpen = false;
+							store.addRemoveOpen = false;
+							store.songModalOpen = !store.songModalOpen;
+						}}
+						title="Edit song details"
+					>
+						<h1>{store.score.title || 'Untitled Score'}</h1>
+						<p>{store.score.artist || 'Unknown'}</p>
+						<span class="edit-hint">edit ✎</span>
+					</button>
+
+					{#if store.isFocusMode}
+						<div class="focus-bar no-print">
+							<span>Focusing <strong>{store.focusedTrackName}</strong></span>
+							<button onclick={() => store.clearFocus()}>Show all tracks</button>
 						</div>
 					{/if}
-				</section>
-			{/each}
 
-			<div class="add-row no-print">
-				<button onclick={() => store.addMeasureToAll()}>+ Bar</button>
-				<button onclick={addTrack}>+ Track</button>
-				{#if store.score.tracks[0].measures.length > 1}
-					<button
-						class="ghost"
-						onclick={() => store.removeMeasureFromAll(store.score.tracks[0].measures.length - 1)}
-						>− Bar</button
-					>
-				{/if}
-			</div>
+					{#each store.score.tracks as track, i (track.id)}
+						<section class="track-block" id="track-{track.id}">
+							<div class="no-print"><TrackHeader index={i} /></div>
+							{#if !store.isCollapsed(i)}
+								<div class="sheet">
+									<TrackStaff trackIndex={i} />
+								</div>
+							{/if}
+						</section>
+					{/each}
+
+					<div class="add-row no-print">
+						<button onclick={() => store.addMeasureToAll()}>+ Bar</button>
+						<button onclick={addTrack}>+ Track</button>
+						{#if store.score.tracks[0].measures.length > 1}
+							<button
+								class="ghost"
+								onclick={() =>
+									store.removeMeasureFromAll(store.score.tracks[0].measures.length - 1)}
+								>− Bar</button
+							>
+						{/if}
+					</div>
+				</div>
+			</main>
+
+			<!-- Right panel: tempo / song details / add-remove -->
+			{#if showRightPanel}
+				<div
+					class="desktop-right-wrapper"
+					style="width:{rightPanelW}px"
+				>
+					<div class="panel-resize-left" onpointerdown={startRightResize}></div>
+					<RightPanel />
+				</div>
+			{/if}
 		</div>
-	</main>
 
-	<div class="bottom-dock no-print" bind:clientHeight={dockHeight}>
-		{#if dockPanel}
-			<div class="dock-panel" transition:fly={dockTransition}>
-				{#if dockPanel === 'edit'}
-					<EditPanel />
-				{:else}
+		<!-- Bottom panels -->
+		<div class="desktop-bottom no-print">
+			<!-- Tracks Panel (toggleable on desktop, vertically resizable) -->
+			{#if store.mixerOpen}
+				<div class="tracks-resize-wrapper" style="height:{tracksPanelH}px">
+					<div class="tracks-resize-handle" onpointerdown={startTracksResize}></div>
 					<TracksPanel />
-				{/if}
-			</div>
-		{/if}
-		<BottomBar />
-	</div>
+				</div>
+			{/if}
 
-	<SongModal />
-	<TrackControlDrawer bind:open={trackEditOpen} index={trackEditIndex} />
-</div>
+			<!-- Key input strip (when open) -->
+			{#if store.keyInputOpen}
+				<KeyInput />
+			{/if}
+
+			<!-- Bottom bar -->
+			<BottomBar />
+		</div>
+	</div>
+{:else}
+	<!-- ═══════════════════════════════════════════════════════════════
+	     MOBILE LAYOUT  (< 1024 px)
+	     Fixed-bottom dock with slide-up note editor or tracks panel.
+	     ═══════════════════════════════════════════════════════════════ -->
+	<div class="app">
+		<StatusBanner />
+		<main class="score-area" bind:this={scoreAreaEl} style="padding-bottom: {dockHeight + 28}px">
+			<div class="paper">
+				<button
+					class="score-head"
+					onclick={() => (store.songModalOpen = true)}
+					title="Edit song details"
+				>
+					<h1>{store.score.title || 'Untitled Score'}</h1>
+					<p>{store.score.artist || 'Unknown'}</p>
+					<span class="edit-hint">edit ✎</span>
+				</button>
+
+				{#if store.isFocusMode}
+					<div class="focus-bar no-print">
+						<span>Focusing <strong>{store.focusedTrackName}</strong></span>
+						<button onclick={() => store.clearFocus()}>Show all tracks</button>
+					</div>
+				{/if}
+
+				{#each store.score.tracks as track, i (track.id)}
+					<section class="track-block" id="track-{track.id}">
+						<div class="no-print"><TrackHeader index={i} /></div>
+						{#if !store.isCollapsed(i)}
+							<div class="sheet">
+								<TrackStaff trackIndex={i} />
+							</div>
+						{/if}
+					</section>
+				{/each}
+
+				<div class="add-row no-print">
+					<button onclick={() => store.addMeasureToAll()}>+ Bar</button>
+					<button onclick={addTrack}>+ Track</button>
+					{#if store.score.tracks[0].measures.length > 1}
+						<button
+							class="ghost"
+							onclick={() => store.removeMeasureFromAll(store.score.tracks[0].measures.length - 1)}
+							>− Bar</button
+						>
+					{/if}
+				</div>
+			</div>
+		</main>
+
+		<div class="bottom-dock no-print" bind:clientHeight={dockHeight}>
+			{#if dockPanel}
+				<div class="dock-panel" transition:fly={dockTransition}>
+					{#if dockPanel === 'edit'}
+						<EditPanel />
+					{:else}
+						<TracksPanel />
+					{/if}
+				</div>
+			{/if}
+			<BottomBar />
+		</div>
+
+		<SongModal />
+		<TrackControlDrawer bind:open={trackEditOpen} index={trackEditIndex} />
+	</div>
+{/if}
 
 <LoadingScreen />
 
 <style>
-	.app {
-		height: 100vh;
-		height: 100dvh;
-		overflow: hidden;
-		display: flex;
-		flex-direction: column;
-		background: var(--bg);
-	}
+	/* ── SHARED ───────────────────────────────────────────────── */
 	.score-area {
 		flex: 1 1 0;
 		min-height: 0;
@@ -377,6 +532,89 @@
 	.add-row .ghost {
 		color: var(--text-muted);
 	}
+
+	/* ── DESKTOP ──────────────────────────────────────────────── */
+	.desktop-app {
+		height: 100vh;
+		height: 100dvh;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+		background: var(--bg);
+	}
+	/* 3-column row: left panel (optional) | score | right panel (optional) */
+	.desktop-main {
+		flex: 1 1 0;
+		min-height: 0;
+		display: flex;
+		flex-direction: row;
+		overflow: hidden;
+	}
+	.desktop-left-panel {
+		flex-shrink: 0;
+		overflow-y: auto;
+		overflow-x: hidden;
+		border-right: 1px solid var(--border);
+		position: relative;
+	}
+	.desktop-right-wrapper {
+		flex-shrink: 0;
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
+	.panel-resize-right {
+		position: absolute;
+		right: -4px;
+		top: 0;
+		bottom: 0;
+		width: 8px;
+		cursor: col-resize;
+		z-index: 20;
+	}
+	.panel-resize-left {
+		position: absolute;
+		left: -4px;
+		top: 0;
+		bottom: 0;
+		width: 8px;
+		cursor: col-resize;
+		z-index: 20;
+	}
+	/* Bottom strip: TracksPanel + optional KeyInput + BottomBar */
+	.desktop-bottom {
+		flex-shrink: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	.tracks-resize-wrapper {
+		position: relative;
+		flex-shrink: 0;
+		overflow: hidden;
+	}
+	.tracks-resize-handle {
+		position: absolute;
+		top: -4px;
+		left: 0;
+		right: 0;
+		height: 8px;
+		cursor: row-resize;
+		z-index: 20;
+	}
+	.tracks-resize-handle:hover {
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+	}
+
+	/* ── MOBILE ───────────────────────────────────────────────── */
+	.app {
+		height: 100vh;
+		height: 100dvh;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+		background: var(--bg);
+	}
 	.bottom-dock {
 		position: fixed;
 		left: 0;
@@ -384,16 +622,6 @@
 		bottom: 0;
 		z-index: 50;
 	}
-	/* The lift shadow rides on the sliding panel (not the static dock) so it
-	   animates in with the panel rather than snapping to the open position while
-	   the panel is still travelling. The bottom bar keeps its own top border for
-	   separation when no panel is open.
-	   Both children get an explicit stacking position: the bottom bar (the menu
-	   bar) sits in the higher layer so the note editor / tracks panel slides up
-	   from *behind* it — while the panel's `fly` transition translates it up from
-	   below, it's painted under the bar rather than over it. At rest the two never
-	   overlap — the panel occupies the flow space directly above the bar — so the
-	   stacking order only ever matters mid-animation. */
 	.dock-panel {
 		position: relative;
 		z-index: 1;
@@ -403,6 +631,8 @@
 		position: relative;
 		z-index: 2;
 	}
+
+	/* ── RESPONSIVE ───────────────────────────────────────────── */
 	@media (max-width: 720px) {
 		.score-area {
 			padding: 12px 8px 0;
@@ -422,6 +652,7 @@
 			display: none !important;
 		}
 		.app,
+		.desktop-app,
 		.score-area {
 			background: #fff !important;
 			padding: 0;

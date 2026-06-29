@@ -21,7 +21,7 @@
 	class={cn(
 		'flex items-center gap-1.5 border bg-card px-2 py-1.5',
 		collapsed ? 'rounded-lg' : 'rounded-t-lg border-b-0',
-		isActive && 'ring-1 ring-foreground/15'
+		isActive && 'ring-1 ring-inset ring-foreground/20'
 	)}
 	style="border-left: 3px solid {track.color}"
 >
@@ -48,11 +48,12 @@
 	/>
 
 	<Button
-		variant={focused ? 'default' : 'outline'}
+		variant="outline"
 		size="icon"
-		class="size-7 shrink-0"
+		class={cn('size-7 shrink-0', focused && 'sunk')}
 		title={focused ? 'Exit focus' : 'Focus this track'}
 		aria-label={focused ? 'Exit focus' : 'Focus this track'}
+		aria-pressed={focused}
 		onclick={() => (focused ? store.clearFocus() : store.focusTrack(index))}
 	>
 		<Eye class="size-4" weight={focused ? 'fill' : 'regular'} />
