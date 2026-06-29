@@ -3,38 +3,48 @@
 	// The score model is fret-based (string + fret), so a key press here picks
 	// whichever string on the current track can reach that pitch — preferring
 	// the cursor's current string — rather than storing an absolute pitch.
+	// Covers the full 88-key standard range: A0 (MIDI 21) → C8 (MIDI 108).
 
 	import { store } from '$lib/stores/score.svelte';
 	import { audio } from '$lib/audio/engine';
 	import { frettedMidi, noteToMidi, NOTE_NAMES } from '$lib/oto/pitch';
 
-	const OCTAVES = 3;
-	const WHITE_OFFSETS = [0, 2, 4, 5, 7, 9, 11];
-	// Black key after this white key index (within an octave); E (idx 2) and B
-	// (idx 6) have no black key following them.
-	const BLACK_AFTER = [0, 1, 3, 4, 5];
+	// Standard 88-key piano range
+	const PIANO_START = 21; // A0
+	const PIANO_END = 108; // C8
+	const WHITE_KEY_W = 36; // px per white key (slightly narrower for 52 keys)
+	const WHITE_SET = new Set([0, 2, 4, 5, 7, 9, 11]); // semitones that are white
+
+	interface WhiteKey {
+		midi: number;
+		isC: boolean;
+		idx: number; // 0-based index among white keys
+	}
+	interface BlackKey {
+		midi: number;
+		leftWhiteIdx: number; // white key to the left of this black key
+	}
+
+	function buildKeys(): { whites: WhiteKey[]; blacks: BlackKey[] } {
+		const whites: WhiteKey[] = [];
+		const blacks: BlackKey[] = [];
+		let wi = 0;
+		for (let m = PIANO_START; m <= PIANO_END; m++) {
+			const sem = m % 12;
+			if (WHITE_SET.has(sem)) {
+				whites.push({ midi: m, isC: sem === 0, idx: wi++ });
+			} else {
+				blacks.push({ midi: m, leftWhiteIdx: wi - 1 });
+			}
+		}
+		return { whites, blacks };
+	}
+
+	const { whites: WHITE_KEYS, blacks: BLACK_KEYS } = buildKeys();
+	const PIANO_W = WHITE_KEYS.length * WHITE_KEY_W;
 
 	const track = $derived(store.track);
 	const beat = $derived(track.measures[store.cursor.measure]?.beats[store.cursor.beat] ?? null);
-
-	// Start the keyboard an octave below the lowest open string, rounded down
-	// to a C, so the range always covers what the instrument can actually play.
-	const baseMidi = $derived(Math.floor((Math.min(...track.tuning.map(noteToMidi)) - 12) / 12) * 12);
-
-	const whiteKeys = $derived(
-		Array.from({ length: OCTAVES * 7 }, (_, i) => {
-			const octave = Math.floor(i / 7);
-			const offset = WHITE_OFFSETS[i % 7];
-			return { midi: baseMidi + octave * 12 + offset, isC: i % 7 === 0 };
-		})
-	);
-	const blackKeys = $derived(
-		Array.from({ length: OCTAVES * 5 }, (_, i) => {
-			const octave = Math.floor(i / 5);
-			const boundary = BLACK_AFTER[i % 5];
-			return { midi: baseMidi + octave * 12 + boundary + 1, boundary: octave * 7 + boundary };
-		})
-	);
 
 	function noteAtMidi(midi: number) {
 		return (
@@ -55,8 +65,6 @@
 			store.deleteNoteAtCursor();
 			return;
 		}
-		// Prefer the cursor's current string; fall back to whichever string can
-		// reach this pitch with a playable fret (0..24).
 		const order = [
 			store.cursor.string,
 			...track.tuning.map((_, i) => i).filter((i) => i !== store.cursor.string)
@@ -81,10 +89,16 @@
 </script>
 
 <div class="piano" role="group" aria-label="Virtual piano keyboard">
-	<div class="keys" style="width:{OCTAVES * 7 * 40}px">
-		{#each whiteKeys as k (k.midi)}
+	<div class="keys" style="width:{PIANO_W}px">
+		{#each WHITE_KEYS as k (k.midi)}
 			{@const active = !!noteAtMidi(k.midi)}
-			<button class="white" class:active onclick={() => place(k.midi)} title={label(k.midi)}>
+			<button
+				class="white"
+				class:active
+				style="width:{WHITE_KEY_W}px"
+				onclick={() => place(k.midi)}
+				title={label(k.midi)}
+			>
 				{#if active}
 					<span class="note-dot" style="background:{track.color}">{label(k.midi)}</span>
 				{:else if k.isC}
@@ -92,12 +106,12 @@
 				{/if}
 			</button>
 		{/each}
-		{#each blackKeys as k (k.midi)}
+		{#each BLACK_KEYS as k (k.midi)}
 			{@const active = !!noteAtMidi(k.midi)}
 			<button
 				class="black"
 				class:active
-				style="left:{(k.boundary + 1) * 40 - 13}px"
+				style="left:{(k.leftWhiteIdx + 1) * WHITE_KEY_W - 11}px"
 				onclick={() => place(k.midi)}
 				title={label(k.midi)}
 			>
@@ -120,11 +134,10 @@
 	.keys {
 		position: relative;
 		display: flex;
-		height: 120px;
+		height: 110px;
 	}
 	.white {
 		position: relative;
-		width: 40px;
 		height: 100%;
 		border: none;
 		border-right: 1px solid var(--border-strong);
@@ -133,8 +146,9 @@
 		display: flex;
 		align-items: flex-end;
 		justify-content: center;
-		padding-bottom: 6px;
-		border-radius: 0 0 4px 4px;
+		padding-bottom: 4px;
+		border-radius: 0 0 3px 3px;
+		flex-shrink: 0;
 	}
 	.white:first-child {
 		border-left: 1px solid var(--border-strong);
@@ -148,7 +162,7 @@
 	.black {
 		position: absolute;
 		top: 0;
-		width: 26px;
+		width: 22px;
 		height: 62%;
 		z-index: 2;
 		border: none;
@@ -158,7 +172,7 @@
 		display: flex;
 		align-items: flex-end;
 		justify-content: center;
-		padding-bottom: 4px;
+		padding-bottom: 3px;
 		box-shadow: 0 2px 3px rgba(0, 0, 0, 0.3);
 	}
 	.black:hover {
@@ -168,16 +182,16 @@
 		background: var(--accent-2);
 	}
 	.ghost {
-		font-size: 9px;
+		font-size: 8px;
 		color: var(--faint);
 	}
 	.note-dot {
-		width: 20px;
-		height: 20px;
+		width: 18px;
+		height: 18px;
 		border-radius: 50%;
 		color: var(--ink);
 		font:
-			700 9px ui-monospace,
+			700 8px ui-monospace,
 			monospace;
 		display: flex;
 		align-items: center;
@@ -189,7 +203,10 @@
 	}
 	@media (max-width: 720px) {
 		.keys {
-			height: 140px;
+			height: 130px;
+		}
+		.white {
+			width: 40px !important;
 		}
 	}
 </style>

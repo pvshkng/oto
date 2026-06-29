@@ -205,7 +205,7 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 	const keySigGlyphs = keySignatureGlyphs(keyFifths, clef);
 	const keySigWidth = keySignatureWidth(keyFifths);
 	const headerWidth = METRICS.headerWidth + keySigWidth;
-	const standardHeight = METRICS.staffLineGap * 8 + 24; // 5 lines + ledger room
+	const standardHeight = METRICS.staffLineGap * 8 + 32; // 5 lines + ledger room
 	const tabHeight = (stringCount - 1) * METRICS.tabLineGap + 28;
 	const rhythmHeight = 30;
 
@@ -214,7 +214,7 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 	const bands: TrackLayout['bands'] = { standard: null, tab: null, rhythm: null };
 	if (opts.showStandard) {
 		bands.standard = { offsetY: y, height: standardHeight };
-		y += standardHeight + 6;
+		y += standardHeight + 16;
 	}
 	if (opts.showRhythm && !opts.showStandard) {
 		bands.rhythm = { offsetY: y, height: rhythmHeight };

@@ -73,12 +73,40 @@ export class ScoreStore {
 	editTool = $state<'keypad' | 'fretboard' | 'piano'>('keypad');
 	songModalOpen = $state(false);
 
+	// Desktop-only UI state. keyInputOpen controls the bottom key-entry panel
+	// (keypad/fretboard/piano) independently of the left note-properties panel.
+	// tempoOpen and addRemoveOpen lift those formerly-local BottomBar states into
+	// the store so the desktop right panel can read them.
+	isDesktop = $state(false);
+	keyInputOpen = $state(false);
+	tempoOpen = $state(false);
+	addRemoveOpen = $state(false);
+	trackControlOpen = $state(false);
+	trackControlIndex = $state(-1);
+
+	/** Call once from onMount after browser APIs are available. */
+	initLayout() {
+		const mq = window.matchMedia('(min-width: 1024px)');
+		this.isDesktop = mq.matches;
+		if (mq.matches) this.#mixerOpenState = true;
+		mq.addEventListener('change', (e) => {
+			this.isDesktop = e.matches;
+			if (e.matches) {
+				this.#mixerOpenState = true;
+			} else {
+				this.keyInputOpen = false;
+				this.tempoOpen = false;
+				this.addRemoveOpen = false;
+			}
+		});
+	}
+
 	get editMode(): boolean {
 		return this.#editModeState;
 	}
 	set editMode(v: boolean) {
 		this.#editModeState = v;
-		if (v) this.#mixerOpenState = false;
+		if (v && !this.isDesktop) this.#mixerOpenState = false;
 	}
 
 	/** Tracks panel (the menubar "Tracks" panel). */

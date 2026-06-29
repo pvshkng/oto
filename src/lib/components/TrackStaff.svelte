@@ -395,7 +395,7 @@
 		{/if}
 		{#each beat.notes as n (n.string)}
 			{@const isDead = n.techniques.includes('dead')}
-			<rect x={n.x - 7} y={n.tabY - 6} width="14" height="12" class="fret-bg" />
+			<rect x={n.x - 6} y={n.tabY - 4} width="13" height="10" class="fret-bg" />
 			<text x={n.x} y={n.tabY + 4} class="fret" class:muted-note={isDead} class:v2={vIdx === 1}
 				>{isDead ? 'x' : n.fret}</text
 			>

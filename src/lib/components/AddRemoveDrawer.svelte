@@ -14,19 +14,19 @@
 	import Trash from 'phosphor-svelte/lib/Trash';
 	import MusicNotesPlus from 'phosphor-svelte/lib/MusicNotesPlus';
 
-	let { open = $bindable(false) }: { open: boolean } = $props();
+	let { open = $bindable(false) }: { open?: boolean } = $props();
 
 	let trackEditOpen = $state(false);
 	let trackEditIndex = $state(-1);
 
 	function addTrack() {
-		open = false;
+		store.addRemoveOpen = false;
 		store.addTrack();
 		trackEditIndex = store.cursor.track;
 		trackEditOpen = true;
 	}
 	function editCurrentTrack() {
-		open = false;
+		store.addRemoveOpen = false;
 		trackEditIndex = store.cursor.track;
 		trackEditOpen = true;
 	}
@@ -36,11 +36,11 @@
 
 	function run(fn: () => void) {
 		fn();
-		open = false;
+		store.addRemoveOpen = false;
 	}
 </script>
 
-<Drawer.Root bind:open direction="bottom">
+<Drawer.Root bind:open={store.addRemoveOpen} direction="bottom">
 	<Drawer.Content class="mx-auto w-full max-w-md rounded-t-2xl border outline-none">
 		<Drawer.Header>
 			<Drawer.Title>Add or remove</Drawer.Title>

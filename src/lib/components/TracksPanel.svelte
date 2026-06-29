@@ -16,16 +16,31 @@
 	import type { OtoTrack } from '$lib/oto/types';
 
 	import Plus from 'phosphor-svelte/lib/Plus';
-	import Sliders from 'phosphor-svelte/lib/Sliders';
 	import X from 'phosphor-svelte/lib/X';
 	import MapPin from 'phosphor-svelte/lib/MapPin';
 	import MagnifyingGlassPlus from 'phosphor-svelte/lib/MagnifyingGlassPlus';
 	import MagnifyingGlassMinus from 'phosphor-svelte/lib/MagnifyingGlassMinus';
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 
-	// Width of the frozen track-controls column (kept in sync with the markup so
-	// the absolute playhead can offset past it).
-	const LEAD = 184;
+	// Width of the frozen track-controls column. On desktop the user can drag the
+	// resize handle to widen/narrow it between 180 px and 350 px.
+	let LEAD = $state(260);
+
+	function startColumnResize(e: PointerEvent) {
+		if (!store.isDesktop) return;
+		e.preventDefault();
+		const startX = e.clientX;
+		const startW = LEAD;
+		function onMove(ev: PointerEvent) {
+			LEAD = Math.max(220, Math.min(420, startW + ev.clientX - startX));
+		}
+		function onUp() {
+			window.removeEventListener('pointermove', onMove);
+			window.removeEventListener('pointerup', onUp);
+		}
+		window.addEventListener('pointermove', onMove);
+		window.addEventListener('pointerup', onUp);
+	}
 
 	// Pixels per measure in the timeline. Adjustable via the zoom control so long
 	// songs don't sprawl; defaults small enough to fit a few bars on a phone, and
@@ -102,8 +117,16 @@
 
 	function addTrack() {
 		store.addTrack();
-		editIndex = store.cursor.track;
-		editOpen = true;
+		if (store.isDesktop) {
+			store.tempoOpen = false;
+			store.songModalOpen = false;
+			store.addRemoveOpen = false;
+			store.trackControlOpen = true;
+			store.trackControlIndex = store.cursor.track;
+		} else {
+			editIndex = store.cursor.track;
+			editOpen = true;
+		}
 	}
 
 	function jumpTo(measure: number, track = store.cursor.track) {
@@ -171,44 +194,47 @@
 	}
 </script>
 
-<div class="bg-background flex max-h-[55vh] flex-col border-t">
+<div
+	class={cn('bg-background flex flex-col border-t', store.isDesktop ? 'h-full' : 'max-h-[55vh]')}
+>
 	<div class="flex flex-row items-center justify-between gap-2 border-b px-4 py-3">
-		<div class="flex items-center gap-2">
-			<Sliders class="size-5" />
-			<h2 class="text-foreground text-base font-semibold">Tracks</h2>
-			<span class="sr-only">
-				Mix levels, panning and EQ for each track, view the arrangement and manage section markers.
-			</span>
+		<div class="mr-1 flex shrink-0 items-stretch">
+			<button
+				class={cn(
+					'text-muted-foreground flex size-7 items-center justify-center rounded-md rounded-r-none border',
+					cell <= MIN_CELL ? 'sunk' : 'hover:text-foreground'
+				)}
+				title="Zoom out timeline"
+				aria-label="Zoom out timeline"
+				disabled={cell <= MIN_CELL}
+				onclick={() => zoom(-1)}
+			>
+				<MagnifyingGlassMinus class="size-4" />
+			</button>
+			<button
+				class={cn(
+					'text-muted-foreground flex size-7 items-center justify-center rounded-md rounded-l-none border border-l-0',
+					cell >= MAX_CELL ? 'sunk' : 'hover:text-foreground'
+				)}
+				title="Zoom in timeline"
+				aria-label="Zoom in timeline"
+				disabled={cell >= MAX_CELL}
+				onclick={() => zoom(1)}
+			>
+				<MagnifyingGlassPlus class="size-4" />
+			</button>
 		</div>
 		<div class="flex items-center gap-1.5">
-			<div class="mr-1 flex shrink-0 items-stretch">
+			{#if !store.isDesktop}
 				<button
-					class="text-muted-foreground hover:text-foreground flex size-7 items-center justify-center rounded-md rounded-r-none border disabled:opacity-40"
-					title="Zoom out timeline"
-					aria-label="Zoom out timeline"
-					disabled={cell <= MIN_CELL}
-					onclick={() => zoom(-1)}
+					class="text-muted-foreground hover:text-foreground p-1"
+					title="Close tracks panel"
+					aria-label="Close tracks panel"
+					onclick={() => (store.mixerOpen = false)}
 				>
-					<MagnifyingGlassMinus class="size-4" />
+					<X class="size-5" />
 				</button>
-				<button
-					class="text-muted-foreground hover:text-foreground flex size-7 items-center justify-center rounded-md rounded-l-none border border-l-0 disabled:opacity-40"
-					title="Zoom in timeline"
-					aria-label="Zoom in timeline"
-					disabled={cell >= MAX_CELL}
-					onclick={() => zoom(1)}
-				>
-					<MagnifyingGlassPlus class="size-4" />
-				</button>
-			</div>
-			<button
-				class="text-muted-foreground hover:text-foreground p-1"
-				title="Close tracks panel"
-				aria-label="Close tracks panel"
-				onclick={() => (store.mixerOpen = false)}
-			>
-				<X class="size-5" />
-			</button>
+			{/if}
 		</div>
 	</div>
 
@@ -225,16 +251,19 @@
 			<!-- Measure ruler -->
 			<div class="bg-background sticky top-0 z-20 flex border-b">
 				<div
-					class="bg-background sticky left-0 z-10 flex w-[184px] shrink-0 items-center gap-1.5 border-r px-3 py-1.5"
+					class="bg-background sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r px-3 py-1.5"
+					style="width:{LEAD}px"
 				>
-					<button
-						class="text-muted-foreground hover:text-foreground flex shrink-0 items-center"
-						title={allRowsOpen ? 'Collapse all tracks' : 'Expand all tracks'}
-						aria-label={allRowsOpen ? 'Collapse all tracks' : 'Expand all tracks'}
-						onclick={toggleAllRows}
-					>
-						<CaretDown class={cn('size-3.5 transition-transform', allRowsOpen && 'rotate-180')} />
-					</button>
+					{#if !store.isDesktop}
+						<button
+							class="text-muted-foreground hover:text-foreground flex shrink-0 items-center"
+							title={allRowsOpen ? 'Collapse all tracks' : 'Expand all tracks'}
+							aria-label={allRowsOpen ? 'Collapse all tracks' : 'Expand all tracks'}
+							onclick={toggleAllRows}
+						>
+							<CaretDown class={cn('size-3.5 transition-transform', allRowsOpen && 'rotate-180')} />
+						</button>
+					{/if}
 					<span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
 						>Track</span
 					>
@@ -267,14 +296,14 @@
 			<!-- One row per track -->
 			{#each tracks as track, i (track.id)}
 				{@const active = store.cursor.track === i}
-				<div class={cn('flex border-b', active && 'bg-muted/40')}>
+				<div class={cn('relative flex border-b', active && 'bg-muted/40')}>
 					<!-- Frozen controls column -->
 					<div
 						class={cn(
-							'bg-background sticky left-0 z-10 flex w-[184px] shrink-0 flex-col gap-1.5 border-r px-2.5 py-2',
+							'bg-background sticky left-0 z-10 flex shrink-0 flex-col gap-1.5 border-r px-2.5 py-2',
 							active && 'bg-muted/60'
 						)}
-						style="border-left:3px solid {track.color}"
+						style="width:{LEAD}px;border-left:3px solid {track.color}"
 					>
 						<div class="flex items-center gap-1.5">
 							<!-- Name + Mute + Solo as one stuck-together control: the name opens
@@ -286,8 +315,16 @@
 									aria-label={`${track.name} track control`}
 									onclick={() => {
 										store.setCursor({ track: i });
-										editIndex = i;
-										editOpen = true;
+										if (store.isDesktop) {
+											store.tempoOpen = false;
+											store.songModalOpen = false;
+											store.addRemoveOpen = false;
+											store.trackControlOpen = true;
+											store.trackControlIndex = i;
+										} else {
+											editIndex = i;
+											editOpen = true;
+										}
 									}}
 								>
 									<span class="truncate">{track.name}</span>
@@ -315,20 +352,24 @@
 									onclick={() => store.toggleSolo(i)}>S</button
 								>
 							</div>
-							<button
-								class="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-md"
-								title={rowOpen[track.id] ? 'Collapse track controls' : 'Expand track controls'}
-								aria-label={rowOpen[track.id] ? 'Collapse track controls' : 'Expand track controls'}
-								aria-expanded={!!rowOpen[track.id]}
-								onclick={() => toggleRow(track.id)}
-							>
-								<CaretDown
-									class={cn('size-4 transition-transform', rowOpen[track.id] && 'rotate-180')}
-								/>
-							</button>
+							{#if !store.isDesktop}
+								<button
+									class="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-md"
+									title={rowOpen[track.id] ? 'Collapse track controls' : 'Expand track controls'}
+									aria-label={rowOpen[track.id]
+										? 'Collapse track controls'
+										: 'Expand track controls'}
+									aria-expanded={!!rowOpen[track.id]}
+									onclick={() => toggleRow(track.id)}
+								>
+									<CaretDown
+										class={cn('size-4 transition-transform', rowOpen[track.id] && 'rotate-180')}
+									/>
+								</button>
+							{/if}
 						</div>
 
-						{#if rowOpen[track.id]}
+						{#if rowOpen[track.id] || store.isDesktop}
 							<div class="flex items-center gap-2">
 								<input
 									type="range"
@@ -409,6 +450,16 @@
 						{/if}
 					</div>
 
+					<!-- Column resize handle (desktop only) — positioned at the column border -->
+					{#if store.isDesktop}
+						<div
+							class="resize-handle"
+							style="left:{LEAD - 4}px"
+							onpointerdown={startColumnResize}
+							title="Drag to resize track controls"
+						></div>
+					{/if}
+
 					<!-- Arrangement blocks -->
 					<button
 						class="relative flex shrink-0 cursor-pointer"
@@ -451,7 +502,8 @@
 			<!-- Master strip -->
 			<div class="flex border-b bg-muted/30">
 				<div
-					class="bg-muted/40 sticky left-0 z-10 flex w-[184px] shrink-0 items-center gap-2 border-r px-2.5 py-2.5"
+					class="bg-muted/40 sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r px-2.5 py-2.5"
+					style="width:{LEAD}px"
 				>
 					<span class="text-foreground shrink-0 text-[13px] font-bold">Master</span>
 					<input
@@ -480,7 +532,8 @@
 			<!-- Section markers -->
 			<div class="flex">
 				<div
-					class="bg-background sticky left-0 z-10 flex w-[184px] shrink-0 items-center justify-between gap-2 border-r px-2.5 py-2"
+					class="bg-background sticky left-0 z-10 flex shrink-0 items-center justify-between gap-2 border-r px-2.5 py-2"
+					style="width:{LEAD}px"
 				>
 					<span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
 						>Sections</span
@@ -530,9 +583,17 @@
 	</div>
 </div>
 
-<TrackControlDrawer bind:open={editOpen} index={editIndex} />
+{#if !store.isDesktop}
+	<TrackControlDrawer bind:open={editOpen} index={editIndex} />
+{/if}
 
 <style>
+	/* Strip the global gradient sheen from buttons in this panel — the
+	   arrangement blocks and chevrons should be transparent/flat. */
+	button {
+		background-image: none;
+	}
+
 	/* Minimal monochrome fader, consistent with the app's neutral palette. */
 	.mixer-fader {
 		-webkit-appearance: none;
@@ -561,5 +622,22 @@
 		border-radius: 50%;
 		background: var(--ink);
 		border: 2px solid var(--paper);
+	}
+	/* Resize handle sits at the right edge of the frozen controls column.
+	   It's absolutely positioned relative to its track row and floats over
+	   the boundary so it doesn't affect layout width. */
+	.resize-handle {
+		position: absolute;
+		/* left value gets set via JS but we keep a CSS fallback */
+		width: 8px;
+		top: 0;
+		bottom: 0;
+		cursor: col-resize;
+		z-index: 15;
+		background: transparent;
+		/* visual hint on hover */
+	}
+	.resize-handle:hover {
+		background: color-mix(in srgb, var(--primary) 20%, transparent);
 	}
 </style>

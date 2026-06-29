@@ -15,7 +15,11 @@
 import * as Tone from 'tone';
 
 export type SampleSet =
-	'bass-electric' | 'guitar-acoustic' | 'guitar-electric' | 'guitar-nylon' | 'piano';
+	| 'bass-electric'
+	| 'guitar-acoustic'
+	| 'guitar-electric'
+	| 'guitar-nylon'
+	| 'piano';
 
 /** Where the vendored samples are served from (static/samples → /samples). */
 const BASE_URL = '/samples/';

@@ -4,6 +4,7 @@
 
 	import { store } from '$lib/stores/score.svelte';
 	import { audio, type MetronomeSound } from '$lib/audio/engine';
+	// open prop is kept for API compatibility but store.tempoOpen drives the drawer
 	import * as Drawer from '$lib/components/ui/drawer';
 	import { Button } from '$lib/components/ui/button';
 	import { cn } from '$lib/utils';
@@ -11,7 +12,7 @@
 	import Plus from 'phosphor-svelte/lib/Plus';
 	import SpeakerSimpleHigh from 'phosphor-svelte/lib/SpeakerSimpleHigh';
 
-	let { open = $bindable(false) }: { open: boolean } = $props();
+	let { open = $bindable(false) }: { open?: boolean } = $props();
 
 	const MIN = 20;
 	const MAX = 400;
@@ -41,7 +42,7 @@
 	}
 </script>
 
-<Drawer.Root bind:open direction="bottom">
+<Drawer.Root bind:open={store.tempoOpen} direction="bottom">
 	<Drawer.Content class="mx-auto w-full max-w-md rounded-t-2xl border outline-none">
 		<Drawer.Header>
 			<Drawer.Title>Tempo</Drawer.Title>
