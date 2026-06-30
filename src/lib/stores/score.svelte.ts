@@ -64,8 +64,8 @@ export class ScoreStore {
 	activeDotted = $state(false);
 	/** Auto-advance the cursor to the next beat after a note is committed. */
 	autoAdvance = $state(true);
-	/** Clipboard for cut/copy/paste operations. */
-	clipboard = $state<OtoBeat[] | null>(null);
+	/** Clipboard for cut/copy/paste operations. Outer array = bar groups, inner = beats per bar. */
+	clipboard = $state<OtoBeat[][] | null>(null);
 
 	// Bottom edit panel UI. The note editor (keypad/fretboard) and the tracks
 	// panel share the same dock and are mutually exclusive — opening one closes
@@ -1001,24 +1001,26 @@ export class ScoreStore {
 		const b = this.loopBounds;
 		if (!b) {
 			const beat = this.currentBeatRef();
-			if (beat) this.clipboard = [JSON.parse(JSON.stringify(beat))];
+			if (beat) this.clipboard = [[JSON.parse(JSON.stringify(beat))]];
 			return;
 		}
 		const t = this.selection?.track ?? this.cursor.track;
 		const track = this.score.tracks[t];
 		if (!track) return;
-		const copied: OtoBeat[] = [];
+		const barGroups: OtoBeat[][] = [];
 		for (let mi = b.startMeasure; mi <= b.endMeasure; mi++) {
 			const measure = track.measures[mi];
 			if (!measure) continue;
 			const firstBeat = mi === b.startMeasure ? b.startBeat : 0;
 			const lastBeat = mi === b.endMeasure ? b.endBeat : measure.beats.length - 1;
+			const group: OtoBeat[] = [];
 			for (let bi = firstBeat; bi <= lastBeat; bi++) {
 				const beat = measure.beats[bi];
-				if (beat) copied.push(JSON.parse(JSON.stringify(beat)));
+				if (beat) group.push(JSON.parse(JSON.stringify(beat)));
 			}
+			if (group.length > 0) barGroups.push(group);
 		}
-		this.clipboard = copied;
+		if (barGroups.length > 0) this.clipboard = barGroups;
 	}
 
 	cutSelection() {
@@ -1028,15 +1030,41 @@ export class ScoreStore {
 
 	pasteClipboard() {
 		if (!this.clipboard || this.clipboard.length === 0) return;
-		const clips = this.clipboard;
+		const barGroups = this.clipboard;
+		// Guard: first group must have at least one beat
+		if (!barGroups[0] || barGroups[0].length === 0) return;
 		this.commit(() => {
-			const beats = this.editBeats();
-			let at = this.cursor.beat + 1;
-			for (const b of clips) {
-				beats.splice(at, 0, JSON.parse(JSON.stringify(b)));
-				at++;
+			const startMeasure = this.cursor.measure;
+			const insertAt = this.cursor.beat + 1;
+
+			// First bar group → insert into the active voice at cursor position
+			const currentBeats = this.editBeats();
+			const firstGroup = barGroups[0];
+			for (let i = 0; i < firstGroup.length; i++) {
+				currentBeats.splice(insertAt + i, 0, JSON.parse(JSON.stringify(firstGroup[i])));
 			}
-			this.cursor = { ...this.cursor, beat: this.cursor.beat + 1 };
+
+			// Subsequent bar groups → insert into successive measures (voice 1 only)
+			for (let gi = 1; gi < barGroups.length; gi++) {
+				const group = barGroups[gi];
+				if (!group || group.length === 0) continue;
+				const targetIndex = startMeasure + gi;
+				// Extend every track so measure counts stay in sync across tracks
+				if (this.score.tracks.length > 0) {
+					while ((this.score.tracks[0].measures.length ?? 0) <= targetIndex) {
+						for (const t of this.score.tracks) {
+							t.measures.push(emptyMeasure());
+						}
+					}
+				}
+				const targetMeasure = this.track.measures[targetIndex];
+				if (!targetMeasure) continue;
+				for (let i = 0; i < group.length; i++) {
+					targetMeasure.beats.splice(i, 0, JSON.parse(JSON.stringify(group[i])));
+				}
+			}
+
+			this.cursor = { ...this.cursor, beat: insertAt };
 		});
 	}
 

@@ -7,6 +7,7 @@
 	import { layoutTrack, METRICS, type LaidBeat, type LaidMeasure } from '$lib/notation/layout';
 	import { GLYPH, restGlyph, timeSigGlyphs, accidentalGlyph } from '$lib/notation/glyphs';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
+	import * as Kbd from '$lib/components/ui/kbd';
 	import { DURATION_ORDER } from '$lib/oto/duration';
 	import { DURATION_LABELS, TECHNIQUE_LABELS, type DurationValue } from '$lib/oto/types';
 	import { midiToNote } from '$lib/oto/pitch';
@@ -156,7 +157,7 @@
 
 		let string = store.cursor.string;
 		if (band === 'tab' && layout.bands.tab) {
-			const localY = py - sysOffsetFor(measure) - layout.bands.tab.offsetY - 14;
+			const localY = py - layout.bands.tab.offsetY - 14;
 			string = Math.max(
 				0,
 				Math.min(track.tuning.length - 1, Math.round(localY / METRICS.tabLineGap))
@@ -202,7 +203,7 @@
 	}
 
 	// We render each system in its own translated <g>; track its y offset.
-	function sysOffsetFor(measure: LaidMeasure): number {
+	function _sysOffsetFor(measure: LaidMeasure): number {
 		for (const s of layout.systems) {
 			if (s.measures.includes(measure)) return s.y;
 		}
@@ -280,11 +281,13 @@
 
 	function onDragPointerDown(e: PointerEvent) {
 		if (!store.isDesktop || e.button !== 0) return;
-		e.preventDefault(); // stop browser from selecting Bravura glyphs/text
 		dragStartClient = { x: e.clientX, y: e.clientY };
 		dragAnchor = findBeatAtClient(e.clientX, e.clientY);
 		dragging = false;
-		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		// Use document listeners instead of setPointerCapture so click/dblclick
+		// still fire on the <g> children (setPointerCapture redirects them to the div).
+		document.addEventListener('pointermove', onDragPointerMove);
+		document.addEventListener('pointerup', onDragPointerUp);
 	}
 
 	function onDragPointerMove(e: PointerEvent) {
@@ -303,6 +306,8 @@
 	}
 
 	function onDragPointerUp(_e: PointerEvent) {
+		document.removeEventListener('pointermove', onDragPointerMove);
+		document.removeEventListener('pointerup', onDragPointerUp);
 		if (dragging) {
 			store.loopEnabled = true;
 			suppressNextClick = true;
@@ -555,8 +560,6 @@
 			bind:this={container}
 			class:active={isActiveTrack}
 			onpointerdown={onDragPointerDown}
-			onpointermove={onDragPointerMove}
-			onpointerup={onDragPointerUp}
 		>
 			{#each layout.systems as system (system.y)}
 				<svg
@@ -800,10 +803,24 @@
 			{/each}
 		</div>
 	</ContextMenu.Trigger>
-	<ContextMenu.Content class="w-56">
-		<div class="text-muted-foreground px-2 py-1.5 text-xs font-medium">Note</div>
+	<ContextMenu.Content class="w-60">
+		<ContextMenu.Item onSelect={() => store.cutSelection()}>
+			Cut
+			<Kbd.Group class="ml-auto"><Kbd.Root>Ctrl</Kbd.Root><Kbd.Root>X</Kbd.Root></Kbd.Group>
+		</ContextMenu.Item>
+		<ContextMenu.Item onSelect={() => store.copySelection()}>
+			Copy
+			<Kbd.Group class="ml-auto"><Kbd.Root>Ctrl</Kbd.Root><Kbd.Root>C</Kbd.Root></Kbd.Group>
+		</ContextMenu.Item>
+		<ContextMenu.Item disabled={!store.clipboard} onSelect={() => store.pasteClipboard()}>
+			Paste
+			<Kbd.Group class="ml-auto"><Kbd.Root>Ctrl</Kbd.Root><Kbd.Root>V</Kbd.Root></Kbd.Group>
+		</ContextMenu.Item>
+
+		<ContextMenu.Separator />
+
 		<ContextMenu.Sub>
-			<ContextMenu.SubTrigger>Duration</ContextMenu.SubTrigger>
+			<ContextMenu.SubTrigger>Note</ContextMenu.SubTrigger>
 			<ContextMenu.SubContent class="w-44">
 				{#each DURATION_ORDER as d (d)}
 					<ContextMenu.Item onSelect={() => setDuration(d)}>
@@ -814,38 +831,28 @@
 				{/each}
 				<ContextMenu.Separator />
 				<ContextMenu.Item onSelect={toggleDotted}>
-					<span>Dotted</span>
-					{#if store.activeDotted}<span class="ml-auto">●</span>{/if}
+					Dotted
+					<Kbd.Root class="ml-auto">.</Kbd.Root>
+					{#if store.activeDotted}<span class="ml-1">●</span>{/if}
 				</ContextMenu.Item>
+				<ContextMenu.Separator />
+				<ContextMenu.Sub>
+					<ContextMenu.SubTrigger>Effects</ContextMenu.SubTrigger>
+					<ContextMenu.SubContent class="w-48">
+						{#each EFFECT_LIST as t (t)}
+							<ContextMenu.Item
+								onSelect={() => store.toggleTechnique(t)}
+								disabled={t !== 'dead' && !ctxNote}
+							>
+								<span>{TECHNIQUE_LABELS[t]}</span>
+								{#if hasTech(t)}<span class="ml-auto">●</span>{/if}
+							</ContextMenu.Item>
+						{/each}
+					</ContextMenu.SubContent>
+				</ContextMenu.Sub>
 			</ContextMenu.SubContent>
 		</ContextMenu.Sub>
 
-		<ContextMenu.Sub>
-			<ContextMenu.SubTrigger>Effects</ContextMenu.SubTrigger>
-			<ContextMenu.SubContent class="w-48">
-				{#each EFFECT_LIST as t (t)}
-					<ContextMenu.Item
-						onSelect={() => store.toggleTechnique(t)}
-						disabled={t !== 'dead' && !ctxNote}
-					>
-						<span>{TECHNIQUE_LABELS[t]}</span>
-						{#if hasTech(t)}<span class="ml-auto">●</span>{/if}
-					</ContextMenu.Item>
-				{/each}
-			</ContextMenu.SubContent>
-		</ContextMenu.Sub>
-
-		<ContextMenu.Separator />
-		<ContextMenu.Item onSelect={() => store.cutSelection()}>Cut</ContextMenu.Item>
-		<ContextMenu.Item onSelect={() => store.copySelection()}>Copy</ContextMenu.Item>
-		<ContextMenu.Item disabled={!store.clipboard} onSelect={() => store.pasteClipboard()}>
-			Paste
-		</ContextMenu.Item>
-		<ContextMenu.Separator />
-		<ContextMenu.Item disabled={!store.selection} onSelect={() => store.clearSelection()}>
-			Clear selection
-		</ContextMenu.Item>
-		<ContextMenu.Separator />
 		<ContextMenu.Item
 			disabled={!ctxNote && !store.selection}
 			variant="destructive"
@@ -853,39 +860,66 @@
 				store.selection ? store.deleteNotesInSelection() : store.deleteNoteAtCursor()}
 		>
 			{store.selection ? 'Delete note(s)' : 'Delete note'}
+			<Kbd.Root class="ml-auto">Del</Kbd.Root>
 		</ContextMenu.Item>
 
 		<ContextMenu.Separator />
-		<div class="text-muted-foreground px-2 py-1.5 text-xs font-medium">Beat</div>
-		<ContextMenu.Item onSelect={() => store.insertBeatBefore()}>
-			Insert beat before
-		</ContextMenu.Item>
-		<ContextMenu.Item onSelect={() => store.insertBeat()}>Insert beat after</ContextMenu.Item>
+
 		<ContextMenu.Item onSelect={() => store.setLoopStartAtCursor()}>
-			Mark selection start
+			Mark start
+			<Kbd.Root class="ml-auto">[</Kbd.Root>
 		</ContextMenu.Item>
 		<ContextMenu.Item onSelect={() => store.setLoopEndAtCursor()}>
-			Mark selection end
+			Mark end
+			<Kbd.Root class="ml-auto">]</Kbd.Root>
+		</ContextMenu.Item>
+		<ContextMenu.Item disabled={!store.selection} onSelect={() => store.clearSelection()}>
+			Deselect
+			<Kbd.Group class="ml-auto"><Kbd.Root>Ctrl</Kbd.Root><Kbd.Root>D</Kbd.Root></Kbd.Group>
 		</ContextMenu.Item>
 
 		<ContextMenu.Separator />
-		<div class="text-muted-foreground px-2 py-1.5 text-xs font-medium">
-			Bar {store.cursor.measure + 1}
-		</div>
 
-		<ContextMenu.Item onSelect={() => store.insertMeasureAt(store.cursor.measure)}>
-			Insert bar before
-		</ContextMenu.Item>
-		<ContextMenu.Item onSelect={() => store.insertMeasureAt(store.cursor.measure + 1)}>
-			Insert bar after
-		</ContextMenu.Item>
+		<ContextMenu.Sub>
+			<ContextMenu.SubTrigger>Insert beat</ContextMenu.SubTrigger>
+			<ContextMenu.SubContent class="w-48">
+				<ContextMenu.Item onSelect={() => store.insertBeatBefore()}>
+					Before
+					<Kbd.Group class="ml-auto"><Kbd.Root>⇧</Kbd.Root><Kbd.Root>↵</Kbd.Root></Kbd.Group>
+				</ContextMenu.Item>
+				<ContextMenu.Item onSelect={() => store.insertBeat()}>
+					After
+					<Kbd.Root class="ml-auto">↵</Kbd.Root>
+				</ContextMenu.Item>
+			</ContextMenu.SubContent>
+		</ContextMenu.Sub>
+
+		<ContextMenu.Separator />
+
+		<ContextMenu.Sub>
+			<ContextMenu.SubTrigger>Insert bar</ContextMenu.SubTrigger>
+			<ContextMenu.SubContent class="w-52">
+				<ContextMenu.Item onSelect={() => store.insertMeasureAt(store.cursor.measure)}>
+					Before
+					<Kbd.Group class="ml-auto"
+						><Kbd.Root>Ctrl</Kbd.Root><Kbd.Root>⇧</Kbd.Root><Kbd.Root>↵</Kbd.Root></Kbd.Group
+					>
+				</ContextMenu.Item>
+				<ContextMenu.Item onSelect={() => store.insertMeasureAt(store.cursor.measure + 1)}>
+					After
+					<Kbd.Group class="ml-auto"><Kbd.Root>Ctrl</Kbd.Root><Kbd.Root>↵</Kbd.Root></Kbd.Group>
+				</ContextMenu.Item>
+			</ContextMenu.SubContent>
+		</ContextMenu.Sub>
 		<ContextMenu.Item onSelect={() => store.duplicateMeasureAt(store.cursor.measure)}>
 			Duplicate bar
+			<Kbd.Group class="ml-auto"
+				><Kbd.Root>Ctrl</Kbd.Root><Kbd.Root>⇧</Kbd.Root><Kbd.Root>D</Kbd.Root></Kbd.Group
+			>
 		</ContextMenu.Item>
 		<ContextMenu.Item onSelect={() => store.clearMeasureAt(store.cursor.measure)}>
 			Clear bar
 		</ContextMenu.Item>
-
 		<ContextMenu.Sub>
 			<ContextMenu.SubTrigger>Time signature</ContextMenu.SubTrigger>
 			<ContextMenu.SubContent class="w-32">
@@ -894,8 +928,6 @@
 				{/each}
 			</ContextMenu.SubContent>
 		</ContextMenu.Sub>
-
-		<ContextMenu.Separator />
 		<ContextMenu.Item
 			variant="destructive"
 			disabled={track.measures.length <= 1}

@@ -109,6 +109,18 @@
 			store.pasteClipboard();
 			return;
 		}
+		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+			e.preventDefault();
+			if (e.shiftKey) store.duplicateMeasureAt(store.cursor.measure);
+			else store.clearSelection();
+			return;
+		}
+		if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+			e.preventDefault();
+			if (e.shiftKey) store.insertMeasureAt(store.cursor.measure);
+			else store.insertMeasureAt(store.cursor.measure + 1);
+			return;
+		}
 		if (store.isPlaying) return;
 
 		if (/^[0-9]$/.test(e.key)) {
@@ -145,7 +157,14 @@
 				break;
 			case 'Enter':
 				e.preventDefault();
-				store.insertBeat();
+				if (e.shiftKey) store.insertBeatBefore();
+				else store.insertBeat();
+				break;
+			case '[':
+				store.setLoopStartAtCursor();
+				break;
+			case ']':
+				store.setLoopEndAtCursor();
 				break;
 			case '-':
 				store.deleteBeat();
