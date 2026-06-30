@@ -60,30 +60,40 @@ export async function play() {
 
 	let window: { start: number; end: number } | null = null;
 	let repeat = false;
+	let loopPoint: number | undefined;
 	const bounds = store.loopEnabled ? store.loopBounds : null;
 
 	if (bounds) {
-		// Loop the selected region.
-		const start = timeAt(compiled, bounds.startMeasure, bounds.startBeat);
+		const loopStart = timeAt(compiled, bounds.startMeasure, bounds.startBeat);
 		const endTrack = store.score.tracks[0];
 		const endMeasure = endTrack.measures[bounds.endMeasure];
 		const endBeatCount = endMeasure?.beats.length ?? 0;
-		const end =
+		const loopEnd =
 			bounds.endBeat + 1 < endBeatCount
 				? timeAt(compiled, bounds.endMeasure, bounds.endBeat + 1)
 				: timeAt(compiled, bounds.endMeasure + 1, 0) || compiled.totalTime;
-		window = { start, end };
+
+		const cursorTime = timeAt(compiled, store.cursor.measure, store.cursor.beat);
+		if (cursorTime < loopStart - 1e-6) {
+			// Cursor is before the loop region: play from cursor, then loop within
+			// the selection after reaching its start for the first time.
+			window = { start: cursorTime, end: loopEnd };
+			loopPoint = loopStart - cursorTime;
+		} else {
+			// Cursor is inside or after the loop region: just loop the selection.
+			window = { start: loopStart, end: loopEnd };
+			loopPoint = 0;
+		}
 		repeat = true;
 	} else if (store.cursor.measure > 0 || store.cursor.beat > 0) {
-		// Otherwise start one-shot playback from the cursor position.
+		// No loop — one-shot playback from the cursor position.
 		const start = timeAt(compiled, store.cursor.measure, store.cursor.beat);
 		if (start > 0.01) window = { start, end: compiled.totalTime };
 	}
 
-	// Count-in: a bar of clicks (one per beat of the starting bar's metre) before
-	// the music. Uses the metre and tempo in effect at the first played measure.
-	const startMeasure = bounds?.startMeasure ?? store.cursor.measure;
-	const startBeat = bounds?.startBeat ?? store.cursor.beat;
+	// Count-in and initial playhead always track the cursor, not the loop region.
+	const startMeasure = store.cursor.measure;
+	const startBeat = store.cursor.beat;
 	const countIn = store.countInOn ? countInFor(startMeasure) : null;
 
 	store.isPlaying = true;
@@ -97,6 +107,7 @@ export async function play() {
 			metronomeVolume: store.metronomeVolume,
 			window,
 			repeat,
+			loopPoint,
 			countIn,
 			onMarker: () => {},
 			onBeatMarker: (measure, beat) => {

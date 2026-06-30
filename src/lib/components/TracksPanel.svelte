@@ -137,13 +137,24 @@
 
 	// Double tap/click a colored (content-bearing) block in the arrangement to
 	// jump there and scroll the main score view to that exact track.
-	function gotoSection(i: number, measure: number) {
-		const t = tracks[i];
-		if (!t || !trackHasContent(t, measure)) return;
+	//
+	// function gotoSection(i: number, measure: number) {
+	// 	const t = tracks[i];
+	// 	if (!t || !trackHasContent(t, measure)) return;
+	// 	store.focusedTrackId = t.id;
+	// 	jumpTo(measure, i);
+	// 	store.mixerOpen = false;
+	// 	store.scrollToTrack(t.id, measure);
+	// }
+
+	// Select all beats in one bar of a given track.
+	function selectBar(trackIdx: number, measure: number) {
+		const t = tracks[trackIdx];
+		if (!t) return;
+		const lastBeat = Math.max(0, (t.measures[measure]?.beats.length ?? 1) - 1);
 		store.focusedTrackId = t.id;
-		jumpTo(measure, i);
-		store.mixerOpen = false;
-		store.scrollToTrack(t.id, measure);
+		store.setCursor({ track: trackIdx, measure, beat: 0 });
+		store.setSelectionTo(measure, lastBeat);
 	}
 
 	// Native `dblclick` doesn't fire reliably from touch double-taps, so track
@@ -155,7 +166,7 @@
 		const x = e.clientX - (e.currentTarget as HTMLElement).getBoundingClientRect().left;
 		const measure = Math.min(measureCount - 1, Math.floor(x / cell));
 		if (lastTap.row === i && now - lastTap.time < 350) {
-			gotoSection(i, measure);
+			selectBar(i, measure);
 			lastTap = { row: -1, time: 0 };
 		} else {
 			lastTap = { row: i, time: now };
@@ -226,16 +237,14 @@
 			</button>
 		</div>
 		<div class="flex items-center gap-1.5">
-			
-				<button
-					class="text-muted-foreground hover:text-foreground p-1"
-					title="Close tracks panel"
-					aria-label="Close tracks panel"
-					onclick={() => (store.mixerOpen = false)}
-				>
-					<X class="size-5" />
-				</button>
-			
+			<button
+				class="text-muted-foreground hover:text-foreground p-1"
+				title="Close tracks panel"
+				aria-label="Close tracks panel"
+				onclick={() => (store.mixerOpen = false)}
+			>
+				<X class="size-5" />
+			</button>
 		</div>
 	</div>
 
@@ -304,7 +313,9 @@
 							'bg-background sticky left-0 z-10 flex shrink-0 flex-col gap-1.5 border-r px-2.5 py-2',
 							active && 'bg-muted/60'
 						)}
-						style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px;border-left:3px solid {track.color}"
+						style="width:{store.isDesktop
+							? LEAD
+							: LEAD_MOBILE}px;border-left:3px solid {track.color}"
 					>
 						{#if store.isDesktop}
 							<!-- Desktop: single row — Eye | Name | M | S · Vol · Pan · EQ -->
@@ -319,12 +330,21 @@
 												? 'sunk text-foreground'
 												: 'text-muted-foreground hover:text-foreground'
 										)}
-										title={store.focusedTrackId === track.id ? 'Viewing this track' : 'Focus this track'}
-										aria-label={store.focusedTrackId === track.id ? 'Viewing this track' : 'Focus this track'}
+										title={store.focusedTrackId === track.id
+											? 'Viewing this track'
+											: 'Focus this track'}
+										aria-label={store.focusedTrackId === track.id
+											? 'Viewing this track'
+											: 'Focus this track'}
 										aria-pressed={store.focusedTrackId === track.id}
-										onclick={() => { store.focusedTrackId = track.id; }}
+										onclick={() => {
+											store.focusedTrackId = track.id;
+										}}
 									>
-										<Eye class="size-3.5" weight={store.focusedTrackId === track.id ? 'fill' : 'regular'} />
+										<Eye
+											class="size-3.5"
+											weight={store.focusedTrackId === track.id ? 'fill' : 'regular'}
+										/>
 									</button>
 									<!-- Track name — no rounding, opens control panel + sets focus -->
 									<button
@@ -455,12 +475,21 @@
 												? 'sunk text-foreground'
 												: 'text-muted-foreground hover:text-foreground'
 										)}
-										title={store.focusedTrackId === track.id ? 'Viewing this track' : 'Focus this track'}
-										aria-label={store.focusedTrackId === track.id ? 'Viewing this track' : 'Focus this track'}
+										title={store.focusedTrackId === track.id
+											? 'Viewing this track'
+											: 'Focus this track'}
+										aria-label={store.focusedTrackId === track.id
+											? 'Viewing this track'
+											: 'Focus this track'}
 										aria-pressed={store.focusedTrackId === track.id}
-										onclick={() => { store.focusedTrackId = track.id; }}
+										onclick={() => {
+											store.focusedTrackId = track.id;
+										}}
 									>
-										<Eye class="size-3.5" weight={store.focusedTrackId === track.id ? 'fill' : 'regular'} />
+										<Eye
+											class="size-3.5"
+											weight={store.focusedTrackId === track.id ? 'fill' : 'regular'}
+										/>
 									</button>
 									<!-- Track name -->
 									<button
@@ -613,16 +642,26 @@
 					<button
 						class="relative flex shrink-0 cursor-pointer"
 						style="width:{timelineW}px"
-						title="Click to focus track · Double-tap a section to jump to it in the score"
+						title="Click to focus track · Shift-click to select bar range · Double-click to select entire bar"
 						onclick={(e) => {
 							const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
 							const measure = Math.min(measureCount - 1, Math.floor(x / cell));
-							store.focusedTrackId = track.id;
-							jumpTo(measure, i);
+							if (e.shiftKey && store.cursor.track === i) {
+								// Extend bar selection from the current cursor measure to here.
+								const anchor = store.cursor.measure;
+								const [start, end] = anchor <= measure ? [anchor, measure] : [measure, anchor];
+								const lastBeat = Math.max(0, (tracks[i].measures[end]?.beats.length ?? 1) - 1);
+								store.focusedTrackId = track.id;
+								store.setCursor({ track: i, measure: start, beat: 0 });
+								store.setSelectionTo(end, lastBeat);
+							} else {
+								store.focusedTrackId = track.id;
+								jumpTo(measure, i);
+							}
 						}}
 						ondblclick={(e) => {
 							const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
-							gotoSection(i, Math.min(measureCount - 1, Math.floor(x / cell)));
+							selectBar(i, Math.min(measureCount - 1, Math.floor(x / cell)));
 						}}
 						onpointerup={(e) => handleTrackbarTap(e, i)}
 					>

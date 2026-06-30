@@ -423,6 +423,11 @@ export interface PlayOptions {
 	window: { start: number; end: number } | null;
 	/** Loop the window indefinitely (used for loop-selection playback). */
 	repeat: boolean;
+	/** Seconds offset within the window where the loop restarts after the first
+	 *  pass. When null/0 the loop restarts from the window start (normal behavior).
+	 *  Set to a positive value to play a preamble (cursor → loop-start) once,
+	 *  then loop only the inner region indefinitely. */
+	loopPoint?: number;
 	/** Count-in: click `beats` times, `interval` seconds apart, before the music
 	 *  starts. null = no count-in. The clicks play once, even when looping. */
 	countIn: { beats: number; interval: number } | null;
@@ -710,9 +715,11 @@ export class AudioEngine {
 		transport.position = 0;
 		if (opts.repeat) {
 			transport.loop = true;
-			// Loop only the music, not the count-in: start the loop after the lead so
-			// the count plays once and the region repeats from the first real beat.
-			transport.loopStart = lead;
+			// Loop only the music, not the count-in. If a loopPoint is set the first
+			// pass plays from windowStart to windowEnd; subsequent loops play only
+			// from windowStart+loopPoint to windowEnd (the preamble plays once).
+			const loopOffset = opts.loopPoint ?? 0;
+			transport.loopStart = lead + loopOffset;
 			transport.loopEnd = lead + windowDur;
 		} else {
 			transport.loop = false;

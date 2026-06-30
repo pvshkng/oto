@@ -169,6 +169,8 @@
 		if (suppressNextClick) return;
 		const { beat, string } = locate(e, measure, band);
 		if (e.shiftKey) {
+			// Keep cursor where it is (just ensure this track is active), then extend
+			// selection from that anchor to the clicked beat.
 			store.setCursor({ track: trackIndex });
 			store.setSelectionTo(measure.index, beat);
 		} else {
@@ -177,7 +179,7 @@
 		}
 	}
 
-	// Double tap/click selects all beats in the tapped bar.
+	// Double-click selects all beats in the tapped bar.
 	function handleDoubleClick(
 		_e: MouseEvent,
 		measure: LaidMeasure,
@@ -278,9 +280,11 @@
 
 	function onDragPointerDown(e: PointerEvent) {
 		if (!store.isDesktop || e.button !== 0) return;
+		e.preventDefault(); // stop browser from selecting Bravura glyphs/text
 		dragStartClient = { x: e.clientX, y: e.clientY };
 		dragAnchor = findBeatAtClient(e.clientX, e.clientY);
 		dragging = false;
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 	}
 
 	function onDragPointerMove(e: PointerEvent) {
@@ -838,6 +842,10 @@
 			Paste
 		</ContextMenu.Item>
 		<ContextMenu.Separator />
+		<ContextMenu.Item disabled={!store.selection} onSelect={() => store.clearSelection()}>
+			Clear selection
+		</ContextMenu.Item>
+		<ContextMenu.Separator />
 		<ContextMenu.Item
 			disabled={!ctxNote && !store.selection}
 			variant="destructive"
@@ -906,6 +914,7 @@
 		width: 100%;
 		overflow-x: auto;
 		background: var(--paper, #fff);
+		user-select: none;
 	}
 	.system {
 		display: block;
