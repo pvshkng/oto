@@ -18,7 +18,6 @@
 
 	const ctxNote = $derived(store.currentNote);
 
-	let ctxOpen = $state(false);
 	let containerWidth = $state(800);
 	let container: HTMLDivElement;
 
@@ -135,7 +134,7 @@
 	const BEAM = 'stroke-[#18181b] [stroke-width:3.4] [stroke-linecap:butt]';
 </script>
 
-<ContextMenuPrimitive.Root bind:open={ctxOpen}>
+<ContextMenuPrimitive.Root bind:open={store.contextMenuOpen}>
 	<ContextMenuPrimitive.Trigger class="block">
 		<div
 			class="w-full overflow-x-auto bg-paper select-none"
@@ -446,5 +445,5 @@
 			{/each}
 		</div>
 	</ContextMenuPrimitive.Trigger>
-	<StaffContextMenu bind:ctxOpen {ctxNote} {track} />
+	<StaffContextMenu bind:ctxOpen={store.contextMenuOpen} {ctxNote} {track} />
 </ContextMenuPrimitive.Root>

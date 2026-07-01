@@ -199,7 +199,12 @@
 	}
 </script>
 
-<div class={cn('bg-background flex flex-col border-t', !store.isDesktop && 'max-h-[55vh]')}>
+<div
+	class={cn(
+		'bg-background/70 flex flex-col border-t backdrop-blur-md',
+		!store.isDesktop && 'max-h-[55vh]'
+	)}
+>
 	<div class="flex flex-row items-center justify-between gap-2 border-b px-4 py-3">
 		<div class="mr-1 flex shrink-0 items-stretch">
 			<button

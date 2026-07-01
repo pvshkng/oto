@@ -21,7 +21,9 @@
 		'inline-flex h-8 w-[38px] cursor-pointer items-center justify-center border border-l-0 border-border-strong text-text-muted';
 </script>
 
-<div class="flex flex-col gap-[7px] border-t border-border-strong bg-panel px-2.5 py-2 pb-1.5">
+<div
+	class="flex flex-col gap-[7px] border-t border-border-strong bg-panel/70 px-2.5 py-2 pb-1.5 backdrop-blur-md"
+>
 	<div class="flex items-center justify-between">
 		<div class="inline-flex items-stretch">
 			<button
