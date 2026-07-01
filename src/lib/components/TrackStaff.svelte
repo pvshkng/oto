@@ -3,14 +3,19 @@
 	// Click anywhere to move the edit cursor; shift-click extends the loop
 	// selection. Layout geometry comes from notation/layout.ts.
 
+	import { SvelteSet } from 'svelte/reactivity';
 	import { store } from '$lib/stores/score.svelte';
 	import { layoutTrack, METRICS, type LaidBeat, type LaidMeasure } from '$lib/notation/layout';
 	import { GLYPH, restGlyph, timeSigGlyphs, accidentalGlyph } from '$lib/notation/glyphs';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
+	import { ContextMenu as ContextMenuPrimitive } from 'bits-ui';
 	import * as Kbd from '$lib/components/ui/kbd';
 	import { DURATION_ORDER } from '$lib/oto/duration';
 	import { DURATION_LABELS, TECHNIQUE_LABELS, type DurationValue } from '$lib/oto/types';
 	import { midiToNote } from '$lib/oto/pitch';
+	import Scissors from 'phosphor-svelte/lib/Scissors';
+	import Copy from 'phosphor-svelte/lib/Copy';
+	import ClipboardText from 'phosphor-svelte/lib/ClipboardText';
 	import {
 		EFFECT_LIST,
 		TIME_SIGS,
@@ -33,6 +38,7 @@
 
 	const ctxNote = $derived(store.currentNote);
 
+	let ctxOpen = $state(false);
 	let containerWidth = $state(800);
 	let container: HTMLDivElement;
 
@@ -177,6 +183,7 @@
 		} else {
 			store.setCursor({ track: trackIndex, measure: measure.index, beat, string });
 			store.clearSelection();
+			store.clearNoteSelection();
 		}
 	}
 
@@ -245,6 +252,9 @@
 	let dragging = false;
 	let suppressNextClick = false;
 	let dragStartClient = { x: 0, y: 0 };
+	// 'beat' = horizontal drag for beat selection, 'note' = vertical drag for string selection
+	let dragMode: 'beat' | 'note' | null = null;
+	let dragAnchorString: number | null = null;
 
 	/** Convert a client position to the nearest (measureIndex, beat) in this track. */
 	function findBeatAtClient(
@@ -279,11 +289,28 @@
 		return null;
 	}
 
+	/** Returns which string (0-indexed) the pointer is over in the tab band, or null. */
+	function findStringAtClient(clientX: number, clientY: number): number | null {
+		if (!container || !layout.bands.tab) return null;
+		const svgEls = container.querySelectorAll<SVGSVGElement>('svg.system');
+		for (const svgEl of svgEls) {
+			const rect = svgEl.getBoundingClientRect();
+			if (clientY < rect.top || clientY > rect.bottom) continue;
+			const tabOffsetY = rect.top + layout.bands.tab.offsetY + 14;
+			const localY = clientY - tabOffsetY;
+			const string = Math.round(localY / METRICS.tabLineGap);
+			return Math.max(0, Math.min(track.tuning.length - 1, string));
+		}
+		return null;
+	}
+
 	function onDragPointerDown(e: PointerEvent) {
 		if (!store.isDesktop || e.button !== 0) return;
 		dragStartClient = { x: e.clientX, y: e.clientY };
 		dragAnchor = findBeatAtClient(e.clientX, e.clientY);
+		dragAnchorString = findStringAtClient(e.clientX, e.clientY);
 		dragging = false;
+		dragMode = null;
 		// Use document listeners instead of setPointerCapture so click/dblclick
 		// still fire on the <g> children (setPointerCapture redirects them to the div).
 		document.addEventListener('pointermove', onDragPointerMove);
@@ -292,30 +319,62 @@
 
 	function onDragPointerMove(e: PointerEvent) {
 		if (!dragAnchor || !(e.buttons & 1)) return;
-		const dist = Math.hypot(e.clientX - dragStartClient.x, e.clientY - dragStartClient.y);
-		if (dist < 8 && !dragging) return;
+		const dx = Math.abs(e.clientX - dragStartClient.x);
+		const dy = Math.abs(e.clientY - dragStartClient.y);
+		const dist = Math.hypot(dx, dy);
+		if (dist < 6 && !dragging) return;
 		dragging = true;
-		const pos = findBeatAtClient(e.clientX, e.clientY);
-		if (!pos) return;
-		store.setCursor({
-			track: trackIndex,
-			measure: dragAnchor.measureIndex,
-			beat: dragAnchor.beat
-		});
-		store.setSelectionTo(pos.measureIndex, pos.beat);
+
+		// Determine mode on first significant movement
+		if (!dragMode) {
+			dragMode =
+				dy > dx && dragAnchorString !== null && layout.bands.tab !== null ? 'note' : 'beat';
+		}
+
+		if (dragMode === 'note' && dragAnchor && dragAnchorString !== null) {
+			const curStr = findStringAtClient(e.clientX, e.clientY);
+			if (curStr !== null) {
+				const lo = Math.min(dragAnchorString, curStr);
+				const hi = Math.max(dragAnchorString, curStr);
+				const strings = new SvelteSet<number>();
+				for (let s = lo; s <= hi; s++) strings.add(s);
+				store.setNoteSelection({
+					measure: dragAnchor.measureIndex,
+					beat: dragAnchor.beat,
+					voice: store.cursor.voice,
+					strings
+				});
+				store.setCursor({
+					track: trackIndex,
+					measure: dragAnchor.measureIndex,
+					beat: dragAnchor.beat
+				});
+			}
+		} else {
+			const pos = findBeatAtClient(e.clientX, e.clientY);
+			if (!pos) return;
+			store.setCursor({
+				track: trackIndex,
+				measure: dragAnchor.measureIndex,
+				beat: dragAnchor.beat
+			});
+			store.setSelectionTo(pos.measureIndex, pos.beat);
+		}
 	}
 
 	function onDragPointerUp(_e: PointerEvent) {
 		document.removeEventListener('pointermove', onDragPointerMove);
 		document.removeEventListener('pointerup', onDragPointerUp);
 		if (dragging) {
-			store.loopEnabled = true;
+			if (dragMode === 'beat') store.loopEnabled = true;
 			suppressNextClick = true;
 			setTimeout(() => {
 				suppressNextClick = false;
 			}, 100);
 		}
 		dragAnchor = null;
+		dragAnchorString = null;
+		dragMode = null;
 		dragging = false;
 	}
 </script>
@@ -366,11 +425,16 @@
 			<rect x={beat.x - 9} y="2" width="18" height={bandHeight - 4} class="bg-sel" />
 		{/if}
 		{#if beat.rest}
-			<text x={beat.x - 4} y={12 + 3 * METRICS.staffLineGap} class="bravura rest"
+			<text x={beat.x - 4} y={METRICS.stdTopPad + 3 * METRICS.staffLineGap} class="bravura rest"
 				>{restGlyph(beat.duration)}</text
 			>
 			{#if beat.dotted}
-				<circle cx={beat.x + 9} cy={12 + 3 * METRICS.staffLineGap - 3} r="1.6" class="dot" />
+				<circle
+					cx={beat.x + 9}
+					cy={METRICS.stdTopPad + 3 * METRICS.staffLineGap - 3}
+					r="1.6"
+					class="dot"
+				/>
 			{/if}
 		{:else}
 			{#each beat.notes as n (n.string)}
@@ -485,6 +549,21 @@
 			{@const isDead = n.techniques.includes('dead')}
 			{@const isGhost = n.techniques.includes('ghost')}
 			{@const fretLabel = isDead ? 'x' : isGhost ? `(${n.fret})` : String(n.fret)}
+			{@const isNoteSelected =
+				store.noteSelection !== null &&
+				store.noteSelection.measure === measureIndex &&
+				store.noteSelection.beat === beat.index &&
+				store.noteSelection.voice === vIdx &&
+				store.noteSelection.strings.has(n.string)}
+			{#if isNoteSelected}
+				<rect
+					x={n.x - (isGhost ? 10 : 6) - 1}
+					y={n.tabY - 5}
+					width={isGhost ? 22 : 15}
+					height="12"
+					class="note-sel-bg"
+				/>
+			{/if}
 			<rect
 				x={n.x - (isGhost ? 10 : 6)}
 				y={n.tabY - 4}
@@ -553,8 +632,8 @@
 	{/each}
 {/snippet}
 
-<ContextMenu.Root>
-	<ContextMenu.Trigger class="ctx-anchor">
+<ContextMenuPrimitive.Root bind:open={ctxOpen}>
+	<ContextMenuPrimitive.Trigger class="ctx-anchor">
 		<div
 			class="track-staff"
 			bind:this={container}
@@ -594,36 +673,40 @@
 								{#each [0, 1, 2, 3, 4] as i (i)}
 									<line
 										x1={measure.x + (measure.showHeader ? 4 : 0)}
-										y1={12 + METRICS.staffLineGap + i * METRICS.staffLineGap}
+										y1={METRICS.stdTopPad + METRICS.staffLineGap + i * METRICS.staffLineGap}
 										x2={measure.x + measure.width}
-										y2={12 + METRICS.staffLineGap + i * METRICS.staffLineGap}
+										y2={METRICS.stdTopPad + METRICS.staffLineGap + i * METRICS.staffLineGap}
 										class="staff-line"
 									/>
 								{/each}
 								<!-- barlines -->
 								<line
 									x1={measure.x}
-									y1={12 + METRICS.staffLineGap}
+									y1={METRICS.stdTopPad + METRICS.staffLineGap}
 									x2={measure.x}
-									y2={12 + 5 * METRICS.staffLineGap}
+									y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
 									class="barline"
 								/>
 								<line
 									x1={measure.x + measure.width}
-									y1={12 + METRICS.staffLineGap}
+									y1={METRICS.stdTopPad + METRICS.staffLineGap}
 									x2={measure.x + measure.width}
-									y2={12 + 5 * METRICS.staffLineGap}
+									y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
 									class="barline"
 								/>
 
 								{#if measure.showHeader}
 									{#if layout.clef === 'bass'}
-										<text x={measure.x + 8} y={12 + 2.5 * METRICS.staffLineGap} class="bravura clef"
-											>{GLYPH.bassClef}</text
+										<text
+											x={measure.x + 8}
+											y={METRICS.stdTopPad + 2.5 * METRICS.staffLineGap}
+											class="bravura clef">{GLYPH.bassClef}</text
 										>
 									{:else}
-										<text x={measure.x + 8} y={12 + 3.4 * METRICS.staffLineGap} class="bravura clef"
-											>{GLYPH.trebleClef}</text
+										<text
+											x={measure.x + 8}
+											y={METRICS.stdTopPad + 3.4 * METRICS.staffLineGap}
+											class="bravura clef">{GLYPH.trebleClef}</text
 										>
 									{/if}
 								{/if}
@@ -635,12 +718,12 @@
 								{#if measure.timeSignature}
 									<text
 										x={measure.x + (measure.showHeader ? 34 + layout.keySigWidth : 6)}
-										y={12 + 2 * METRICS.staffLineGap + 1}
+										y={METRICS.stdTopPad + 2 * METRICS.staffLineGap + 1}
 										class="bravura tsig">{timeSigGlyphs(measure.timeSignature[0])}</text
 									>
 									<text
 										x={measure.x + (measure.showHeader ? 34 + layout.keySigWidth : 6)}
-										y={12 + 4 * METRICS.staffLineGap + 1}
+										y={METRICS.stdTopPad + 4 * METRICS.staffLineGap + 1}
 										class="bravura tsig">{timeSigGlyphs(measure.timeSignature[1])}</text
 									>
 								{/if}
@@ -799,23 +882,60 @@
 							</g>
 						{/if}
 					{/each}
+
+					<!-- Pending mark-start flag: thin vertical line at the anchor beat -->
+					{#if store.markStartPending && store.markStartPos?.track === trackIndex}
+						{@const pos = store.markStartPos!}
+						{#each system.measures as m (m.index)}
+							{#if m.index === pos.measure}
+								{#each m.beats as beat (beat.index)}
+									{#if beat.index === pos.beat}
+										<line
+											x1={beat.x - 9}
+											y1={4}
+											x2={beat.x - 9}
+											y2={system.height - 4}
+											class="mark-start-line"
+										/>
+										<text x={beat.x - 6} y={14} class="mark-start-label">[</text>
+									{/if}
+								{/each}
+							{/if}
+						{/each}
+					{/if}
 				</svg>
 			{/each}
 		</div>
-	</ContextMenu.Trigger>
-	<ContextMenu.Content class="w-60">
-		<ContextMenu.Item onSelect={() => store.cutSelection()}>
-			Cut
-			<Kbd.Group class="ml-auto"><Kbd.Root>Ctrl</Kbd.Root><Kbd.Root>X</Kbd.Root></Kbd.Group>
-		</ContextMenu.Item>
-		<ContextMenu.Item onSelect={() => store.copySelection()}>
-			Copy
-			<Kbd.Group class="ml-auto"><Kbd.Root>Ctrl</Kbd.Root><Kbd.Root>C</Kbd.Root></Kbd.Group>
-		</ContextMenu.Item>
-		<ContextMenu.Item disabled={!store.clipboard} onSelect={() => store.pasteClipboard()}>
-			Paste
-			<Kbd.Group class="ml-auto"><Kbd.Root>Ctrl</Kbd.Root><Kbd.Root>V</Kbd.Root></Kbd.Group>
-		</ContextMenu.Item>
+	</ContextMenuPrimitive.Trigger>
+	<ContextMenu.Content class="w-56">
+		<!-- Cut / Copy / Paste as compact icon row -->
+		<div class="ctx-icon-row">
+			<button
+				class="ctx-icon-btn"
+				title="Cut (Ctrl+X)"
+				onclick={() => {
+					store.cutSelection();
+					ctxOpen = false;
+				}}><Scissors class="size-4" /></button
+			>
+			<button
+				class="ctx-icon-btn"
+				title="Copy (Ctrl+C)"
+				onclick={() => {
+					store.copySelection();
+					ctxOpen = false;
+				}}><Copy class="size-4" /></button
+			>
+			<button
+				class="ctx-icon-btn"
+				disabled={!store.clipboard}
+				title="Paste (Ctrl+V)"
+				onclick={() => {
+					store.pasteClipboard();
+					ctxOpen = false;
+				}}><ClipboardText class="size-4" /></button
+			>
+		</div>
 
 		<ContextMenu.Separator />
 
@@ -854,26 +974,34 @@
 		</ContextMenu.Sub>
 
 		<ContextMenu.Item
-			disabled={!ctxNote && !store.selection}
+			disabled={!ctxNote && !store.selection && !store.hasNoteSelection}
 			variant="destructive"
 			onSelect={() =>
 				store.selection ? store.deleteNotesInSelection() : store.deleteNoteAtCursor()}
 		>
-			{store.selection ? 'Delete note(s)' : 'Delete note'}
+			{store.selection || (store.noteSelection?.strings.size ?? 0) > 1
+				? 'Delete notes'
+				: 'Delete note'}
 			<Kbd.Root class="ml-auto">Del</Kbd.Root>
 		</ContextMenu.Item>
 
 		<ContextMenu.Separator />
 
-		<ContextMenu.Item onSelect={() => store.setLoopStartAtCursor()}>
-			Mark start
-			<Kbd.Root class="ml-auto">[</Kbd.Root>
-		</ContextMenu.Item>
-		<ContextMenu.Item onSelect={() => store.setLoopEndAtCursor()}>
-			Mark end
-			<Kbd.Root class="ml-auto">]</Kbd.Root>
-		</ContextMenu.Item>
-		<ContextMenu.Item disabled={!store.selection} onSelect={() => store.clearSelection()}>
+		{#if store.markStartPending}
+			<ContextMenu.Item onSelect={() => store.completeMarkEnd()}>
+				Mark end
+				<Kbd.Root class="ml-auto">]</Kbd.Root>
+			</ContextMenu.Item>
+		{:else}
+			<ContextMenu.Item onSelect={() => store.beginMarkStart()}>
+				Mark start
+				<Kbd.Root class="ml-auto">[</Kbd.Root>
+			</ContextMenu.Item>
+		{/if}
+		<ContextMenu.Item
+			disabled={!store.selection && !store.markStartPending}
+			onSelect={() => store.clearSelection()}
+		>
 			Deselect
 			<Kbd.Group class="ml-auto"><Kbd.Root>Ctrl</Kbd.Root><Kbd.Root>D</Kbd.Root></Kbd.Group>
 		</ContextMenu.Item>
@@ -936,11 +1064,53 @@
 			Delete bar
 		</ContextMenu.Item>
 	</ContextMenu.Content>
-</ContextMenu.Root>
+</ContextMenuPrimitive.Root>
 
 <style>
 	:global(.ctx-anchor) {
 		display: block;
+	}
+	:global(.ctx-icon-row) {
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		padding: 4px 6px 6px;
+		margin-bottom: 2px;
+	}
+	:global(.ctx-icon-btn) {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 30px;
+		height: 30px;
+		border-radius: 6px;
+		border: none;
+		background: transparent;
+		background-image: none !important;
+		color: var(--muted-foreground, #71717a);
+		cursor: pointer;
+		transform: none !important;
+	}
+	:global(.ctx-icon-btn:hover:not(:disabled)) {
+		background: var(--accent, #f4f4f5);
+		background-image: none !important;
+		color: var(--foreground, #18181b);
+	}
+	:global(.ctx-icon-btn:disabled) {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+	.mark-start-line {
+		stroke: #f59e0b;
+		stroke-width: 2;
+		stroke-dasharray: 4 3;
+		pointer-events: none;
+	}
+	.mark-start-label {
+		fill: #f59e0b;
+		font-size: 13px;
+		font-weight: 900;
+		pointer-events: none;
 	}
 	.track-staff {
 		width: 100%;
@@ -1115,6 +1285,10 @@
 		fill: none;
 		stroke: #52525b;
 		stroke-width: 1.3;
+	}
+	.note-sel-bg {
+		fill: rgba(24, 24, 27, 0.22);
+		rx: 3;
 	}
 	.bg-cursor {
 		fill: rgba(24, 24, 27, 0.16);

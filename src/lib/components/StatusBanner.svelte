@@ -32,12 +32,8 @@
 	const HEAVY_TRACK_THRESHOLD = 7;
 	const heavyLoad = $derived(activeTrackCount >= HEAVY_TRACK_THRESHOLD);
 
-	const signature = $derived(
-		JSON.stringify({ m: mutedNames, s: soloedNames, h: heavyLoad })
-	);
-	const isActive = $derived(
-		mutedNames.length > 0 || soloedNames.length > 0 || heavyLoad
-	);
+	const signature = $derived(JSON.stringify({ m: mutedNames, s: soloedNames, h: heavyLoad }));
+	const isActive = $derived(mutedNames.length > 0 || soloedNames.length > 0 || heavyLoad);
 
 	let dismissedSignature = $state<string | null>(null);
 	const visible = $derived(isActive && signature !== dismissedSignature);
@@ -46,6 +42,29 @@
 		dismissedSignature = signature;
 	}
 </script>
+
+{#if store.markStartPending}
+	<div class="banner mark no-print" role="status">
+		<div class="text">
+			<span class="chip mark-chip">
+				<span class="mark-flag-icon">[</span>
+				{#if store.isDesktop}
+					Start marked — right-click the end note, or press&nbsp;<kbd>]</kbd>
+				{:else}
+					Start marked — long-press the end note, tap Mark end
+				{/if}
+			</span>
+		</div>
+		<button
+			class="close"
+			onclick={() => store.cancelMarkStart()}
+			title="Cancel"
+			aria-label="Cancel selection start"
+		>
+			<X class="size-3.5" weight="bold" />
+		</button>
+	</div>
+{/if}
 
 {#if overflowBar}
 	<div class="banner warn no-print" role="alert">
@@ -94,7 +113,7 @@
 				<span class="chip">{mutedNames.length} muted</span>
 			{/if}
 			{#if soloedNames.length}
-				<span class=”chip”>{soloedNames.length} soloed</span>
+				<span class="”chip”">{soloedNames.length} soloed</span>
 			{/if}
 			{#if heavyLoad}
 				<span class="chip">{activeTrackCount} tracks playing — may stutter on slower devices</span>
@@ -124,6 +143,27 @@
 	.banner.error,
 	.banner.warn {
 		background: var(--brick);
+	}
+	.banner.mark {
+		background: color-mix(in srgb, var(--primary) 85%, transparent);
+	}
+	.mark-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+	}
+	.mark-flag-icon {
+		font-size: 15px;
+		font-weight: 900;
+		line-height: 1;
+		opacity: 0.8;
+	}
+	kbd {
+		background: color-mix(in srgb, var(--accent-ink) 20%, transparent);
+		border-radius: 3px;
+		padding: 0 4px;
+		font-family: inherit;
+		font-size: 11px;
 	}
 	.text {
 		display: flex;

@@ -14,7 +14,7 @@
 	const track = $derived(store.score.tracks[index]);
 	const isActive = $derived(store.cursor.track === index);
 	const collapsed = $derived(store.isCollapsed(index));
-	const focused = $derived(store.focusedTrackId === track.id);
+	const focused = $derived(store.isTrackFocused(index));
 </script>
 
 <div
@@ -54,7 +54,7 @@
 		title={focused ? 'Exit focus' : 'Focus this track'}
 		aria-label={focused ? 'Exit focus' : 'Focus this track'}
 		aria-pressed={focused}
-		onclick={() => (focused ? store.clearFocus() : store.focusTrack(index))}
+		onclick={() => store.toggleFocusTrack(index)}
 	>
 		<Eye class="size-4" weight={focused ? 'fill' : 'regular'} />
 	</Button>

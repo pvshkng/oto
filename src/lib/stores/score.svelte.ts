@@ -4,6 +4,7 @@
 // the active duration/effects palette and playback state. Components read these
 // directly (they're deep-reactive `$state`) and call methods to mutate.
 
+import { SvelteSet } from 'svelte/reactivity';
 import {
 	makeScore,
 	makeTrack,
@@ -58,6 +59,13 @@ export class ScoreStore {
 	score = $state<OtoScore>(makeScore());
 	cursor = $state<ScorePosition>({ track: 0, measure: 0, beat: 0, string: 0, voice: 0 });
 	selection = $state<Selection | null>(null);
+	/** Sub-beat note selection: a set of string indices within a single beat. */
+	noteSelection = $state<{
+		measure: number;
+		beat: number;
+		voice: number;
+		strings: SvelteSet<number>;
+	} | null>(null);
 
 	// Edit palette
 	activeDuration = $state<DurationValue>(4);
@@ -124,6 +132,10 @@ export class ScoreStore {
 	collapsed = $state<Record<string, boolean>>({});
 	// Always initialized to the first track so the sheet never shows "all tracks"
 	focusedTrackId = $state<string | null>(this.score.tracks[0]?.id ?? null);
+	// Multi-track view: set of focused track IDs (empty = show all)
+	focusedTrackIds = $state(new SvelteSet<string>());
+	// 'single': only one track focused at a time; 'multi': toggle multiple tracks
+	trackViewMode = $state<'single' | 'multi'>('single');
 
 	// Playback
 	isPlaying = $state(false);
@@ -438,7 +450,13 @@ export class ScoreStore {
 		});
 		// Focus the newly added track
 		const newTrack = this.score.tracks[this.score.tracks.length - 1];
-		if (newTrack) this.focusedTrackId = newTrack.id;
+		if (newTrack) {
+			if (this.trackViewMode === 'single') {
+				this.focusedTrackId = newTrack.id;
+			} else {
+				this.focusedTrackIds = new SvelteSet([...this.focusedTrackIds, newTrack.id]);
+			}
+		}
 	}
 
 	removeTrack(index: number) {
@@ -454,6 +472,13 @@ export class ScoreStore {
 		const focusValid = this.score.tracks.some((t) => t.id === this.focusedTrackId);
 		if (!focusValid) {
 			this.focusedTrackId = this.score.tracks[this.cursor.track]?.id ?? null;
+		}
+		// Clean up multi-mode focused set
+		if (this.trackViewMode === 'multi') {
+			const trackIds = this.score.tracks.map((t) => t.id);
+			this.focusedTrackIds = new SvelteSet(
+				[...this.focusedTrackIds].filter((id) => trackIds.includes(id))
+			);
 		}
 	}
 
@@ -552,8 +577,11 @@ export class ScoreStore {
 	isCollapsed(index: number): boolean {
 		const t = this.score.tracks[index];
 		if (!t) return false;
-		// When a track is focused, every other track is folded away.
-		if (this.focusedTrackId && this.focusedTrackId !== t.id) return true;
+		if (this.trackViewMode === 'single') {
+			if (this.focusedTrackId && this.focusedTrackId !== t.id) return true;
+		} else {
+			if (this.focusedTrackIds.size > 0 && !this.focusedTrackIds.has(t.id)) return true;
+		}
 		return !!this.collapsed[t.id];
 	}
 
@@ -570,7 +598,24 @@ export class ScoreStore {
 	}
 
 	get isFocusMode(): boolean {
-		return this.focusedTrackId !== null;
+		if (this.trackViewMode === 'single') return this.focusedTrackId !== null;
+		return this.focusedTrackIds.size > 0;
+	}
+
+	/** True if the given track ID should be visible in the score area. */
+	isTrackVisible(id: string): boolean {
+		if (this.trackViewMode === 'single') {
+			return !this.focusedTrackId || this.focusedTrackId === id;
+		}
+		return this.focusedTrackIds.size === 0 || this.focusedTrackIds.has(id);
+	}
+
+	/** True if the given track index is currently focused (Eye button pressed). */
+	isTrackFocused(index: number): boolean {
+		const t = this.score.tracks[index];
+		if (!t) return false;
+		if (this.trackViewMode === 'single') return this.focusedTrackId === t.id;
+		return this.focusedTrackIds.has(t.id);
 	}
 
 	get focusedTrackName(): string {
@@ -588,6 +633,40 @@ export class ScoreStore {
 
 	clearFocus() {
 		this.focusedTrackId = this.score.tracks[0]?.id ?? null;
+	}
+
+	/** Toggle focus for the given track, respecting the current view mode. */
+	toggleFocusTrack(index: number) {
+		const t = this.score.tracks[index];
+		if (!t) return;
+		if (this.trackViewMode === 'single') {
+			if (this.focusedTrackId === t.id) {
+				this.clearFocus();
+			} else {
+				this.focusTrack(index);
+			}
+		} else {
+			const next = new SvelteSet(this.focusedTrackIds);
+			if (next.has(t.id)) {
+				next.delete(t.id);
+			} else {
+				next.add(t.id);
+				this.setCursor({ track: index });
+			}
+			this.focusedTrackIds = next;
+		}
+	}
+
+	/** Switch track view mode. Clears the focused set when switching. */
+	setTrackViewMode(mode: 'single' | 'multi') {
+		if (mode === this.trackViewMode) return;
+		this.trackViewMode = mode;
+		if (mode === 'multi') {
+			this.focusedTrackIds = new SvelteSet();
+		} else {
+			this.focusedTrackId =
+				this.score.tracks[this.cursor.track]?.id ?? this.score.tracks[0]?.id ?? null;
+		}
 	}
 
 	detune(index: number, semitones: number) {
@@ -778,38 +857,76 @@ export class ScoreStore {
 
 	clearSelection() {
 		this.selection = null;
+		this.noteSelection = null;
+		this.markStartPending = false;
+		this.markStartPos = null;
 	}
 
-	/** Drop the loop's start marker at the cursor, keeping the current end (or
-	 *  starting a single-beat loop at the cursor if nothing was selected yet). */
+	setNoteSelection(sel: {
+		measure: number;
+		beat: number;
+		voice: number;
+		strings: SvelteSet<number>;
+	}) {
+		this.noteSelection = sel;
+		this.selection = null;
+	}
+
+	clearNoteSelection() {
+		this.noteSelection = null;
+	}
+
+	get hasNoteSelection(): boolean {
+		return (this.noteSelection?.strings.size ?? 0) > 0;
+	}
+
+	// ---- two-step mark-start / mark-end flow --------------------------------
+
+	/** Pending anchor for the two-step mark-start → mark-end selection flow. */
+	markStartPending = $state(false);
+	markStartPos = $state<{ track: number; measure: number; beat: number } | null>(null);
+
+	/** Step 1: anchor the selection start at the cursor. Shows a pending indicator
+	 *  in the staff until the user completes the selection with completeMarkEnd(). */
+	beginMarkStart() {
+		const c = this.cursor;
+		this.markStartPending = true;
+		this.markStartPos = { track: c.track, measure: c.measure, beat: c.beat };
+		this.selection = null;
+		this.loopEnabled = false;
+	}
+
+	/** Step 2: complete the selection from the stored start to the current cursor.
+	 *  No-op if beginMarkStart() hasn't been called. */
+	completeMarkEnd() {
+		if (!this.markStartPending || !this.markStartPos) return;
+		const c = this.cursor;
+		const start = this.markStartPos;
+		this.selection = {
+			track: c.track,
+			startMeasure: start.measure,
+			startBeat: start.beat,
+			endMeasure: c.measure,
+			endBeat: c.beat
+		};
+		this.loopEnabled = true;
+		this.markStartPending = false;
+		this.markStartPos = null;
+	}
+
+	cancelMarkStart() {
+		this.markStartPending = false;
+		this.markStartPos = null;
+	}
+
+	/** @deprecated Use beginMarkStart() instead. */
 	setLoopStartAtCursor() {
-		const c = this.cursor;
-		this.selection = this.selection
-			? { ...this.selection, startMeasure: c.measure, startBeat: c.beat }
-			: {
-					track: c.track,
-					startMeasure: c.measure,
-					startBeat: c.beat,
-					endMeasure: c.measure,
-					endBeat: c.beat
-				};
-		this.loopEnabled = true;
+		this.beginMarkStart();
 	}
 
-	/** Drop the loop's end marker at the cursor, keeping the current start (or
-	 *  starting a single-beat loop at the cursor if nothing was selected yet). */
+	/** @deprecated Use completeMarkEnd() instead. */
 	setLoopEndAtCursor() {
-		const c = this.cursor;
-		this.selection = this.selection
-			? { ...this.selection, endMeasure: c.measure, endBeat: c.beat }
-			: {
-					track: c.track,
-					startMeasure: c.measure,
-					startBeat: c.beat,
-					endMeasure: c.measure,
-					endBeat: c.beat
-				};
-		this.loopEnabled = true;
+		this.completeMarkEnd();
 	}
 
 	/** Anchor the selection at the current cursor and extend its end to (measure, beat). */
@@ -822,6 +939,7 @@ export class ScoreStore {
 			endMeasure: measure,
 			endBeat: beat
 		};
+		this.noteSelection = null;
 	}
 
 	/** Normalised loop bounds (start <= end). */
@@ -945,7 +1063,19 @@ export class ScoreStore {
 			if (!beats) return;
 			const beat = beats[this.cursor.beat];
 			if (!beat) return;
-			beat.notes = beat.notes.filter((n) => n.string !== this.cursor.string);
+			const ns = this.noteSelection;
+			const isNoteSel =
+				ns !== null &&
+				ns.measure === this.cursor.measure &&
+				ns.beat === this.cursor.beat &&
+				ns.voice === this.cursor.voice &&
+				ns.strings.size > 0;
+			if (isNoteSel) {
+				beat.notes = beat.notes.filter((n) => !ns!.strings.has(n.string));
+			} else {
+				beat.notes = beat.notes.filter((n) => n.string !== this.cursor.string);
+			}
+			this.noteSelection = null;
 			if (beat.notes.length > 0) return;
 			// Beat is now empty — remove it rather than leaving a rest.
 			if (isV2) {
@@ -1001,7 +1131,19 @@ export class ScoreStore {
 		const b = this.loopBounds;
 		if (!b) {
 			const beat = this.currentBeatRef();
-			if (beat) this.clipboard = [[JSON.parse(JSON.stringify(beat))]];
+			if (!beat) return;
+			const ns = this.noteSelection;
+			const isNoteSel =
+				ns !== null &&
+				ns.measure === this.cursor.measure &&
+				ns.beat === this.cursor.beat &&
+				ns.strings.size > 0;
+			if (isNoteSel) {
+				const filtered = { ...beat, notes: beat.notes.filter((n) => ns!.strings.has(n.string)) };
+				this.clipboard = [[JSON.parse(JSON.stringify(filtered))]];
+			} else {
+				this.clipboard = [[JSON.parse(JSON.stringify(beat))]];
+			}
 			return;
 		}
 		const t = this.selection?.track ?? this.cursor.track;
@@ -1024,8 +1166,27 @@ export class ScoreStore {
 	}
 
 	cutSelection() {
+		const b = this.loopBounds;
 		this.copySelection();
-		this.deleteNotesInSelection();
+		if (b) {
+			this.deleteNotesInSelection();
+		} else {
+			// No beat-range selection: cut the entire beat (all notes), not just cursor string
+			this.commit(() => {
+				const measure = this.track.measures[this.cursor.measure];
+				if (!measure) return;
+				const beats = measure.beats;
+				if (beats.length <= 1) {
+					beats[0] = restBeat(this.activeDuration);
+				} else {
+					beats.splice(this.cursor.beat, 1);
+					if (this.cursor.beat >= beats.length) {
+						this.cursor = { ...this.cursor, beat: beats.length - 1 };
+					}
+				}
+			});
+			this.noteSelection = null;
+		}
 	}
 
 	pasteClipboard() {

@@ -16,6 +16,7 @@ export interface LayoutOptions {
 
 export const METRICS = {
 	staffLineGap: 8, // standard staff line spacing
+	stdTopPad: 24, // vertical padding above the top staff line within the standard band
 	tabLineGap: 11, // tab string spacing
 	beatMinWidth: 30,
 	beatPadding: 22,
@@ -205,7 +206,8 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 	const keySigGlyphs = keySignatureGlyphs(keyFifths, clef);
 	const keySigWidth = keySignatureWidth(keyFifths);
 	const headerWidth = METRICS.headerWidth + keySigWidth;
-	const standardHeight = METRICS.staffLineGap * 8 + 32; // 5 lines + ledger room
+	// top pad + 5 line-gaps (top line to bottom line) + bottom ledger room
+	const standardHeight = METRICS.stdTopPad + METRICS.staffLineGap * 5 + 36;
 	const tabHeight = (stringCount - 1) * METRICS.tabLineGap + 28;
 	const rhythmHeight = 30;
 
@@ -214,15 +216,15 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 	const bands: TrackLayout['bands'] = { standard: null, tab: null, rhythm: null };
 	if (opts.showStandard) {
 		bands.standard = { offsetY: y, height: standardHeight };
-		y += standardHeight + 16;
+		y += standardHeight + 24;
 	}
 	if (opts.showRhythm && !opts.showStandard) {
 		bands.rhythm = { offsetY: y, height: rhythmHeight };
-		y += rhythmHeight + 6;
+		y += rhythmHeight + 12;
 	}
 	if (opts.showTab) {
 		bands.tab = { offsetY: y, height: tabHeight };
-		y += tabHeight + 6;
+		y += tabHeight + 12;
 	}
 	const systemHeight = y + METRICS.systemGap;
 
@@ -428,7 +430,7 @@ function notationOctaveShift(kind: TrackKind): number {
 function standardNoteY(step: number, clef: Clef): number {
 	// Each step = half a staff-line gap, measured down from the clef's top line.
 	const topLineStep = CLEF_LINES[clef].top;
-	const topLineY = 12 + METRICS.staffLineGap; // y of top staff line within band
+	const topLineY = METRICS.stdTopPad + METRICS.staffLineGap; // y of top staff line within band
 	return topLineY + (topLineStep - step) * (METRICS.staffLineGap / 2);
 }
 

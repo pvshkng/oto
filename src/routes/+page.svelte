@@ -161,10 +161,10 @@
 				else store.insertBeat();
 				break;
 			case '[':
-				store.setLoopStartAtCursor();
+				store.beginMarkStart();
 				break;
 			case ']':
-				store.setLoopEndAtCursor();
+				store.completeMarkEnd();
 				break;
 			case '-':
 				store.deleteBeat();
@@ -286,7 +286,7 @@
 					</button>
 
 					{#each store.score.tracks as track, i (track.id)}
-						{#if !store.isFocusMode || store.focusedTrackId === track.id}
+						{#if store.isTrackVisible(track.id)}
 							<section class="track-block" id="track-{track.id}">
 								<TrackStaff trackIndex={i} />
 							</section>
@@ -342,7 +342,7 @@
 				</button>
 
 				{#each store.score.tracks as track, i (track.id)}
-					{#if !store.isFocusMode || store.focusedTrackId === track.id}
+					{#if store.isTrackVisible(track.id)}
 						<section class="track-block" id="track-{track.id}">
 							<TrackStaff trackIndex={i} />
 						</section>

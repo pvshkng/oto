@@ -23,7 +23,6 @@
 	import Metronome from 'phosphor-svelte/lib/Metronome';
 	import ClockCountdown from 'phosphor-svelte/lib/ClockCountdown';
 	import Repeat from 'phosphor-svelte/lib/Repeat';
-	import Flag from 'phosphor-svelte/lib/Flag';
 	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
 	import Numpad from 'phosphor-svelte/lib/Numpad';
 	import Guitar from 'phosphor-svelte/lib/Guitar';
@@ -361,51 +360,21 @@
 	</div>
 
 	<!-- Loop -->
-	<div class="flex shrink-0 items-stretch">
-		<Button
-			variant="outline"
-			size="icon"
-			class={cn(
-				'size-9 rounded-r-none',
-				store.loopEnabled && 'sunk',
-				store.selection && !store.loopEnabled && 'border-foreground'
-			)}
-			title="Loop selection"
-			aria-label="Toggle loop"
-			aria-pressed={store.loopEnabled}
-			onclick={() => (store.loopEnabled = !store.loopEnabled)}
-		>
-			<Repeat class="size-5" />
-		</Button>
-		<Button
-			variant="outline"
-			size="icon"
-			class="relative size-9 rounded-none border-l-0"
-			title="Mark selection start"
-			aria-label="Mark selection start"
-			onclick={() => store.setLoopStartAtCursor()}
-		>
-			<Flag class="size-5" />
-			<span
-				class="pointer-events-none absolute top-0.5 right-1 text-[7px] leading-none font-extrabold select-none"
-				>A</span
-			>
-		</Button>
-		<Button
-			variant="outline"
-			size="icon"
-			class="relative size-9 rounded-l-none border-l-0"
-			title="Mark selection end"
-			aria-label="Mark selection end"
-			onclick={() => store.setLoopEndAtCursor()}
-		>
-			<Flag class="size-5" />
-			<span
-				class="pointer-events-none absolute top-0.5 right-1 text-[7px] leading-none font-extrabold select-none"
-				>B</span
-			>
-		</Button>
-	</div>
+	<Button
+		variant="outline"
+		size="icon"
+		class={cn(
+			'size-9 shrink-0',
+			store.loopEnabled && 'sunk',
+			store.selection && !store.loopEnabled && 'border-foreground'
+		)}
+		title="Loop selection"
+		aria-label="Toggle loop"
+		aria-pressed={store.loopEnabled}
+		onclick={() => (store.loopEnabled = !store.loopEnabled)}
+	>
+		<Repeat class="size-5" />
+	</Button>
 
 	<!-- Metronome + count-in + tempo -->
 	<div class="flex shrink-0 items-stretch">

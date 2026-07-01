@@ -22,6 +22,8 @@
 	import MagnifyingGlassPlus from 'phosphor-svelte/lib/MagnifyingGlassPlus';
 	import MagnifyingGlassMinus from 'phosphor-svelte/lib/MagnifyingGlassMinus';
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
+	import Minus from 'phosphor-svelte/lib/Minus';
+	import List from 'phosphor-svelte/lib/List';
 
 	// Width of the frozen track-controls column. Desktop: draggable 350–520 px.
 	// Mobile: fixed 250 px.
@@ -152,7 +154,7 @@
 		const t = tracks[trackIdx];
 		if (!t) return;
 		const lastBeat = Math.max(0, (t.measures[measure]?.beats.length ?? 1) - 1);
-		store.focusedTrackId = t.id;
+		if (store.trackViewMode === 'single') store.focusedTrackId = t.id;
 		store.setCursor({ track: trackIdx, measure, beat: 0 });
 		store.setSelectionTo(measure, lastBeat);
 	}
@@ -277,8 +279,39 @@
 					<span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
 						>Track</span
 					>
+					<!-- Single / Multi track view toggle -->
+					<div class="ml-auto flex shrink-0 items-stretch">
+						<button
+							class={cn(
+								'flex h-6 w-6 items-center justify-center rounded-l-md rounded-r-none border text-[11px]',
+								store.trackViewMode === 'single'
+									? 'sunk text-foreground'
+									: 'text-muted-foreground hover:text-foreground'
+							)}
+							title="Single track view"
+							aria-label="Single track view"
+							aria-pressed={store.trackViewMode === 'single'}
+							onclick={() => store.setTrackViewMode('single')}
+						>
+							<Minus class="size-3.5" />
+						</button>
+						<button
+							class={cn(
+								'flex h-6 w-6 items-center justify-center rounded-l-none rounded-r-md border border-l-0 text-[11px]',
+								store.trackViewMode === 'multi'
+									? 'sunk text-foreground'
+									: 'text-muted-foreground hover:text-foreground'
+							)}
+							title="Multi track view"
+							aria-label="Multi track view"
+							aria-pressed={store.trackViewMode === 'multi'}
+							onclick={() => store.setTrackViewMode('multi')}
+						>
+							<List class="size-3.5" />
+						</button>
+					</div>
 					<button
-						class="text-muted-foreground hover:text-foreground hover:border-border ml-auto flex size-5 shrink-0 items-center justify-center rounded-sm border border-transparent"
+						class="text-muted-foreground hover:text-foreground hover:border-border flex size-5 shrink-0 items-center justify-center rounded-sm border border-transparent"
 						title="Add track"
 						aria-label="Add track"
 						onclick={addTrack}
@@ -326,25 +359,24 @@
 									<button
 										class={cn(
 											'flex h-7 w-7 shrink-0 items-center justify-center rounded-l-md rounded-r-none border text-[11px]',
-											store.focusedTrackId === track.id
+											store.isTrackFocused(i)
 												? 'sunk text-foreground'
 												: 'text-muted-foreground hover:text-foreground'
 										)}
-										title={store.focusedTrackId === track.id
-											? 'Viewing this track'
+										title={store.isTrackFocused(i)
+											? store.trackViewMode === 'multi'
+												? 'Remove from view'
+												: 'Viewing this track'
 											: 'Focus this track'}
-										aria-label={store.focusedTrackId === track.id
-											? 'Viewing this track'
+										aria-label={store.isTrackFocused(i)
+											? store.trackViewMode === 'multi'
+												? 'Remove from view'
+												: 'Viewing this track'
 											: 'Focus this track'}
-										aria-pressed={store.focusedTrackId === track.id}
-										onclick={() => {
-											store.focusedTrackId = track.id;
-										}}
+										aria-pressed={store.isTrackFocused(i)}
+										onclick={() => store.toggleFocusTrack(i)}
 									>
-										<Eye
-											class="size-3.5"
-											weight={store.focusedTrackId === track.id ? 'fill' : 'regular'}
-										/>
+										<Eye class="size-3.5" weight={store.isTrackFocused(i) ? 'fill' : 'regular'} />
 									</button>
 									<!-- Track name — no rounding, opens control panel + sets focus -->
 									<button
@@ -352,7 +384,7 @@
 										title="Track settings"
 										aria-label={`${track.name} settings`}
 										onclick={() => {
-											store.focusedTrackId = track.id;
+											if (store.trackViewMode === 'single') store.focusedTrackId = track.id;
 											store.setCursor({ track: i });
 											store.tempoOpen = false;
 											store.songModalOpen = false;
@@ -471,25 +503,24 @@
 									<button
 										class={cn(
 											'flex h-7 w-7 shrink-0 items-center justify-center rounded-l-md rounded-r-none border text-[11px]',
-											store.focusedTrackId === track.id
+											store.isTrackFocused(i)
 												? 'sunk text-foreground'
 												: 'text-muted-foreground hover:text-foreground'
 										)}
-										title={store.focusedTrackId === track.id
-											? 'Viewing this track'
+										title={store.isTrackFocused(i)
+											? store.trackViewMode === 'multi'
+												? 'Remove from view'
+												: 'Viewing this track'
 											: 'Focus this track'}
-										aria-label={store.focusedTrackId === track.id
-											? 'Viewing this track'
+										aria-label={store.isTrackFocused(i)
+											? store.trackViewMode === 'multi'
+												? 'Remove from view'
+												: 'Viewing this track'
 											: 'Focus this track'}
-										aria-pressed={store.focusedTrackId === track.id}
-										onclick={() => {
-											store.focusedTrackId = track.id;
-										}}
+										aria-pressed={store.isTrackFocused(i)}
+										onclick={() => store.toggleFocusTrack(i)}
 									>
-										<Eye
-											class="size-3.5"
-											weight={store.focusedTrackId === track.id ? 'fill' : 'regular'}
-										/>
+										<Eye class="size-3.5" weight={store.isTrackFocused(i) ? 'fill' : 'regular'} />
 									</button>
 									<!-- Track name -->
 									<button
@@ -497,7 +528,7 @@
 										title="Track settings"
 										aria-label={`${track.name} settings`}
 										onclick={() => {
-											store.focusedTrackId = track.id;
+											if (store.trackViewMode === 'single') store.focusedTrackId = track.id;
 											store.setCursor({ track: i });
 											editIndex = i;
 											editOpen = true;
@@ -651,11 +682,11 @@
 								const anchor = store.cursor.measure;
 								const [start, end] = anchor <= measure ? [anchor, measure] : [measure, anchor];
 								const lastBeat = Math.max(0, (tracks[i].measures[end]?.beats.length ?? 1) - 1);
-								store.focusedTrackId = track.id;
+								if (store.trackViewMode === 'single') store.focusedTrackId = track.id;
 								store.setCursor({ track: i, measure: start, beat: 0 });
 								store.setSelectionTo(end, lastBeat);
 							} else {
-								store.focusedTrackId = track.id;
+								if (store.trackViewMode === 'single') store.focusedTrackId = track.id;
 								jumpTo(measure, i);
 							}
 						}}
