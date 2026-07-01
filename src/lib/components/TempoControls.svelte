@@ -133,7 +133,7 @@
 	<div class="flex flex-col items-center gap-2 border-b border-border px-3.5 py-3">
 		<div class="flex items-center gap-4">
 			<button
-				class="flex size-9 items-center justify-center rounded-full border border-border-strong bg-paper bg-none text-ink hover:bg-panel-2 disabled:cursor-not-allowed disabled:opacity-40"
+				class="flex size-9 items-center justify-center rounded-full border border-border-strong bg-paper [background-image:none!important] text-ink hover:bg-panel-2 disabled:cursor-not-allowed disabled:opacity-40"
 				aria-label="Decrease tempo"
 				disabled={store.score.tempo <= MIN}
 				onclick={() => step(-1)}
@@ -149,7 +149,7 @@
 				>
 			</div>
 			<button
-				class="flex size-9 items-center justify-center rounded-full border border-border-strong bg-paper bg-none text-ink hover:bg-panel-2 disabled:cursor-not-allowed disabled:opacity-40"
+				class="flex size-9 items-center justify-center rounded-full border border-border-strong bg-paper [background-image:none!important] text-ink hover:bg-panel-2 disabled:cursor-not-allowed disabled:opacity-40"
 				aria-label="Increase tempo"
 				disabled={store.score.tempo >= MAX}
 				onclick={() => step(1)}
@@ -178,7 +178,7 @@
 			{#each METRONOME_SOUNDS as s, i (s.id)}
 				<button
 					class={cn(
-						'h-9 flex-1 border border-border-strong bg-paper bg-none text-[13px] font-medium text-ink',
+						'h-9 flex-1 border border-border-strong bg-paper [background-image:none!important] text-[13px] font-medium text-ink',
 						i === 0 && 'rounded-l-md',
 						i === METRONOME_SOUNDS.length - 1 && 'rounded-r-md',
 						i > 0 && 'border-l-0',

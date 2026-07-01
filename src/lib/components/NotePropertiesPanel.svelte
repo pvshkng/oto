@@ -17,7 +17,7 @@
 	<div class="flex shrink-0 items-center justify-between border-b border-border px-3 py-2.5">
 		<span class="text-[13px] font-bold tracking-[0.4px] text-ink uppercase">Note</span>
 		<button
-			class="inline-flex size-7 cursor-pointer items-center justify-center rounded-legacy-xs border-none bg-transparent bg-none text-text-muted hover:bg-panel-2 hover:text-ink"
+			class="inline-flex size-7 cursor-pointer items-center justify-center rounded-legacy-xs border-none bg-transparent [background-image:none!important] text-text-muted hover:bg-panel-2 hover:text-ink"
 			title="Close note editor"
 			aria-label="Close note editor"
 			onclick={() => (store.editMode = false)}

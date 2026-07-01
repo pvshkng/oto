@@ -204,7 +204,7 @@
 		<div class="mr-1 flex shrink-0 items-stretch">
 			<button
 				class={cn(
-					'text-muted-foreground flex size-7 items-center justify-center rounded-md rounded-r-none border bg-none',
+					'text-muted-foreground flex size-7 items-center justify-center rounded-md rounded-r-none border [background-image:none!important]',
 					cell <= MIN_CELL ? 'sunk' : 'hover:text-foreground'
 				)}
 				title="Zoom out timeline"
@@ -216,7 +216,7 @@
 			</button>
 			<button
 				class={cn(
-					'text-muted-foreground flex size-7 items-center justify-center rounded-md rounded-l-none border border-l-0 bg-none',
+					'text-muted-foreground flex size-7 items-center justify-center rounded-md rounded-l-none border border-l-0 [background-image:none!important]',
 					cell >= MAX_CELL ? 'sunk' : 'hover:text-foreground'
 				)}
 				title="Zoom in timeline"
@@ -229,7 +229,7 @@
 		</div>
 		<div class="flex items-center gap-1.5">
 			<button
-				class="text-muted-foreground hover:text-foreground bg-none p-1"
+				class="text-muted-foreground hover:text-foreground [background-image:none!important] p-1"
 				title="Close tracks panel"
 				aria-label="Close tracks panel"
 				onclick={() => (store.mixerOpen = false)}
@@ -257,7 +257,7 @@
 				>
 					{#if !store.isDesktop}
 						<button
-							class="text-muted-foreground hover:text-foreground bg-none flex shrink-0 items-center"
+							class="text-muted-foreground hover:text-foreground [background-image:none!important] flex shrink-0 items-center"
 							title={allRowsOpen ? 'Collapse all tracks' : 'Expand all tracks'}
 							aria-label={allRowsOpen ? 'Collapse all tracks' : 'Expand all tracks'}
 							onclick={toggleAllRows}
@@ -272,7 +272,7 @@
 					<div class="ml-auto flex shrink-0 items-stretch">
 						<button
 							class={cn(
-								'flex h-6 w-6 items-center justify-center rounded-l-md rounded-r-none border text-[11px] bg-none',
+								'flex h-6 w-6 items-center justify-center rounded-l-md rounded-r-none border text-[11px] [background-image:none!important]',
 								store.trackViewMode === 'single'
 									? 'sunk text-foreground'
 									: 'text-muted-foreground hover:text-foreground'
@@ -286,7 +286,7 @@
 						</button>
 						<button
 							class={cn(
-								'flex h-6 w-6 items-center justify-center rounded-l-none rounded-r-md border border-l-0 text-[11px] bg-none',
+								'flex h-6 w-6 items-center justify-center rounded-l-none rounded-r-md border border-l-0 text-[11px] [background-image:none!important]',
 								store.trackViewMode === 'multi'
 									? 'sunk text-foreground'
 									: 'text-muted-foreground hover:text-foreground'
@@ -300,7 +300,7 @@
 						</button>
 					</div>
 					<button
-						class="text-muted-foreground hover:text-foreground hover:border-border bg-none flex size-5 shrink-0 items-center justify-center rounded-sm border border-transparent"
+						class="text-muted-foreground hover:text-foreground hover:border-border [background-image:none!important] flex size-5 shrink-0 items-center justify-center rounded-sm border border-transparent"
 						title="Add track"
 						aria-label="Add track"
 						onclick={addTrack}
@@ -378,7 +378,7 @@
 								/>
 								<!-- Expand chevron (mobile only) -->
 								<button
-									class="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-md bg-none"
+									class="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-md [background-image:none!important]"
 									title={rowOpen[track.id] ? 'Collapse track controls' : 'Expand track controls'}
 									aria-label={rowOpen[track.id]
 										? 'Collapse track controls'
@@ -421,7 +421,7 @@
 
 					<!-- Arrangement blocks -->
 					<button
-						class="relative flex shrink-0 cursor-pointer bg-none"
+						class="relative flex shrink-0 cursor-pointer [background-image:none!important]"
 						style="width:{timelineW}px"
 						title="Click to focus track · Shift-click to select bar range · Double-click to select entire bar"
 						onclick={(e) => {
@@ -510,7 +510,7 @@
 						>Sections</span
 					>
 					<button
-						class="text-muted-foreground hover:text-foreground bg-none flex items-center gap-1 rounded-md border px-1.5 py-1 text-[11px]"
+						class="text-muted-foreground hover:text-foreground [background-image:none!important] flex items-center gap-1 rounded-md border px-1.5 py-1 text-[11px]"
 						title="Add a section marker at the current bar"
 						onclick={() => store.addSection(store.cursor.measure)}
 					>
@@ -527,7 +527,7 @@
 							style="left:{left}px;top:{row * 30 + 4}px"
 						>
 							<button
-								class="bg-primary text-primary-foreground bg-none flex size-4 items-center justify-center rounded text-[9px] font-bold"
+								class="bg-primary text-primary-foreground [background-image:none!important] flex size-4 items-center justify-center rounded text-[9px] font-bold"
 								title="Jump to this section"
 								onclick={() => jumpTo(sec.measure)}
 							>
@@ -539,7 +539,7 @@
 								onchange={(e) => store.updateSection(sec.id, { label: e.currentTarget.value })}
 							/>
 							<button
-								class="text-muted-foreground hover:text-destructive bg-none"
+								class="text-muted-foreground hover:text-destructive [background-image:none!important]"
 								title="Remove section"
 								aria-label="Remove section"
 								onclick={() => store.removeSection(sec.id)}

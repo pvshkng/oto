@@ -57,7 +57,7 @@
 			</button>
 		</div>
 		<button
-			class="inline-flex size-8 cursor-pointer items-center justify-center border-none bg-transparent bg-none text-text-muted hover:text-ink"
+			class="inline-flex size-8 cursor-pointer items-center justify-center border-none bg-transparent [background-image:none!important] text-text-muted hover:text-ink"
 			onclick={() => (store.editMode = false)}
 			title="Hide edit panel"
 			aria-label="Hide edit panel"
@@ -106,28 +106,28 @@
 		<div class="grid grid-cols-5 gap-[5px]">
 			{#each ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as d (d)}
 				<button
-					class="min-h-[46px] cursor-pointer rounded-legacy-sm border border-border-strong bg-paper bg-none text-lg font-semibold text-ink active:bg-panel-2"
+					class="min-h-[46px] cursor-pointer rounded-legacy-sm border border-border-strong bg-paper [background-image:none!important] text-lg font-semibold text-ink active:bg-panel-2"
 					onclick={() => enterDigit(d)}>{d}</button
 				>
 			{/each}
 			<button
-				class="min-h-[46px] cursor-pointer rounded-legacy-sm border border-ink bg-ink bg-none text-lg font-semibold text-accent-ink"
+				class="min-h-[46px] cursor-pointer rounded-legacy-sm border border-ink bg-ink [background-image:none!important] text-lg font-semibold text-accent-ink"
 				onclick={() => store.deleteNoteAtCursor()}>⌫</button
 			>
 			<button
-				class="min-h-[46px] cursor-pointer rounded-legacy-sm border border-border-strong bg-paper bg-none text-lg font-semibold text-ink active:bg-panel-2"
+				class="min-h-[46px] cursor-pointer rounded-legacy-sm border border-border-strong bg-paper [background-image:none!important] text-lg font-semibold text-ink active:bg-panel-2"
 				onclick={() => store.moveCursor('up')}>▲</button
 			>
 			<button
-				class="min-h-[46px] cursor-pointer rounded-legacy-sm border border-border-strong bg-paper bg-none text-lg font-semibold text-ink active:bg-panel-2"
+				class="min-h-[46px] cursor-pointer rounded-legacy-sm border border-border-strong bg-paper [background-image:none!important] text-lg font-semibold text-ink active:bg-panel-2"
 				onclick={() => store.moveCursor('down')}>▼</button
 			>
 			<button
-				class="min-h-[46px] cursor-pointer rounded-legacy-sm border border-border-strong bg-paper bg-none text-lg font-semibold text-ink active:bg-panel-2"
+				class="min-h-[46px] cursor-pointer rounded-legacy-sm border border-border-strong bg-paper [background-image:none!important] text-lg font-semibold text-ink active:bg-panel-2"
 				onclick={() => store.moveCursor('left')}>◀</button
 			>
 			<button
-				class="min-h-[46px] cursor-pointer rounded-legacy-sm border border-border-strong bg-paper bg-none text-lg font-semibold text-ink active:bg-panel-2"
+				class="min-h-[46px] cursor-pointer rounded-legacy-sm border border-border-strong bg-paper [background-image:none!important] text-lg font-semibold text-ink active:bg-panel-2"
 				onclick={() => store.moveCursor('right')}>▶</button
 			>
 		</div>

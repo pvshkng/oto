@@ -77,7 +77,7 @@
 <Popover.Root open={eqOpen} onOpenChange={onEqOpenChange}>
 	<Popover.Trigger
 		class={cn(
-			'flex size-7 shrink-0 items-center justify-center rounded-md border text-[10px] font-bold transition-colors bg-none',
+			'flex size-7 shrink-0 items-center justify-center rounded-md border text-[10px] font-bold transition-colors [background-image:none!important]',
 			eqActive(track)
 				? 'bg-primary text-primary-foreground border-primary'
 				: 'text-muted-foreground hover:text-foreground'
@@ -89,7 +89,7 @@
 		<div class="mb-2 flex items-center justify-between">
 			<span class="text-xs font-semibold">Equaliser</span>
 			<button
-				class="text-muted-foreground hover:text-foreground bg-none text-[11px] underline"
+				class="text-muted-foreground hover:text-foreground [background-image:none!important] text-[11px] underline"
 				onclick={onEqReset}>Reset</button
 			>
 		</div>
