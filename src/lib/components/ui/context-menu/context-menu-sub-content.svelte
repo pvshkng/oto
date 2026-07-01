@@ -5,16 +5,21 @@
 	let {
 		ref = $bindable(null),
 		class: className,
+		portalProps,
 		...restProps
-	}: ContextMenuPrimitive.SubContentProps = $props();
+	}: ContextMenuPrimitive.SubContentProps & {
+		portalProps?: ContextMenuPrimitive.PortalProps;
+	} = $props();
 </script>
 
-<ContextMenuPrimitive.SubContent
-	bind:ref
-	data-slot="context-menu-sub-content"
-	class={cn(
-		'bg-popover text-popover-foreground z-50 min-w-[8rem] origin-(--bits-context-menu-sub-content-transform-origin) overflow-hidden rounded-md border p-1 shadow-lg',
-		className
-	)}
-	{...restProps}
-/>
+<ContextMenuPrimitive.Portal {...portalProps}>
+	<ContextMenuPrimitive.SubContent
+		bind:ref
+		data-slot="context-menu-sub-content"
+		class={cn(
+			'bg-popover/60 text-popover-foreground z-50 min-w-[8rem] origin-(--bits-context-menu-sub-content-transform-origin) overflow-hidden rounded-md border p-1 shadow-lg backdrop-blur-md',
+			className
+		)}
+		{...restProps}
+	/>
+</ContextMenuPrimitive.Portal>
