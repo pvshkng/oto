@@ -17,7 +17,7 @@
 		bind:ref
 		data-slot="context-menu-content"
 		class={cn(
-			'bg-popover text-popover-foreground z-50 max-h-(--bits-context-menu-content-available-height) min-w-[8rem] origin-(--bits-context-menu-content-transform-origin) overflow-y-auto overflow-x-hidden rounded-md border p-1 shadow-md',
+			'bg-popover/90 text-popover-foreground z-50 max-h-(--bits-context-menu-content-available-height) min-w-[8rem] origin-(--bits-context-menu-content-transform-origin) overflow-y-auto overflow-x-hidden rounded-md border p-1 shadow-md backdrop-blur-sm',
 			className
 		)}
 		{...restProps}
