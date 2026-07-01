@@ -3,38 +3,18 @@
 	// Click anywhere to move the edit cursor; shift-click extends the loop
 	// selection. Layout geometry comes from notation/layout.ts.
 
-	import { SvelteSet } from 'svelte/reactivity';
 	import { store } from '$lib/stores/score.svelte';
-	import { layoutTrack, METRICS, type LaidBeat, type LaidMeasure } from '$lib/notation/layout';
-	import { GLYPH, restGlyph, timeSigGlyphs, accidentalGlyph } from '$lib/notation/glyphs';
-	import * as ContextMenu from '$lib/components/ui/context-menu';
+	import { layoutTrack, METRICS, type LaidMeasure } from '$lib/notation/layout';
+	import { GLYPH, restGlyph, timeSigGlyphs } from '$lib/notation/glyphs';
 	import { ContextMenu as ContextMenuPrimitive } from 'bits-ui';
-	import * as Kbd from '$lib/components/ui/kbd';
-	import { DURATION_ORDER } from '$lib/oto/duration';
-	import { DURATION_LABELS, TECHNIQUE_LABELS, type DurationValue } from '$lib/oto/types';
-	import { midiToNote } from '$lib/oto/pitch';
-	import Scissors from 'phosphor-svelte/lib/Scissors';
-	import Copy from 'phosphor-svelte/lib/Copy';
-	import ClipboardText from 'phosphor-svelte/lib/ClipboardText';
-	import {
-		EFFECT_LIST,
-		TIME_SIGS,
-		setDuration,
-		toggleDotted,
-		setBarTimeSig,
-		hasTech
-	} from '$lib/commands';
+	import { beamGroups } from './track-staff/beam-geometry';
+	import { createDragSelect } from './track-staff/DragSelect';
+	import StdVoice from './track-staff/StdVoice.svelte';
+	import TabVoice from './track-staff/TabVoice.svelte';
+	import StaffContextMenu from './track-staff/StaffContextMenu.svelte';
+	import { noteheadStyle } from './track-staff/note-styles';
 
 	let { trackIndex }: { trackIndex: number } = $props();
-
-	const DUR_GLYPHS: Record<DurationValue, string> = {
-		1: '𝅝',
-		2: '𝅗𝅥',
-		4: '♩',
-		8: '♪',
-		16: '𝅘𝅥𝅯',
-		32: '𝅘𝅥𝅰'
-	};
 
 	const ctxNote = $derived(store.currentNote);
 
@@ -53,92 +33,6 @@
 	);
 
 	const isActiveTrack = $derived(store.cursor.track === trackIndex);
-
-	// Runs of consecutive beats that contain a let-ring note → drawn as a bracket.
-	function letRingSpans(beats: LaidBeat[]): { x1: number; x2: number }[] {
-		const spans: { x1: number; x2: number }[] = [];
-		let start = -1;
-		for (let i = 0; i < beats.length; i++) {
-			const has = beats[i].notes.some((n) => n.techniques.includes('let-ring'));
-			if (has && start < 0) start = i;
-			if (!has && start >= 0) {
-				spans.push({ x1: beats[start].x, x2: beats[i - 1].x });
-				start = -1;
-			}
-		}
-		if (start >= 0) spans.push({ x1: beats[start].x, x2: beats[beats.length - 1].x });
-		return spans;
-	}
-
-	function beamGroups(beats: LaidBeat[]): number[] {
-		const groups: number[] = [];
-		for (const b of beats)
-			if (b.beamGroup >= 0 && !groups.includes(b.beamGroup)) groups.push(b.beamGroup);
-		return groups.sort((a, b) => a - b);
-	}
-
-	// Stems attach to the side of the notehead column: right for up-stems, left
-	// for down-stems. Half a notehead width keeps them flush against the heads.
-	function stemX(b: LaidBeat): number {
-		return b.x + b.stemDir * 6.5;
-	}
-
-	const STEM = 26; // nominal stem length beyond the furthest notehead
-	const MIN_STEM = 14; // never let a stem get shorter than this
-	const MAX_SLOPE = 0.22; // cap beam slant so it stays legible
-	const SEC_BEAM_GAP = 4.5; // vertical offset of secondary (16th) beams
-
-	interface BeamGeom {
-		x1: number;
-		y1: number;
-		x2: number;
-		y2: number;
-		dir: 1 | -1;
-	}
-
-	// A slanted beam line for a group: follows the pitch contour of its first and
-	// last members, clamps the slope, then shifts so every stem clears its
-	// noteheads with at least MIN_STEM of length.
-	function beamLine(members: LaidBeat[]): BeamGeom {
-		const dir = members[0].stemDir;
-		const x1 = stemX(members[0]);
-		const x2 = stemX(members[members.length - 1]);
-		const dx = x2 - x1 || 1;
-		const edge = (b: LaidBeat) => (dir === 1 ? b.noteTop - STEM : b.noteBottom + STEM);
-		let y1 = edge(members[0]);
-		let y2 = edge(members[members.length - 1]);
-
-		// Clamp slope around the midpoint.
-		let slope = (y2 - y1) / dx;
-		slope = Math.max(-MAX_SLOPE, Math.min(MAX_SLOPE, slope));
-		const midX = (x1 + x2) / 2;
-		const midY = (y1 + y2) / 2;
-		y1 = midY - slope * (midX - x1);
-		y2 = midY + slope * (x2 - midX);
-
-		// Lift/lower the whole line until no stem is shorter than MIN_STEM.
-		for (const m of members) {
-			const yAt = y1 + (y2 - y1) * ((stemX(m) - x1) / dx);
-			if (dir === 1) {
-				const required = m.noteTop - MIN_STEM;
-				if (yAt > required) {
-					y1 -= yAt - required;
-					y2 -= yAt - required;
-				}
-			} else {
-				const required = m.noteBottom + MIN_STEM;
-				if (yAt < required) {
-					y1 += required - yAt;
-					y2 += required - yAt;
-				}
-			}
-		}
-		return { x1, y1, x2, y2, dir };
-	}
-
-	function beamYAt(bl: BeamGeom, x: number): number {
-		return bl.y1 + (bl.y2 - bl.y1) * ((x - bl.x1) / (bl.x2 - bl.x1 || 1));
-	}
 
 	/** Nearest (beat, string) for a pointer event within a band's <g>. */
 	function locate(
@@ -173,7 +67,7 @@
 	}
 
 	function handleClick(e: MouseEvent, measure: LaidMeasure, band: 'tab' | 'standard' | 'rhythm') {
-		if (suppressNextClick) return;
+		if (drag.isSuppressingClick()) return;
 		const { beat, string } = locate(e, measure, band);
 		if (e.shiftKey) {
 			// Keep cursor where it is (just ensure this track is active), then extend
@@ -217,26 +111,6 @@
 		return 0;
 	}
 
-	function isCursorBeat(measureIndex: number, beatIndex: number, voice = 0): boolean {
-		return (
-			isActiveTrack &&
-			store.cursor.voice === voice &&
-			store.cursor.measure === measureIndex &&
-			store.cursor.beat === beatIndex
-		);
-	}
-
-	function inSelection(measureIndex: number, beatIndex: number): boolean {
-		const b = store.loopBounds;
-		if (!b || store.selection?.track !== trackIndex) return false;
-		const key = measureIndex * 1000 + beatIndex;
-		return key >= b.startMeasure * 1000 + b.startBeat && key <= b.endMeasure * 1000 + b.endBeat;
-	}
-
-	function isPlayingBeat(measureIndex: number, beatIndex: number): boolean {
-		return store.playhead?.measure === measureIndex && store.playhead?.beat === beatIndex;
-	}
-
 	$effect(() => {
 		if (!container) return;
 		const ro = new ResizeObserver((entries) => {
@@ -246,403 +120,32 @@
 		return () => ro.disconnect();
 	});
 
-	// ---- Desktop drag-to-select ------------------------------------------
+	const drag = createDragSelect({
+		container: () => container,
+		layout: () => layout,
+		track: () => track,
+		trackIndex: () => trackIndex
+	});
 
-	let dragAnchor: { measureIndex: number; beat: number } | null = null;
-	let dragging = false;
-	let suppressNextClick = false;
-	let dragStartClient = { x: 0, y: 0 };
-	// 'beat' = horizontal drag for beat selection, 'note' = vertical drag for string selection
-	let dragMode: 'beat' | 'note' | null = null;
-	let dragAnchorString: number | null = null;
-
-	/** Convert a client position to the nearest (measureIndex, beat) in this track. */
-	function findBeatAtClient(
-		clientX: number,
-		clientY: number
-	): { measureIndex: number; beat: number } | null {
-		if (!container) return null;
-		const svgEls = container.querySelectorAll<SVGSVGElement>('svg.system');
-		for (const svgEl of svgEls) {
-			const rect = svgEl.getBoundingClientRect();
-			if (clientY < rect.top || clientY > rect.bottom) continue;
-			const svgX = clientX - rect.left;
-			const firstIdx = Number(svgEl.dataset.firstMeasure ?? -1);
-			const sys = layout.systems.find((s) => s.measures[0]?.index === firstIdx);
-			if (!sys || !sys.measures.length) continue;
-			let bestMeasure = sys.measures[0];
-			for (const m of sys.measures) {
-				if (svgX >= m.x) bestMeasure = m;
-			}
-			if (!bestMeasure.beats.length) continue;
-			let bestBeat = 0,
-				bestD = Infinity;
-			for (let i = 0; i < bestMeasure.beats.length; i++) {
-				const d = Math.abs(bestMeasure.beats[i].x - svgX);
-				if (d < bestD) {
-					bestD = d;
-					bestBeat = i;
-				}
-			}
-			return { measureIndex: bestMeasure.index, beat: bestBeat };
-		}
-		return null;
-	}
-
-	/** Returns which string (0-indexed) the pointer is over in the tab band, or null. */
-	function findStringAtClient(clientX: number, clientY: number): number | null {
-		if (!container || !layout.bands.tab) return null;
-		const svgEls = container.querySelectorAll<SVGSVGElement>('svg.system');
-		for (const svgEl of svgEls) {
-			const rect = svgEl.getBoundingClientRect();
-			if (clientY < rect.top || clientY > rect.bottom) continue;
-			const tabOffsetY = rect.top + layout.bands.tab.offsetY + 14;
-			const localY = clientY - tabOffsetY;
-			const string = Math.round(localY / METRICS.tabLineGap);
-			return Math.max(0, Math.min(track.tuning.length - 1, string));
-		}
-		return null;
-	}
-
-	function onDragPointerDown(e: PointerEvent) {
-		if (!store.isDesktop || e.button !== 0) return;
-		dragStartClient = { x: e.clientX, y: e.clientY };
-		dragAnchor = findBeatAtClient(e.clientX, e.clientY);
-		dragAnchorString = findStringAtClient(e.clientX, e.clientY);
-		dragging = false;
-		dragMode = null;
-		// Use document listeners instead of setPointerCapture so click/dblclick
-		// still fire on the <g> children (setPointerCapture redirects them to the div).
-		document.addEventListener('pointermove', onDragPointerMove);
-		document.addEventListener('pointerup', onDragPointerUp);
-	}
-
-	function onDragPointerMove(e: PointerEvent) {
-		if (!dragAnchor || !(e.buttons & 1)) return;
-		const dx = Math.abs(e.clientX - dragStartClient.x);
-		const dy = Math.abs(e.clientY - dragStartClient.y);
-		const dist = Math.hypot(dx, dy);
-		if (dist < 6 && !dragging) return;
-		dragging = true;
-
-		// Determine mode on first significant movement
-		if (!dragMode) {
-			dragMode =
-				dy > dx && dragAnchorString !== null && layout.bands.tab !== null ? 'note' : 'beat';
-		}
-
-		if (dragMode === 'note' && dragAnchor && dragAnchorString !== null) {
-			const curStr = findStringAtClient(e.clientX, e.clientY);
-			if (curStr !== null) {
-				const lo = Math.min(dragAnchorString, curStr);
-				const hi = Math.max(dragAnchorString, curStr);
-				const strings = new SvelteSet<number>();
-				for (let s = lo; s <= hi; s++) strings.add(s);
-				store.setNoteSelection({
-					measure: dragAnchor.measureIndex,
-					beat: dragAnchor.beat,
-					voice: store.cursor.voice,
-					strings
-				});
-				store.setCursor({
-					track: trackIndex,
-					measure: dragAnchor.measureIndex,
-					beat: dragAnchor.beat
-				});
-			}
-		} else {
-			const pos = findBeatAtClient(e.clientX, e.clientY);
-			if (!pos) return;
-			store.setCursor({
-				track: trackIndex,
-				measure: dragAnchor.measureIndex,
-				beat: dragAnchor.beat
-			});
-			store.setSelectionTo(pos.measureIndex, pos.beat);
-		}
-	}
-
-	function onDragPointerUp(_e: PointerEvent) {
-		document.removeEventListener('pointermove', onDragPointerMove);
-		document.removeEventListener('pointerup', onDragPointerUp);
-		if (dragging) {
-			if (dragMode === 'beat') store.loopEnabled = true;
-			suppressNextClick = true;
-			setTimeout(() => {
-				suppressNextClick = false;
-			}, 100);
-		}
-		dragAnchor = null;
-		dragAnchorString = null;
-		dragMode = null;
-		dragging = false;
-	}
+	const BRAVURA = "[font-family:'Bravura',serif] fill-[#18181b]";
+	const HIT_AREA = 'fill-transparent [pointer-events:all] touch-manipulation';
+	const STAFF_LINE = 'stroke-[#d4d4d8] [stroke-width:1]';
+	const BARLINE = 'stroke-[#3f3f46] [stroke-width:1.4]';
+	const STEM = 'stroke-[#18181b] [stroke-width:1.4]';
+	const BEAM = 'stroke-[#18181b] [stroke-width:3.4] [stroke-linecap:butt]';
 </script>
 
-<!-- One voice of the standard staff: beams, then per-beat rests/noteheads/stems. -->
-{#snippet stdVoice(beats: LaidBeat[], measureIndex: number, vIdx: number, bandHeight: number)}
-	{#each beamGroups(beats) as group (group)}
-		{@const members = beats.filter((b) => b.beamGroup === group)}
-		{@const bl = beamLine(members)}
-		<line x1={bl.x1} y1={bl.y1} x2={bl.x2} y2={bl.y2} class="beam" />
-		{#each members as m, mi (m.index)}
-			{@const sx = stemX(m)}
-			{@const yb = beamYAt(bl, sx)}
-			<!-- Stem runs from the notehead column straight to the beam, so heads,
-			     stems and beam always meet. -->
-			<line x1={sx} y1={m.stemDir === 1 ? m.noteBottom : m.noteTop} x2={sx} y2={yb} class="stem" />
-			{#if m.beams >= 2}
-				{#if mi < members.length - 1 && members[mi + 1].beams >= 2}
-					<!-- Secondary (16th/32nd) beam fully connects neighbouring members. -->
-					{@const sx2 = stemX(members[mi + 1])}
-					<line
-						x1={sx}
-						y1={yb + bl.dir * SEC_BEAM_GAP}
-						x2={sx2}
-						y2={beamYAt(bl, sx2) + bl.dir * SEC_BEAM_GAP}
-						class="beam"
-					/>
-				{:else if mi === 0 || members[mi - 1].beams < 2}
-					<!-- Isolated short note: stub points back toward its group. -->
-					{@const sxe = sx + (mi === members.length - 1 ? -7 : 7)}
-					<line
-						x1={sx}
-						y1={yb + bl.dir * SEC_BEAM_GAP}
-						x2={sxe}
-						y2={beamYAt(bl, sxe) + bl.dir * SEC_BEAM_GAP}
-						class="beam"
-					/>
-				{/if}
-			{/if}
-		{/each}
-	{/each}
-	{#each beats as beat (beat.index)}
-		{#if vIdx === 0 && isPlayingBeat(measureIndex, beat.index)}
-			<rect x={beat.x - 9} y="2" width="18" height={bandHeight - 4} class="bg-play" />
-		{:else if isCursorBeat(measureIndex, beat.index, vIdx)}
-			<rect x={beat.x - 9} y="2" width="18" height={bandHeight - 4} class="bg-cursor" />
-		{:else if vIdx === 0 && inSelection(measureIndex, beat.index)}
-			<rect x={beat.x - 9} y="2" width="18" height={bandHeight - 4} class="bg-sel" />
-		{/if}
-		{#if beat.rest}
-			<text x={beat.x - 4} y={METRICS.stdTopPad + 3 * METRICS.staffLineGap} class="bravura rest"
-				>{restGlyph(beat.duration)}</text
-			>
-			{#if beat.dotted}
-				<circle
-					cx={beat.x + 9}
-					cy={METRICS.stdTopPad + 3 * METRICS.staffLineGap - 3}
-					r="1.6"
-					class="dot"
-				/>
-			{/if}
-		{:else}
-			{#each beat.notes as n (n.string)}
-				{#each n.ledgerLines as ly (ly)}
-					<line
-						x1={n.x + n.headXOffset - 9}
-						y1={ly}
-						x2={n.x + n.headXOffset + 9}
-						y2={ly}
-						class="ledger"
-					/>
-				{/each}
-			{/each}
-			{#if beat.duration !== 1 && beat.beamGroup === -1}
-				<line
-					x1={stemX(beat)}
-					y1={beat.stemDir === 1 ? beat.stdStemBottom : beat.stdStemTop}
-					x2={stemX(beat)}
-					y2={beat.stemDir === 1 ? beat.stdStemTop : beat.stdStemBottom}
-					class="stem"
-				/>
-				{#if beat.beams > 0}
-					<text
-						x={stemX(beat)}
-						y={beat.stemDir === 1 ? beat.stdStemTop : beat.stdStemBottom}
-						class="bravura flag"
-						>{beat.beams === 1
-							? GLYPH.flag8thUp
-							: beat.beams === 2
-								? GLYPH.flag16thUp
-								: GLYPH.flag32ndUp}</text
-					>
-				{/if}
-			{/if}
-			{#each beat.notes as n (n.string)}
-				{#if n.accidental}
-					<text x={n.x - 15} y={n.stdY + 4} class="bravura accidental"
-						>{accidentalGlyph(n.accidental)}</text
-					>
-				{/if}
-				{#if n.dead}
-					<!-- Dead/muted note: an X notehead (no pitched ellipse), drawn at the
-					     open-string staff position computed in layout. -->
-					<text x={n.x + n.headXOffset} y={n.stdY + 4} class="dead-head" class:v2={vIdx === 1}
-						>✕</text
-					>
-				{:else}
-					<ellipse
-						cx={n.x + n.headXOffset}
-						cy={n.stdY}
-						rx="6"
-						ry="4.4"
-						class="notehead"
-						class:hollow={beat.duration <= 2}
-						class:v2={vIdx === 1}
-						class:ghost={n.techniques.includes('ghost')}
-						transform="rotate(-20 {n.x + n.headXOffset} {n.stdY})"
-						><title>{midiToNote(n.midi)}</title></ellipse
-					>
-				{/if}
-				{#if beat.dotted}
-					<circle cx={n.x + n.headXOffset + 11} cy={n.stdY} r="1.6" class="dot" />
-				{/if}
-				{@const markY = beat.stemDir === 1 ? n.stdY - 12 : n.stdY + 14}
-				{#if n.techniques.includes('staccato')}
-					<circle cx={n.x + n.headXOffset} cy={markY} r="1.8" class="dot" />
-				{/if}
-				{#if n.techniques.includes('accent')}
-					<text x={n.x + n.headXOffset - 5} y={markY + 5} class="std-accent">›</text>
-				{/if}
-				{#if n.techniques.includes('artificial-harmonic')}
-					<text x={n.x + n.headXOffset} y={markY - 2} class="fx std-fx">A.H.</text>
-				{/if}
-				{#if n.tie}
-					{@const ud = beat.stemDir === 1 ? 1 : -1}
-					<path
-						d="M {n.x + n.headXOffset + 7} {n.stdY + ud * 3} Q {(n.x + n.headXOffset + n.tie.x2) /
-							2} {n.stdY + ud * 11} {n.tie.x2 - 7} {n.tie.stdY2 + ud * 3}"
-						class="tie"
-					/>
-				{/if}
-			{/each}
-		{/if}
-	{/each}
-{/snippet}
-
-<!-- One voice of the tab band: frets + effect markers. -->
-{#snippet tabVoice(beats: LaidBeat[], measureIndex: number, vIdx: number, bandHeight: number)}
-	{#each letRingSpans(beats) as span (span.x1)}
-		<text x={span.x1 - 7} y={9} class="lr-label">let ring</text>
-		<line x1={span.x1 + 33} y1={6} x2={span.x2 + 7} y2={6} class="lr-line" />
-		<line x1={span.x2 + 7} y1={6} x2={span.x2 + 7} y2={12} class="lr-line" />
-	{/each}
-	{#each beats as beat (beat.index)}
-		{#if vIdx === 0 && isPlayingBeat(measureIndex, beat.index)}
-			<rect x={beat.x - 9} y="6" width="18" height={bandHeight - 12} class="bg-play" />
-		{:else if isCursorBeat(measureIndex, beat.index, vIdx)}
-			<rect x={beat.x - 9} y="6" width="18" height={bandHeight - 12} class="bg-cursor" />
-			{#if isActiveTrack}
-				<rect
-					x={beat.x - 9}
-					y={14 + store.cursor.string * METRICS.tabLineGap - 6}
-					width="18"
-					height="12"
-					class="bg-string"
-				/>
-			{/if}
-		{:else if vIdx === 0 && inSelection(measureIndex, beat.index)}
-			<rect x={beat.x - 9} y="6" width="18" height={bandHeight - 12} class="bg-sel" />
-		{/if}
-		{#each beat.notes as n (n.string)}
-			{@const isDead = n.techniques.includes('dead')}
-			{@const isGhost = n.techniques.includes('ghost')}
-			{@const fretLabel = isDead ? 'x' : isGhost ? `(${n.fret})` : String(n.fret)}
-			{@const isNoteSelected =
-				store.noteSelection !== null &&
-				store.noteSelection.measure === measureIndex &&
-				store.noteSelection.beat === beat.index &&
-				store.noteSelection.voice === vIdx &&
-				store.noteSelection.strings.has(n.string)}
-			{#if isNoteSelected}
-				<rect
-					x={n.x - (isGhost ? 10 : 6) - 1}
-					y={n.tabY - 5}
-					width={isGhost ? 22 : 15}
-					height="12"
-					class="note-sel-bg"
-				/>
-			{/if}
-			<rect
-				x={n.x - (isGhost ? 10 : 6)}
-				y={n.tabY - 4}
-				width={isGhost ? 20 : 13}
-				height="10"
-				class="fret-bg"
-			/>
-			<text x={n.x} y={n.tabY + 4} class="fret" class:muted-note={isDead} class:v2={vIdx === 1}
-				>{fretLabel}</text
-			>
-			{#if n.techniques.includes('palm-mute')}
-				<text x={n.x} y={n.tabY - 9} class="fx">P.M.</text>
-			{/if}
-			{#if n.techniques.includes('harmonic')}
-				<text x={n.x} y={n.tabY - 9} class="fx">◇</text>
-			{/if}
-			{#if n.techniques.includes('artificial-harmonic')}
-				<text x={n.x} y={n.tabY - 18} class="fx">A.H.</text>
-			{/if}
-			{#if n.techniques.includes('staccato')}
-				<circle cx={n.x} cy={n.tabY - 9} r="1.8" class="dot" />
-			{/if}
-			{#if n.techniques.includes('accent')}
-				<text x={n.x} y={n.tabY - 9} class="fx accent-sym">›</text>
-			{/if}
-			{#if n.techniques.includes('grace')}
-				<text x={n.x - 9} y={n.tabY} class="fx grace-sym">𝆔</text>
-			{/if}
-			{#if n.techniques.includes('vibrato')}
-				<text x={n.x + 10} y={n.tabY + 4} class="fx-sym">∿</text>
-			{/if}
-			{#if n.techniques.includes('bend')}
-				<path d="M {n.x + 8} {n.tabY} q 10 -2 12 -14" class="bend-arrow" />
-				<text x={n.x + 20} y={n.tabY - 12} class="fx"
-					>{n.bend === 0.5 ? '½' : n.bend === 1 ? 'full' : (n.bend ?? 'full')}</text
-				>
-			{/if}
-			{#if n.techniques.includes('release')}
-				<path d="M {n.x + 8} {n.tabY - 16} q 10 2 12 16" class="bend-arrow" />
-				<text x={n.x + 20} y={n.tabY - 12} class="fx">↓</text>
-			{/if}
-			{#if n.techniques.includes('bend-release')}
-				<path d="M {n.x + 8} {n.tabY} q 5 -2 6 -12 q 4 10 8 12" class="bend-arrow" />
-				<text x={n.x + 22} y={n.tabY - 12} class="fx">br</text>
-			{/if}
-			{#if n.techniques.includes('slide') && n.slideTo !== undefined}
-				<line
-					x1={n.x + 8}
-					y1={n.tabY + (n.slideTo > n.fret ? 3 : -3)}
-					x2={n.x + 24}
-					y2={n.tabY + (n.slideTo > n.fret ? -3 : 3)}
-					class="slide-line"
-				/>
-			{/if}
-			{#if n.techniques.includes('hammer') || n.techniques.includes('pull')}
-				<path d="M {n.x + 8} {n.tabY - 4} q 8 -8 16 0" class="legato" />
-			{/if}
-			{#if n.tie}
-				<path
-					d="M {n.x + 7} {n.tabY - 5} Q {(n.x + n.tie.x2) / 2} {n.tabY - 13} {n.tie.x2 - 7} {n.tie
-						.tabY2 - 5}"
-					class="tie"
-				/>
-			{/if}
-		{/each}
-	{/each}
-{/snippet}
-
 <ContextMenuPrimitive.Root bind:open={ctxOpen}>
-	<ContextMenuPrimitive.Trigger class="ctx-anchor">
+	<ContextMenuPrimitive.Trigger class="block">
 		<div
-			class="track-staff"
+			class="w-full overflow-x-auto bg-paper select-none"
 			bind:this={container}
 			class:active={isActiveTrack}
-			onpointerdown={onDragPointerDown}
+			onpointerdown={drag.onDragPointerDown}
 		>
 			{#each layout.systems as system (system.y)}
 				<svg
-					class="system"
+					class="system block"
 					data-first-measure={system.measures[0]?.index}
 					data-last-measure={system.measures[system.measures.length - 1]?.index}
 					width={Math.max(system.width, containerWidth - 8)}
@@ -667,7 +170,7 @@
 									y="0"
 									width={measure.width}
 									height={band.height}
-									class="hit-area"
+									class={HIT_AREA}
 								/>
 								<!-- 5 staff lines -->
 								{#each [0, 1, 2, 3, 4] as i (i)}
@@ -676,7 +179,7 @@
 										y1={METRICS.stdTopPad + METRICS.staffLineGap + i * METRICS.staffLineGap}
 										x2={measure.x + measure.width}
 										y2={METRICS.stdTopPad + METRICS.staffLineGap + i * METRICS.staffLineGap}
-										class="staff-line"
+										class={STAFF_LINE}
 									/>
 								{/each}
 								<!-- barlines -->
@@ -685,14 +188,14 @@
 									y1={METRICS.stdTopPad + METRICS.staffLineGap}
 									x2={measure.x}
 									y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
-									class="barline"
+									class={BARLINE}
 								/>
 								<line
 									x1={measure.x + measure.width}
 									y1={METRICS.stdTopPad + METRICS.staffLineGap}
 									x2={measure.x + measure.width}
 									y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
-									class="barline"
+									class={BARLINE}
 								/>
 
 								{#if measure.showHeader}
@@ -700,37 +203,52 @@
 										<text
 											x={measure.x + 8}
 											y={METRICS.stdTopPad + 2.5 * METRICS.staffLineGap}
-											class="bravura clef">{GLYPH.bassClef}</text
+											class="{BRAVURA} text-[40px]">{GLYPH.bassClef}</text
 										>
 									{:else}
 										<text
 											x={measure.x + 8}
 											y={METRICS.stdTopPad + 3.4 * METRICS.staffLineGap}
-											class="bravura clef">{GLYPH.trebleClef}</text
+											class="{BRAVURA} text-[40px]">{GLYPH.trebleClef}</text
 										>
 									{/if}
 								{/if}
 								{#if measure.showHeader}
 									{#each layout.keySigGlyphs as g, gi (gi)}
-										<text x={measure.x + g.dx} y={g.y} class="bravura keysig">{g.glyph}</text>
+										<text x={measure.x + g.dx} y={g.y} class="{BRAVURA} text-[24px]">{g.glyph}</text
+										>
 									{/each}
 								{/if}
 								{#if measure.timeSignature}
 									<text
 										x={measure.x + (measure.showHeader ? 34 + layout.keySigWidth : 6)}
 										y={METRICS.stdTopPad + 2 * METRICS.staffLineGap + 1}
-										class="bravura tsig">{timeSigGlyphs(measure.timeSignature[0])}</text
+										class="{BRAVURA} text-[26px]">{timeSigGlyphs(measure.timeSignature[0])}</text
 									>
 									<text
 										x={measure.x + (measure.showHeader ? 34 + layout.keySigWidth : 6)}
 										y={METRICS.stdTopPad + 4 * METRICS.staffLineGap + 1}
-										class="bravura tsig">{timeSigGlyphs(measure.timeSignature[1])}</text
+										class="{BRAVURA} text-[26px]">{timeSigGlyphs(measure.timeSignature[1])}</text
 									>
 								{/if}
 
-								{@render stdVoice(measure.beats, measure.index, 0, band.height)}
+								<StdVoice
+									beats={measure.beats}
+									measureIndex={measure.index}
+									vIdx={0}
+									bandHeight={band.height}
+									{isActiveTrack}
+									{trackIndex}
+								/>
 								{#if measure.voice2}
-									{@render stdVoice(measure.voice2, measure.index, 1, band.height)}
+									<StdVoice
+										beats={measure.voice2}
+										measureIndex={measure.index}
+										vIdx={1}
+										bandHeight={band.height}
+										{isActiveTrack}
+										{trackIndex}
+									/>
 								{/if}
 							</g>
 						{/if}
@@ -750,7 +268,7 @@
 									y="0"
 									width={measure.width}
 									height={band.height}
-									class="hit-area"
+									class={HIT_AREA}
 								/>
 								{#if measure.overflow}
 									<rect
@@ -758,7 +276,7 @@
 										y="0"
 										width={measure.width}
 										height={band.height}
-										class="bg-overflow"
+										class="fill-[rgba(185,28,28,0.1)]"
 									/>
 								{/if}
 								<!-- string lines -->
@@ -768,7 +286,7 @@
 										y1={14 + i * METRICS.tabLineGap}
 										x2={measure.x + measure.width}
 										y2={14 + i * METRICS.tabLineGap}
-										class="staff-line"
+										class={STAFF_LINE}
 									/>
 								{/each}
 								<line
@@ -776,27 +294,42 @@
 									y1={14}
 									x2={measure.x}
 									y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
-									class="barline"
+									class={BARLINE}
 								/>
 								<line
 									x1={measure.x + measure.width}
 									y1={14}
 									x2={measure.x + measure.width}
 									y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
-									class="barline"
+									class={BARLINE}
 								/>
 
 								{#if measure.showHeader}
 									<text
 										x={measure.x + 8}
 										y={14 + ((track.tuning.length - 1) * METRICS.tabLineGap) / 2 + 4}
-										class="tab-label">TAB</text
+										class="[font:700_9px_ui-sans-serif,sans-serif] fill-[#a1a1aa] tracking-[1px]"
+										>TAB</text
 									>
 								{/if}
 
-								{@render tabVoice(measure.beats, measure.index, 0, band.height)}
+								<TabVoice
+									beats={measure.beats}
+									measureIndex={measure.index}
+									vIdx={0}
+									bandHeight={band.height}
+									{isActiveTrack}
+									{trackIndex}
+								/>
 								{#if measure.voice2}
-									{@render tabVoice(measure.voice2, measure.index, 1, band.height)}
+									<TabVoice
+										beats={measure.voice2}
+										measureIndex={measure.index}
+										vIdx={1}
+										bandHeight={band.height}
+										{isActiveTrack}
+										{trackIndex}
+									/>
 								{/if}
 							</g>
 						{/if}
@@ -816,21 +349,21 @@
 									y="0"
 									width={measure.width}
 									height={band.height}
-									class="hit-area"
+									class={HIT_AREA}
 								/>
 								<line
 									x1={measure.x}
 									y1={band.height / 2}
 									x2={measure.x + measure.width}
 									y2={band.height / 2}
-									class="staff-line"
+									class={STAFF_LINE}
 								/>
 								<line
 									x1={measure.x}
 									y1={band.height / 2 - 8}
 									x2={measure.x}
 									y2={band.height / 2 + 8}
-									class="barline"
+									class={BARLINE}
 								/>
 								<!-- Beams first: consecutive same-rhythm beats connect into a group. -->
 								{#each beamGroups(measure.beats) as group (group)}
@@ -840,18 +373,18 @@
 										y1={stemTop}
 										x2={members[members.length - 1].x}
 										y2={stemTop}
-										class="beam"
+										class={BEAM}
 									/>
 									{#each members as m (m.index)}
-										<line x1={m.x} y1={band.height / 2} x2={m.x} y2={stemTop} class="stem" />
+										<line x1={m.x} y1={band.height / 2} x2={m.x} y2={stemTop} class={STEM} />
 										{#if m.beams >= 2}
-											<line x1={m.x} y1={stemTop + 4} x2={m.x + 8} y2={stemTop + 4} class="beam" />
+											<line x1={m.x} y1={stemTop + 4} x2={m.x + 8} y2={stemTop + 4} class={BEAM} />
 										{/if}
 									{/each}
 								{/each}
 								{#each measure.beats as beat (beat.index)}
 									{#if beat.rest}
-										<text x={beat.x - 3} y={band.height / 2 + 4} class="bravura rest"
+										<text x={beat.x - 3} y={band.height / 2 + 4} class="{BRAVURA} text-[26px]"
 											>{restGlyph(beat.duration)}</text
 										>
 									{:else}
@@ -861,10 +394,13 @@
 												y1={band.height / 2}
 												x2={beat.x}
 												y2={stemTop}
-												class="stem"
+												class={STEM}
 											/>
 											{#if beat.beams > 0}
-												<text x={beat.x} y={stemTop} class="bravura flag"
+												<text
+													x={beat.x}
+													y={stemTop}
+													class="{BRAVURA} text-[26px] [dominant-baseline:middle]"
 													>{beat.beams === 1 ? GLYPH.flag8thUp : GLYPH.flag16thUp}</text
 												>
 											{/if}
@@ -874,8 +410,7 @@
 											cy={band.height / 2}
 											rx="4.5"
 											ry="3.4"
-											class="notehead"
-											class:hollow={beat.duration <= 2}
+											class={noteheadStyle({ hollow: beat.duration <= 2, v2: false, ghost: false })}
 										/>
 									{/if}
 								{/each}
@@ -895,9 +430,13 @@
 											y1={4}
 											x2={beat.x - 9}
 											y2={system.height - 4}
-											class="mark-start-line"
+											class="stroke-[#f59e0b] [stroke-width:2] [stroke-dasharray:4_3] pointer-events-none"
 										/>
-										<text x={beat.x - 6} y={14} class="mark-start-label">[</text>
+										<text
+											x={beat.x - 6}
+											y={14}
+											class="fill-[#f59e0b] text-[13px] font-black pointer-events-none">[</text
+										>
 									{/if}
 								{/each}
 							{/if}
@@ -907,406 +446,5 @@
 			{/each}
 		</div>
 	</ContextMenuPrimitive.Trigger>
-	<ContextMenu.Content class="w-56">
-		<!-- Cut / Copy / Paste as compact icon row -->
-		<div class="ctx-icon-row">
-			<button
-				class="ctx-icon-btn"
-				title="Cut (Ctrl+X)"
-				onclick={() => {
-					store.cutSelection();
-					ctxOpen = false;
-				}}><Scissors class="size-4" /></button
-			>
-			<button
-				class="ctx-icon-btn"
-				title="Copy (Ctrl+C)"
-				onclick={() => {
-					store.copySelection();
-					ctxOpen = false;
-				}}><Copy class="size-4" /></button
-			>
-			<button
-				class="ctx-icon-btn"
-				disabled={!store.clipboard}
-				title="Paste (Ctrl+V)"
-				onclick={() => {
-					store.pasteClipboard();
-					ctxOpen = false;
-				}}><ClipboardText class="size-4" /></button
-			>
-		</div>
-
-		<ContextMenu.Separator />
-
-		<ContextMenu.Sub>
-			<ContextMenu.SubTrigger>Note</ContextMenu.SubTrigger>
-			<ContextMenu.SubContent class="w-44">
-				{#each DURATION_ORDER as d (d)}
-					<ContextMenu.Item onSelect={() => setDuration(d)}>
-						<span class="w-4 text-center text-base leading-none">{DUR_GLYPHS[d]}</span>
-						<span>{DURATION_LABELS[d]}</span>
-						{#if store.activeDuration === d}<span class="ml-auto">●</span>{/if}
-					</ContextMenu.Item>
-				{/each}
-				<ContextMenu.Separator />
-				<ContextMenu.Item onSelect={toggleDotted}>
-					Dotted
-					<Kbd.Root class="ml-auto">.</Kbd.Root>
-					{#if store.activeDotted}<span class="ml-1">●</span>{/if}
-				</ContextMenu.Item>
-				<ContextMenu.Separator />
-				<ContextMenu.Sub>
-					<ContextMenu.SubTrigger>Effects</ContextMenu.SubTrigger>
-					<ContextMenu.SubContent class="w-48">
-						{#each EFFECT_LIST as t (t)}
-							<ContextMenu.Item
-								onSelect={() => store.toggleTechnique(t)}
-								disabled={t !== 'dead' && !ctxNote}
-							>
-								<span>{TECHNIQUE_LABELS[t]}</span>
-								{#if hasTech(t)}<span class="ml-auto">●</span>{/if}
-							</ContextMenu.Item>
-						{/each}
-					</ContextMenu.SubContent>
-				</ContextMenu.Sub>
-			</ContextMenu.SubContent>
-		</ContextMenu.Sub>
-
-		<ContextMenu.Item
-			disabled={!ctxNote && !store.selection && !store.hasNoteSelection}
-			variant="destructive"
-			onSelect={() =>
-				store.selection ? store.deleteNotesInSelection() : store.deleteNoteAtCursor()}
-		>
-			{store.selection || (store.noteSelection?.strings.size ?? 0) > 1
-				? 'Delete notes'
-				: 'Delete note'}
-			<Kbd.Root class="ml-auto">Del</Kbd.Root>
-		</ContextMenu.Item>
-
-		<ContextMenu.Separator />
-
-		{#if store.markStartPending}
-			<ContextMenu.Item onSelect={() => store.completeMarkEnd()}>
-				Mark end
-				<Kbd.Root class="ml-auto">]</Kbd.Root>
-			</ContextMenu.Item>
-		{:else}
-			<ContextMenu.Item onSelect={() => store.beginMarkStart()}>
-				Mark start
-				<Kbd.Root class="ml-auto">[</Kbd.Root>
-			</ContextMenu.Item>
-		{/if}
-		<ContextMenu.Item
-			disabled={!store.selection && !store.markStartPending}
-			onSelect={() => store.clearSelection()}
-		>
-			Deselect
-			<Kbd.Group class="ml-auto"><Kbd.Root>Ctrl</Kbd.Root><Kbd.Root>D</Kbd.Root></Kbd.Group>
-		</ContextMenu.Item>
-
-		<ContextMenu.Separator />
-
-		<ContextMenu.Sub>
-			<ContextMenu.SubTrigger>Insert beat</ContextMenu.SubTrigger>
-			<ContextMenu.SubContent class="w-48">
-				<ContextMenu.Item onSelect={() => store.insertBeatBefore()}>
-					Before
-					<Kbd.Group class="ml-auto"><Kbd.Root>⇧</Kbd.Root><Kbd.Root>↵</Kbd.Root></Kbd.Group>
-				</ContextMenu.Item>
-				<ContextMenu.Item onSelect={() => store.insertBeat()}>
-					After
-					<Kbd.Root class="ml-auto">↵</Kbd.Root>
-				</ContextMenu.Item>
-			</ContextMenu.SubContent>
-		</ContextMenu.Sub>
-
-		<ContextMenu.Separator />
-
-		<ContextMenu.Sub>
-			<ContextMenu.SubTrigger>Insert bar</ContextMenu.SubTrigger>
-			<ContextMenu.SubContent class="w-52">
-				<ContextMenu.Item onSelect={() => store.insertMeasureAt(store.cursor.measure)}>
-					Before
-					<Kbd.Group class="ml-auto"
-						><Kbd.Root>Ctrl</Kbd.Root><Kbd.Root>⇧</Kbd.Root><Kbd.Root>↵</Kbd.Root></Kbd.Group
-					>
-				</ContextMenu.Item>
-				<ContextMenu.Item onSelect={() => store.insertMeasureAt(store.cursor.measure + 1)}>
-					After
-					<Kbd.Group class="ml-auto"><Kbd.Root>Ctrl</Kbd.Root><Kbd.Root>↵</Kbd.Root></Kbd.Group>
-				</ContextMenu.Item>
-			</ContextMenu.SubContent>
-		</ContextMenu.Sub>
-		<ContextMenu.Item onSelect={() => store.duplicateMeasureAt(store.cursor.measure)}>
-			Duplicate bar
-			<Kbd.Group class="ml-auto"
-				><Kbd.Root>Ctrl</Kbd.Root><Kbd.Root>⇧</Kbd.Root><Kbd.Root>D</Kbd.Root></Kbd.Group
-			>
-		</ContextMenu.Item>
-		<ContextMenu.Item onSelect={() => store.clearMeasureAt(store.cursor.measure)}>
-			Clear bar
-		</ContextMenu.Item>
-		<ContextMenu.Sub>
-			<ContextMenu.SubTrigger>Time signature</ContextMenu.SubTrigger>
-			<ContextMenu.SubContent class="w-32">
-				{#each TIME_SIGS as ts (ts)}
-					<ContextMenu.Item onSelect={() => setBarTimeSig(ts)}>{ts}</ContextMenu.Item>
-				{/each}
-			</ContextMenu.SubContent>
-		</ContextMenu.Sub>
-		<ContextMenu.Item
-			variant="destructive"
-			disabled={track.measures.length <= 1}
-			onSelect={() => store.removeMeasureFromAll(store.cursor.measure)}
-		>
-			Delete bar
-		</ContextMenu.Item>
-	</ContextMenu.Content>
+	<StaffContextMenu bind:ctxOpen {ctxNote} {track} />
 </ContextMenuPrimitive.Root>
-
-<style>
-	:global(.ctx-anchor) {
-		display: block;
-	}
-	:global(.ctx-icon-row) {
-		display: flex;
-		align-items: center;
-		gap: 2px;
-		padding: 4px 6px 6px;
-		margin-bottom: 2px;
-	}
-	:global(.ctx-icon-btn) {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 30px;
-		height: 30px;
-		border-radius: 6px;
-		border: none;
-		background: transparent;
-		background-image: none !important;
-		color: var(--muted-foreground, #71717a);
-		cursor: pointer;
-		transform: none !important;
-	}
-	:global(.ctx-icon-btn:hover:not(:disabled)) {
-		background: var(--accent, #f4f4f5);
-		background-image: none !important;
-		color: var(--foreground, #18181b);
-	}
-	:global(.ctx-icon-btn:disabled) {
-		opacity: 0.4;
-		cursor: not-allowed;
-	}
-	.mark-start-line {
-		stroke: #f59e0b;
-		stroke-width: 2;
-		stroke-dasharray: 4 3;
-		pointer-events: none;
-	}
-	.mark-start-label {
-		fill: #f59e0b;
-		font-size: 13px;
-		font-weight: 900;
-		pointer-events: none;
-	}
-	.track-staff {
-		width: 100%;
-		overflow-x: auto;
-		background: var(--paper, #fff);
-		user-select: none;
-	}
-	.system {
-		display: block;
-	}
-	/* Transparent backstop so a tap on empty space inside a band still hits the
-	   <g>'s click handler — without it, SVG only dispatches pointer events where
-	   something is actually painted (a line, note, etc). */
-	.hit-area {
-		fill: transparent;
-		pointer-events: all;
-		touch-action: manipulation;
-	}
-	.staff-line {
-		stroke: #d4d4d8;
-		stroke-width: 1;
-	}
-	.barline {
-		stroke: #3f3f46;
-		stroke-width: 1.4;
-	}
-	.ledger {
-		stroke: #a1a1aa;
-		stroke-width: 1;
-	}
-	.notehead {
-		fill: #18181b;
-	}
-	.notehead.hollow {
-		fill: #fff;
-		stroke: #18181b;
-		stroke-width: 1.6;
-	}
-	.notehead.v2 {
-		fill: #71717a;
-	}
-	.notehead.v2.hollow {
-		fill: #fff;
-		stroke: #71717a;
-	}
-	.dead-head {
-		fill: #18181b;
-		font-size: 13px;
-		font-weight: 700;
-		text-anchor: middle;
-	}
-	.dead-head.v2 {
-		fill: #71717a;
-	}
-	.notehead.ghost {
-		opacity: 0.35;
-	}
-	.std-accent {
-		font-size: 13px;
-		font-weight: 700;
-		fill: #18181b;
-		text-anchor: middle;
-	}
-	.std-fx {
-		text-anchor: middle;
-	}
-	.accent-sym {
-		font-size: 13px;
-		font-weight: 700;
-	}
-	.grace-sym {
-		font-size: 10px;
-	}
-	.stem,
-	.beam {
-		stroke: #18181b;
-	}
-	.stem {
-		stroke-width: 1.4;
-	}
-	.beam {
-		stroke-width: 3.4;
-		stroke-linecap: butt;
-	}
-	.dot {
-		fill: #18181b;
-	}
-	.accidental {
-		font-size: 24px;
-	}
-	.keysig {
-		font-size: 24px;
-	}
-	.tie {
-		fill: none;
-		stroke: #18181b;
-		stroke-width: 1.3;
-	}
-	.bravura {
-		font-family: 'Bravura', serif;
-		fill: #18181b;
-	}
-	.clef {
-		font-size: 40px;
-	}
-	.tsig {
-		font-size: 26px;
-	}
-	.rest {
-		font-size: 26px;
-	}
-	.flag {
-		font-size: 26px;
-		dominant-baseline: middle;
-	}
-	.tab-label {
-		font:
-			700 9px ui-sans-serif,
-			sans-serif;
-		fill: #a1a1aa;
-		letter-spacing: 1px;
-	}
-	.fret-bg {
-		fill: var(--paper, #fff);
-	}
-	.fret {
-		font:
-			600 12px ui-monospace,
-			monospace;
-		fill: #18181b;
-		text-anchor: middle;
-	}
-	.fret.muted-note {
-		fill: #a1a1aa;
-	}
-	.fret.v2 {
-		fill: #71717a;
-	}
-	.fx {
-		font:
-			600 8px ui-sans-serif,
-			sans-serif;
-		fill: #71717a;
-		text-anchor: middle;
-	}
-	.fx-sym {
-		font-size: 12px;
-		fill: #71717a;
-	}
-	.lr-label {
-		font:
-			italic 600 8px ui-sans-serif,
-			sans-serif;
-		fill: #71717a;
-	}
-	.lr-line {
-		stroke: #a1a1aa;
-		stroke-width: 1;
-		stroke-dasharray: 3 2;
-	}
-	.bend-arrow {
-		fill: none;
-		stroke: #52525b;
-		stroke-width: 1.3;
-		marker-end: none;
-	}
-	.slide-line {
-		stroke: #52525b;
-		stroke-width: 1.6;
-	}
-	.legato {
-		fill: none;
-		stroke: #52525b;
-		stroke-width: 1.3;
-	}
-	.note-sel-bg {
-		fill: rgba(24, 24, 27, 0.22);
-		rx: 3;
-	}
-	.bg-cursor {
-		fill: rgba(24, 24, 27, 0.16);
-		rx: 3;
-	}
-	.bg-sel {
-		fill: rgba(24, 24, 27, 0.07);
-		rx: 3;
-	}
-	.bg-string {
-		fill: rgba(24, 24, 27, 0.14);
-		rx: 2;
-	}
-	.bg-play {
-		fill: rgba(24, 24, 27, 0.28);
-		rx: 3;
-	}
-	.bg-overflow {
-		fill: rgba(185, 28, 28, 0.1);
-	}
-</style>

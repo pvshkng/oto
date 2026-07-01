@@ -38,6 +38,13 @@ if (typeof window !== 'undefined') {
 
 export type MetronomeSound = 'click' | 'beep' | 'wood' | 'bell';
 
+export const METRONOME_SOUNDS: { id: MetronomeSound; label: string }[] = [
+	{ id: 'click', label: 'Click' },
+	{ id: 'beep', label: 'Beep' },
+	{ id: 'wood', label: 'Wood' },
+	{ id: 'bell', label: 'Bell' }
+];
+
 export interface ScheduledNote {
 	time: number; // seconds from start
 	duration: number; // seconds
