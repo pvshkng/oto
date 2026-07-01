@@ -24,8 +24,11 @@
 	// Mobile dock panel — mutually exclusive (editMode vs mixerOpen)
 	const dockPanel = $derived(store.editMode ? 'edit' : store.mixerOpen ? 'mixer' : null);
 
-	// Height of the fixed bottom dock (mobile only), so the sheet can scroll clear.
-	let dockHeight = $state(56);
+	// Height of just the persistent bottom bar (mobile only) — the score area
+	// only reserves clearance for this, not for the optional sliding panel
+	// above it, so an open panel overlaps real score content (blurred through
+	// it) instead of blank reserved padding.
+	let bottomBarHeight = $state(56);
 
 	let scoreAreaEl = $state<HTMLElement | undefined>(undefined);
 	let leftPanelW = $state(260);
@@ -70,6 +73,13 @@
 			target.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		}
 	});
+
+	// The right-click track-staff context menu doesn't track the page under
+	// it as it scrolls, so it visually detaches from the note it was opened
+	// on. Closing it the moment the score area scrolls avoids that.
+	function closeContextMenuOnScroll() {
+		if (store.contextMenuOpen) store.contextMenuOpen = false;
+	}
 
 	onMount(() => {
 		store.loadFromStorage();
@@ -129,6 +139,7 @@
 			<main
 				class="flex min-h-0 flex-1 justify-center overflow-y-auto [padding:20px_18px_0] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
 				bind:this={scoreAreaEl}
+				onscroll={closeContextMenuOnScroll}
 			>
 				<ScoreArea
 					onHeaderClick={() => {
@@ -179,12 +190,13 @@
 		<main
 			class="flex min-h-0 flex-1 justify-center overflow-y-auto [padding:20px_18px_0] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
 			bind:this={scoreAreaEl}
-			style="padding-bottom: {dockHeight + 28}px"
+			style="padding-bottom: {bottomBarHeight + 16}px"
+			onscroll={closeContextMenuOnScroll}
 		>
 			<ScoreArea onHeaderClick={() => (store.songModalOpen = true)} />
 		</main>
 
-		<div class="fixed inset-x-0 bottom-0 z-50 print:hidden" bind:clientHeight={dockHeight}>
+		<div class="fixed inset-x-0 bottom-0 z-50 print:hidden">
 			{#if dockPanel}
 				<div class="relative z-[1] shadow-[var(--shadow-3)]" transition:fly={dockTransition}>
 					{#if dockPanel === 'edit'}
@@ -194,7 +206,9 @@
 					{/if}
 				</div>
 			{/if}
-			<BottomBar />
+			<div bind:clientHeight={bottomBarHeight}>
+				<BottomBar />
+			</div>
 		</div>
 
 		<SongModal />

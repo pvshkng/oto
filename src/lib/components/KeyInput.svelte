@@ -57,7 +57,9 @@
 
 <style>
 	.key-input {
-		background: var(--panel);
+		background: color-mix(in srgb, var(--panel) 70%, transparent);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
 		border-top: 1px solid var(--border-strong);
 	}
 	.key-input-header {

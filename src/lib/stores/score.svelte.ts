@@ -82,6 +82,8 @@ export class ScoreStore {
 	#mixerOpenState = $state(false);
 	editTool = $state<'keypad' | 'fretboard' | 'piano'>('keypad');
 	songModalOpen = $state(false);
+	/** Track-staff right-click menu (any track). Closed on outer scroll. */
+	contextMenuOpen = $state(false);
 
 	// Desktop-only UI state. keyInputOpen controls the bottom key-entry panel
 	// (keypad/fretboard/piano) independently of the left note-properties panel.
