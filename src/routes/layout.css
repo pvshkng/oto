@@ -64,6 +64,36 @@
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
 	--radius-xl: calc(var(--radius) + 4px);
+
+	/* Legacy palette (below), exposed as Tailwind utilities so components can
+	   move off hand-written CSS onto e.g. bg-panel / text-ink / rounded-xs. */
+	--color-paper: var(--paper);
+	--color-bg: var(--bg);
+	--color-panel: var(--panel);
+	--color-panel-2: var(--panel-2);
+	--color-ink: var(--ink);
+	--color-ink-soft: var(--ink-soft);
+	--color-text-muted: var(--text-muted);
+	--color-faint: var(--faint);
+	--color-border-strong: var(--border-strong);
+	--color-accent-ink: var(--accent-ink);
+	--color-accent-soft: var(--accent-soft);
+	--color-accent-2: var(--accent-2);
+	--color-brick: var(--brick);
+	--color-brick-soft: var(--brick-soft);
+	--color-brick-border: var(--brick-border);
+	/* --r-xs/sm/md/lg/pill are a separate scale from --radius-* above (different
+	   px values) — kept under distinct utility names so mapping them can't
+	   silently change what rounded-sm/md/lg already resolve to app-wide. */
+	--radius-legacy-xs: var(--r-xs);
+	--radius-legacy-sm: var(--r-sm);
+	--radius-legacy-md: var(--r-md);
+	--radius-legacy-lg: var(--r-lg);
+	--radius-pill: var(--r-pill);
+
+	--shadow-card-1: var(--shadow-1);
+	--shadow-card-2: var(--shadow-2);
+	--shadow-card-3: var(--shadow-3);
 }
 
 @layer base {

@@ -8,32 +8,13 @@
 	import { DURATION_ORDER } from '$lib/oto/duration';
 	import { durationGlyph, AUGMENTATION_DOT } from '$lib/notation/glyphs';
 	import { DURATION_LABELS, type DurationValue, type Technique } from '$lib/oto/types';
+	import { TIME_SIGS, EFFECT_UI as EFFECTS } from '$lib/commands';
 	import * as Popover from '$lib/components/ui/popover';
 	import { cn } from '$lib/utils';
 	import X from 'phosphor-svelte/lib/X';
 	import ColumnsPlusLeft from 'phosphor-svelte/lib/ColumnsPlusLeft';
 	import ColumnsPlusRight from 'phosphor-svelte/lib/ColumnsPlusRight';
 	import Eraser from 'phosphor-svelte/lib/Eraser';
-
-	const EFFECTS: { tech: Technique; label: string; sym: string; alwaysOn?: boolean }[] = [
-		{ tech: 'hammer', label: 'Hammer / Pull', sym: 'H/P' },
-		{ tech: 'slide', label: 'Slide', sym: '/' },
-		{ tech: 'bend', label: 'Bend', sym: '⤴' },
-		{ tech: 'release', label: 'Release', sym: '⤵' },
-		{ tech: 'bend-release', label: 'Bend/Release', sym: '⤴⤵' },
-		{ tech: 'vibrato', label: 'Vibrato', sym: '∿' },
-		{ tech: 'palm-mute', label: 'Palm mute', sym: 'PM' },
-		{ tech: 'let-ring', label: 'Let ring', sym: 'LR' },
-		{ tech: 'harmonic', label: 'Nat. Harmonic', sym: '◇' },
-		{ tech: 'artificial-harmonic', label: 'Art. Harmonic', sym: 'AH' },
-		{ tech: 'dead', label: 'Dead', sym: '✕', alwaysOn: true },
-		{ tech: 'staccato', label: 'Staccato', sym: '·' },
-		{ tech: 'ghost', label: 'Ghost', sym: '()' },
-		{ tech: 'accent', label: 'Accent', sym: '>' },
-		{ tech: 'grace', label: 'Grace', sym: 'gr' }
-	];
-
-	const TIME_SIGS = ['4/4', '3/4', '2/4', '6/8', '12/8', '5/4', '7/8'];
 
 	const note = $derived(store.currentNote);
 	const barTs = $derived(store.timeSignatureAt(store.cursor.measure));

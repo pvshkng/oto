@@ -10,8 +10,9 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { cn } from '$lib/utils';
+	import { TIME_SIGS } from '$lib/commands';
+	import { KEY_SIGS } from '$lib/oto/types';
 
-	const TIME_SIGS = ['4/4', '3/4', '2/4', '6/8', '12/8', '5/4', '7/8'];
 	const currentTs = $derived(`${store.score.timeSignature[0]}/${store.score.timeSignature[1]}`);
 	let tsOpen = $state(false);
 	function setTs(v: string) {
@@ -19,25 +20,6 @@
 		store.setTimeSignature(n, d);
 	}
 
-	// Circle of fifths, flats through sharps. Major key name shown; relative
-	// minor is a third below (e.g. "C" also reads as A minor).
-	const KEY_SIGS: { fifths: number; major: string; minor: string }[] = [
-		{ fifths: -7, major: 'Cb', minor: 'Ab' },
-		{ fifths: -6, major: 'Gb', minor: 'Eb' },
-		{ fifths: -5, major: 'Db', minor: 'Bb' },
-		{ fifths: -4, major: 'Ab', minor: 'F' },
-		{ fifths: -3, major: 'Eb', minor: 'C' },
-		{ fifths: -2, major: 'Bb', minor: 'G' },
-		{ fifths: -1, major: 'F', minor: 'D' },
-		{ fifths: 0, major: 'C', minor: 'A' },
-		{ fifths: 1, major: 'G', minor: 'E' },
-		{ fifths: 2, major: 'D', minor: 'B' },
-		{ fifths: 3, major: 'A', minor: 'F#' },
-		{ fifths: 4, major: 'E', minor: 'C#' },
-		{ fifths: 5, major: 'B', minor: 'G#' },
-		{ fifths: 6, major: 'F#', minor: 'D#' },
-		{ fifths: 7, major: 'C#', minor: 'A#' }
-	];
 	const currentKey = $derived(
 		KEY_SIGS.find((k) => k.fifths === store.score.keySignature) ?? KEY_SIGS[7]
 	);

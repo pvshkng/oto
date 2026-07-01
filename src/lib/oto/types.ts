@@ -65,6 +65,25 @@ export const TECHNIQUE_LABELS: Record<Technique, string> = {
 	grace: 'Grace Note'
 };
 
+/** Circle-of-fifths lookup: fifths offset -> major/relative-minor key names. */
+export const KEY_SIGS: { fifths: number; major: string; minor: string }[] = [
+	{ fifths: -7, major: 'Cb', minor: 'Ab' },
+	{ fifths: -6, major: 'Gb', minor: 'Eb' },
+	{ fifths: -5, major: 'Db', minor: 'Bb' },
+	{ fifths: -4, major: 'Ab', minor: 'F' },
+	{ fifths: -3, major: 'Eb', minor: 'C' },
+	{ fifths: -2, major: 'Bb', minor: 'G' },
+	{ fifths: -1, major: 'F', minor: 'D' },
+	{ fifths: 0, major: 'C', minor: 'A' },
+	{ fifths: 1, major: 'G', minor: 'E' },
+	{ fifths: 2, major: 'D', minor: 'B' },
+	{ fifths: 3, major: 'A', minor: 'F#' },
+	{ fifths: 4, major: 'E', minor: 'C#' },
+	{ fifths: 5, major: 'B', minor: 'G#' },
+	{ fifths: 6, major: 'F#', minor: 'D#' },
+	{ fifths: 7, major: 'C#', minor: 'A#' }
+];
+
 /** A single fretted note on a specific string within a beat. */
 export interface OtoNote {
 	/** String index, 0 = highest-pitched string (top of tab) … n = lowest. */

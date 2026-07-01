@@ -4,7 +4,9 @@
 	// button in BottomBar sets the flag; the X button here clears it.
 
 	import { store } from '$lib/stores/score.svelte';
-	import { audio, type MetronomeSound } from '$lib/audio/engine';
+	import { audio, METRONOME_SOUNDS, type MetronomeSound } from '$lib/audio/engine';
+	import { TIME_SIGS } from '$lib/commands';
+	import { KEY_SIGS } from '$lib/oto/types';
 	import * as Popover from '$lib/components/ui/popover';
 	import { buttonVariants } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -20,31 +22,6 @@
 	import Copy from 'phosphor-svelte/lib/Copy';
 	import Trash from 'phosphor-svelte/lib/Trash';
 	import MusicNotesPlus from 'phosphor-svelte/lib/MusicNotesPlus';
-
-	const TIME_SIGS = ['4/4', '3/4', '2/4', '6/8', '12/8', '5/4', '7/8'];
-	const KEY_SIGS: { fifths: number; major: string; minor: string }[] = [
-		{ fifths: -7, major: 'Cb', minor: 'Ab' },
-		{ fifths: -6, major: 'Gb', minor: 'Eb' },
-		{ fifths: -5, major: 'Db', minor: 'Bb' },
-		{ fifths: -4, major: 'Ab', minor: 'F' },
-		{ fifths: -3, major: 'Eb', minor: 'C' },
-		{ fifths: -2, major: 'Bb', minor: 'G' },
-		{ fifths: -1, major: 'F', minor: 'D' },
-		{ fifths: 0, major: 'C', minor: 'A' },
-		{ fifths: 1, major: 'G', minor: 'E' },
-		{ fifths: 2, major: 'D', minor: 'B' },
-		{ fifths: 3, major: 'A', minor: 'F#' },
-		{ fifths: 4, major: 'E', minor: 'C#' },
-		{ fifths: 5, major: 'B', minor: 'G#' },
-		{ fifths: 6, major: 'F#', minor: 'D#' },
-		{ fifths: 7, major: 'C#', minor: 'A#' }
-	];
-	const METRONOME_SOUNDS: { id: MetronomeSound; label: string }[] = [
-		{ id: 'click', label: 'Click' },
-		{ id: 'beep', label: 'Beep' },
-		{ id: 'wood', label: 'Wood' },
-		{ id: 'bell', label: 'Bell' }
-	];
 
 	const currentTs = $derived(`${store.score.timeSignature[0]}/${store.score.timeSignature[1]}`);
 	const currentKey = $derived(

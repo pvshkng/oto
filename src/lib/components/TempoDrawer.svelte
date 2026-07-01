@@ -3,7 +3,7 @@
 	// for fast scrubbing, replacing the old tempo popover.
 
 	import { store } from '$lib/stores/score.svelte';
-	import { audio, type MetronomeSound } from '$lib/audio/engine';
+	import { audio, METRONOME_SOUNDS, type MetronomeSound } from '$lib/audio/engine';
 	// open prop is kept for API compatibility but store.tempoOpen drives the drawer
 	import * as Drawer from '$lib/components/ui/drawer';
 	import { Button } from '$lib/components/ui/button';
@@ -16,13 +16,6 @@
 
 	const MIN = 20;
 	const MAX = 400;
-
-	const sounds: { id: MetronomeSound; label: string }[] = [
-		{ id: 'click', label: 'Click' },
-		{ id: 'beep', label: 'Beep' },
-		{ id: 'wood', label: 'Wood' },
-		{ id: 'bell', label: 'Bell' }
-	];
 
 	function step(delta: number) {
 		store.setTempo(store.score.tempo + delta);
@@ -99,14 +92,14 @@
 					Metronome sound
 				</span>
 				<div class="flex w-full items-stretch" role="group" aria-label="Metronome sound">
-					{#each sounds as s, i (s.id)}
+					{#each METRONOME_SOUNDS as s, i (s.id)}
 						<Button
 							variant="outline"
 							size="sm"
 							class={cn(
 								'h-9 flex-1 rounded-none',
 								i === 0 && 'rounded-l-md',
-								i === sounds.length - 1 && 'rounded-r-md',
+								i === METRONOME_SOUNDS.length - 1 && 'rounded-r-md',
 								i > 0 && 'border-l-0',
 								store.metronomeSound === s.id && 'sunk'
 							)}
