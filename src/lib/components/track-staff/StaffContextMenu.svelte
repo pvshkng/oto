@@ -40,13 +40,16 @@
 		16: '𝅘𝅥𝅯',
 		32: '𝅘𝅥𝅰'
 	};
+
+	const CTX_ICON_BTN =
+		'flex items-center justify-center w-[30px] h-[30px] rounded-[6px] border-none bg-transparent [background-image:none!important] text-muted-foreground cursor-pointer [transform:none!important] hover:bg-accent hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed';
 </script>
 
 <ContextMenu.Content class="w-56">
 	<!-- Cut / Copy / Paste as compact icon row -->
-	<div class="ctx-icon-row">
+	<div class="mb-0.5 flex items-center gap-0.5 pt-1 pb-1.5 px-1.5">
 		<button
-			class="ctx-icon-btn"
+			class={CTX_ICON_BTN}
 			title="Cut (Ctrl+X)"
 			onclick={() => {
 				store.cutSelection();
@@ -54,7 +57,7 @@
 			}}><Scissors class="size-4" /></button
 		>
 		<button
-			class="ctx-icon-btn"
+			class={CTX_ICON_BTN}
 			title="Copy (Ctrl+C)"
 			onclick={() => {
 				store.copySelection();
@@ -62,7 +65,7 @@
 			}}><Copy class="size-4" /></button
 		>
 		<button
-			class="ctx-icon-btn"
+			class={CTX_ICON_BTN}
 			disabled={!store.clipboard}
 			title="Paste (Ctrl+V)"
 			onclick={() => {
@@ -198,36 +201,3 @@
 		Delete bar
 	</ContextMenu.Item>
 </ContextMenu.Content>
-
-<style>
-	:global(.ctx-icon-row) {
-		display: flex;
-		align-items: center;
-		gap: 2px;
-		padding: 4px 6px 6px;
-		margin-bottom: 2px;
-	}
-	:global(.ctx-icon-btn) {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 30px;
-		height: 30px;
-		border-radius: 6px;
-		border: none;
-		background: transparent;
-		background-image: none !important;
-		color: var(--muted-foreground, #71717a);
-		cursor: pointer;
-		transform: none !important;
-	}
-	:global(.ctx-icon-btn:hover:not(:disabled)) {
-		background: var(--accent, #f4f4f5);
-		background-image: none !important;
-		color: var(--foreground, #18181b);
-	}
-	:global(.ctx-icon-btn:disabled) {
-		opacity: 0.4;
-		cursor: not-allowed;
-	}
-</style>

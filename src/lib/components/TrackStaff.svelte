@@ -12,6 +12,7 @@
 	import StdVoice from './track-staff/StdVoice.svelte';
 	import TabVoice from './track-staff/TabVoice.svelte';
 	import StaffContextMenu from './track-staff/StaffContextMenu.svelte';
+	import { noteheadStyle } from './track-staff/note-styles';
 
 	let { trackIndex }: { trackIndex: number } = $props();
 
@@ -125,19 +126,26 @@
 		track: () => track,
 		trackIndex: () => trackIndex
 	});
+
+	const BRAVURA = "[font-family:'Bravura',serif] fill-[#18181b]";
+	const HIT_AREA = 'fill-transparent [pointer-events:all] touch-manipulation';
+	const STAFF_LINE = 'stroke-[#d4d4d8] [stroke-width:1]';
+	const BARLINE = 'stroke-[#3f3f46] [stroke-width:1.4]';
+	const STEM = 'stroke-[#18181b] [stroke-width:1.4]';
+	const BEAM = 'stroke-[#18181b] [stroke-width:3.4] [stroke-linecap:butt]';
 </script>
 
 <ContextMenuPrimitive.Root bind:open={ctxOpen}>
-	<ContextMenuPrimitive.Trigger class="ctx-anchor">
+	<ContextMenuPrimitive.Trigger class="block">
 		<div
-			class="track-staff"
+			class="w-full overflow-x-auto bg-paper select-none"
 			bind:this={container}
 			class:active={isActiveTrack}
 			onpointerdown={drag.onDragPointerDown}
 		>
 			{#each layout.systems as system (system.y)}
 				<svg
-					class="system"
+					class="system block"
 					data-first-measure={system.measures[0]?.index}
 					data-last-measure={system.measures[system.measures.length - 1]?.index}
 					width={Math.max(system.width, containerWidth - 8)}
@@ -162,7 +170,7 @@
 									y="0"
 									width={measure.width}
 									height={band.height}
-									class="hit-area"
+									class={HIT_AREA}
 								/>
 								<!-- 5 staff lines -->
 								{#each [0, 1, 2, 3, 4] as i (i)}
@@ -171,7 +179,7 @@
 										y1={METRICS.stdTopPad + METRICS.staffLineGap + i * METRICS.staffLineGap}
 										x2={measure.x + measure.width}
 										y2={METRICS.stdTopPad + METRICS.staffLineGap + i * METRICS.staffLineGap}
-										class="staff-line"
+										class={STAFF_LINE}
 									/>
 								{/each}
 								<!-- barlines -->
@@ -180,14 +188,14 @@
 									y1={METRICS.stdTopPad + METRICS.staffLineGap}
 									x2={measure.x}
 									y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
-									class="barline"
+									class={BARLINE}
 								/>
 								<line
 									x1={measure.x + measure.width}
 									y1={METRICS.stdTopPad + METRICS.staffLineGap}
 									x2={measure.x + measure.width}
 									y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
-									class="barline"
+									class={BARLINE}
 								/>
 
 								{#if measure.showHeader}
@@ -195,31 +203,32 @@
 										<text
 											x={measure.x + 8}
 											y={METRICS.stdTopPad + 2.5 * METRICS.staffLineGap}
-											class="bravura clef">{GLYPH.bassClef}</text
+											class="{BRAVURA} text-[40px]">{GLYPH.bassClef}</text
 										>
 									{:else}
 										<text
 											x={measure.x + 8}
 											y={METRICS.stdTopPad + 3.4 * METRICS.staffLineGap}
-											class="bravura clef">{GLYPH.trebleClef}</text
+											class="{BRAVURA} text-[40px]">{GLYPH.trebleClef}</text
 										>
 									{/if}
 								{/if}
 								{#if measure.showHeader}
 									{#each layout.keySigGlyphs as g, gi (gi)}
-										<text x={measure.x + g.dx} y={g.y} class="bravura keysig">{g.glyph}</text>
+										<text x={measure.x + g.dx} y={g.y} class="{BRAVURA} text-[24px]">{g.glyph}</text
+										>
 									{/each}
 								{/if}
 								{#if measure.timeSignature}
 									<text
 										x={measure.x + (measure.showHeader ? 34 + layout.keySigWidth : 6)}
 										y={METRICS.stdTopPad + 2 * METRICS.staffLineGap + 1}
-										class="bravura tsig">{timeSigGlyphs(measure.timeSignature[0])}</text
+										class="{BRAVURA} text-[26px]">{timeSigGlyphs(measure.timeSignature[0])}</text
 									>
 									<text
 										x={measure.x + (measure.showHeader ? 34 + layout.keySigWidth : 6)}
 										y={METRICS.stdTopPad + 4 * METRICS.staffLineGap + 1}
-										class="bravura tsig">{timeSigGlyphs(measure.timeSignature[1])}</text
+										class="{BRAVURA} text-[26px]">{timeSigGlyphs(measure.timeSignature[1])}</text
 									>
 								{/if}
 
@@ -259,7 +268,7 @@
 									y="0"
 									width={measure.width}
 									height={band.height}
-									class="hit-area"
+									class={HIT_AREA}
 								/>
 								{#if measure.overflow}
 									<rect
@@ -267,7 +276,7 @@
 										y="0"
 										width={measure.width}
 										height={band.height}
-										class="bg-overflow"
+										class="fill-[rgba(185,28,28,0.1)]"
 									/>
 								{/if}
 								<!-- string lines -->
@@ -277,7 +286,7 @@
 										y1={14 + i * METRICS.tabLineGap}
 										x2={measure.x + measure.width}
 										y2={14 + i * METRICS.tabLineGap}
-										class="staff-line"
+										class={STAFF_LINE}
 									/>
 								{/each}
 								<line
@@ -285,21 +294,22 @@
 									y1={14}
 									x2={measure.x}
 									y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
-									class="barline"
+									class={BARLINE}
 								/>
 								<line
 									x1={measure.x + measure.width}
 									y1={14}
 									x2={measure.x + measure.width}
 									y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
-									class="barline"
+									class={BARLINE}
 								/>
 
 								{#if measure.showHeader}
 									<text
 										x={measure.x + 8}
 										y={14 + ((track.tuning.length - 1) * METRICS.tabLineGap) / 2 + 4}
-										class="tab-label">TAB</text
+										class="[font:700_9px_ui-sans-serif,sans-serif] fill-[#a1a1aa] tracking-[1px]"
+										>TAB</text
 									>
 								{/if}
 
@@ -339,21 +349,21 @@
 									y="0"
 									width={measure.width}
 									height={band.height}
-									class="hit-area"
+									class={HIT_AREA}
 								/>
 								<line
 									x1={measure.x}
 									y1={band.height / 2}
 									x2={measure.x + measure.width}
 									y2={band.height / 2}
-									class="staff-line"
+									class={STAFF_LINE}
 								/>
 								<line
 									x1={measure.x}
 									y1={band.height / 2 - 8}
 									x2={measure.x}
 									y2={band.height / 2 + 8}
-									class="barline"
+									class={BARLINE}
 								/>
 								<!-- Beams first: consecutive same-rhythm beats connect into a group. -->
 								{#each beamGroups(measure.beats) as group (group)}
@@ -363,18 +373,18 @@
 										y1={stemTop}
 										x2={members[members.length - 1].x}
 										y2={stemTop}
-										class="beam"
+										class={BEAM}
 									/>
 									{#each members as m (m.index)}
-										<line x1={m.x} y1={band.height / 2} x2={m.x} y2={stemTop} class="stem" />
+										<line x1={m.x} y1={band.height / 2} x2={m.x} y2={stemTop} class={STEM} />
 										{#if m.beams >= 2}
-											<line x1={m.x} y1={stemTop + 4} x2={m.x + 8} y2={stemTop + 4} class="beam" />
+											<line x1={m.x} y1={stemTop + 4} x2={m.x + 8} y2={stemTop + 4} class={BEAM} />
 										{/if}
 									{/each}
 								{/each}
 								{#each measure.beats as beat (beat.index)}
 									{#if beat.rest}
-										<text x={beat.x - 3} y={band.height / 2 + 4} class="bravura rest"
+										<text x={beat.x - 3} y={band.height / 2 + 4} class="{BRAVURA} text-[26px]"
 											>{restGlyph(beat.duration)}</text
 										>
 									{:else}
@@ -384,10 +394,13 @@
 												y1={band.height / 2}
 												x2={beat.x}
 												y2={stemTop}
-												class="stem"
+												class={STEM}
 											/>
 											{#if beat.beams > 0}
-												<text x={beat.x} y={stemTop} class="bravura flag"
+												<text
+													x={beat.x}
+													y={stemTop}
+													class="{BRAVURA} text-[26px] [dominant-baseline:middle]"
 													>{beat.beams === 1 ? GLYPH.flag8thUp : GLYPH.flag16thUp}</text
 												>
 											{/if}
@@ -397,8 +410,7 @@
 											cy={band.height / 2}
 											rx="4.5"
 											ry="3.4"
-											class="notehead"
-											class:hollow={beat.duration <= 2}
+											class={noteheadStyle({ hollow: beat.duration <= 2, v2: false, ghost: false })}
 										/>
 									{/if}
 								{/each}
@@ -418,9 +430,13 @@
 											y1={4}
 											x2={beat.x - 9}
 											y2={system.height - 4}
-											class="mark-start-line"
+											class="stroke-[#f59e0b] [stroke-width:2] [stroke-dasharray:4_3] pointer-events-none"
 										/>
-										<text x={beat.x - 6} y={14} class="mark-start-label">[</text>
+										<text
+											x={beat.x - 6}
+											y={14}
+											class="fill-[#f59e0b] text-[13px] font-black pointer-events-none">[</text
+										>
 									{/if}
 								{/each}
 							{/if}
@@ -432,95 +448,3 @@
 	</ContextMenuPrimitive.Trigger>
 	<StaffContextMenu bind:ctxOpen {ctxNote} {track} />
 </ContextMenuPrimitive.Root>
-
-<style>
-	:global(.ctx-anchor) {
-		display: block;
-	}
-	.mark-start-line {
-		stroke: #f59e0b;
-		stroke-width: 2;
-		stroke-dasharray: 4 3;
-		pointer-events: none;
-	}
-	.mark-start-label {
-		fill: #f59e0b;
-		font-size: 13px;
-		font-weight: 900;
-		pointer-events: none;
-	}
-	.track-staff {
-		width: 100%;
-		overflow-x: auto;
-		background: var(--paper, #fff);
-		user-select: none;
-	}
-	.system {
-		display: block;
-	}
-	/* Transparent backstop so a tap on empty space inside a band still hits the
-	   <g>'s click handler — without it, SVG only dispatches pointer events where
-	   something is actually painted (a line, note, etc). */
-	.hit-area {
-		fill: transparent;
-		pointer-events: all;
-		touch-action: manipulation;
-	}
-	.staff-line {
-		stroke: #d4d4d8;
-		stroke-width: 1;
-	}
-	.barline {
-		stroke: #3f3f46;
-		stroke-width: 1.4;
-	}
-	.notehead {
-		fill: #18181b;
-	}
-	.notehead.hollow {
-		fill: #fff;
-		stroke: #18181b;
-		stroke-width: 1.6;
-	}
-	.keysig {
-		font-size: 24px;
-	}
-	.bravura {
-		font-family: 'Bravura', serif;
-		fill: #18181b;
-	}
-	.clef {
-		font-size: 40px;
-	}
-	.tsig {
-		font-size: 26px;
-	}
-	.rest {
-		font-size: 26px;
-	}
-	.flag {
-		font-size: 26px;
-		dominant-baseline: middle;
-	}
-	.tab-label {
-		font:
-			700 9px ui-sans-serif,
-			sans-serif;
-		fill: #a1a1aa;
-		letter-spacing: 1px;
-	}
-	.stem,
-	.beam {
-		stroke: #18181b;
-	}
-	.stem {
-		stroke-width: 1.4;
-	}
-	.beam {
-		stroke-width: 3.4;
-		stroke-linecap: butt;
-	}
-	.bg-overflow {
-		fill: rgba(185, 28, 28, 0.1);
-	}
-</style>
