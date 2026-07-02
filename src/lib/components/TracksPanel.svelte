@@ -537,7 +537,7 @@
 				<div class="relative shrink-0 py-2" style="width:{timelineW}px;min-height:34px">
 					{#each laidOutSections as { sec, si, left } (sec.id)}
 						{@const letter = sectionLetterAt(si)}
-						<div class="absolute" style="left:{left}px;top:4px">
+						<div class="absolute top-1/2 -translate-y-1/2" style="left:{left}px">
 							<Popover.Root>
 								<Popover.Trigger
 									class="bg-primary text-primary-foreground [background-image:none!important] flex size-5 items-center justify-center rounded text-[9px] font-bold shadow-sm"
