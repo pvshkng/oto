@@ -29,7 +29,7 @@
 	import SpeakerSimpleHigh from 'phosphor-svelte/lib/SpeakerSimpleHigh';
 
 	// Width of the frozen track-controls column. Desktop: draggable 350–520 px.
-	// Mobile: fixed 250 px.
+	// Mobile: fixed 200 px.
 	const LEAD_MOBILE = 250;
 	let LEAD = $state(350);
 
