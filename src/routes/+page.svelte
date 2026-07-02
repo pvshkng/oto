@@ -15,20 +15,22 @@
 	import StatusBanner from '$lib/components/StatusBanner.svelte';
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
 	import { audio } from '$lib/audio/engine';
-	import { fly } from 'svelte/transition';
-	import { cubicOut } from 'svelte/easing';
-
-	// Mobile-only: slide transition for the bottom dock note editor / tracks panel
-	const dockTransition = { y: '100%', opacity: 0.5, duration: 260, easing: cubicOut };
 
 	// Mobile dock panel — mutually exclusive (editMode vs mixerOpen)
 	const dockPanel = $derived(store.editMode ? 'edit' : store.mixerOpen ? 'mixer' : null);
 
-	// Height of just the persistent bottom bar (mobile only) — the score area
-	// only reserves clearance for this, not for the optional sliding panel
-	// above it, so an open panel overlaps real score content (blurred through
-	// it) instead of blank reserved padding.
+	// Height of the persistent bottom bar and the optional dock panel above it
+	// (mobile only) — the score area reserves clearance for both so an open
+	// panel never covers real score content.
 	let bottomBarHeight = $state(56);
+	let dockPanelHeight = $state(0);
+
+	// Height of the desktop bottom dock (tracks panel + key input + bottom
+	// bar) — it's an absolutely-positioned overlay so the score area can
+	// scroll its content underneath (visible through the dock's blur), the
+	// same way the mobile dock overlaps the score. This padding just keeps
+	// score content clear of the dock by default.
+	let desktopDockHeight = $state(0);
 
 	let scoreAreaEl = $state<HTMLElement | undefined>(undefined);
 	let leftPanelW = $state(260);
@@ -134,62 +136,96 @@
 	     │                     Bottom Bar                          │
 	     └─────────────────────────────────────────────────────────┘
 	     ═══════════════════════════════════════════════════════════ -->
-		<div class="flex h-screen h-dvh flex-col overflow-hidden bg-bg print:bg-white">
+		<div class="relative flex h-screen h-dvh flex-col overflow-hidden bg-bg print:bg-white">
 			<StatusBanner />
 
-			<!-- Main 3-column area: left panel | score | right panel -->
-			<div class="flex min-h-0 flex-1 flex-row overflow-hidden">
-				<!-- Left panel: note properties (when editMode is on) -->
+			<!-- Score area with the left/right panels floated on top of it.
+			     The panels are NOT flow siblings of the score anymore — they're
+			     absolute overlays, so opening one no longer shrinks the staff; it
+			     just floats in front of it. -->
+			<div class="relative flex min-h-0 flex-1 flex-row overflow-hidden">
+				<!-- Score area. The bottom dock (tracks/key-input/bottom bar) is an
+				     absolutely-positioned overlay, not a flow sibling — so the score
+				     keeps scrolling underneath it and shows through its backdrop
+				     blur, the same as the mobile dock. The padding-bottom below just
+				     keeps content clear of the dock by default.
+
+				     Vertical scroll lives on <main> so tall scores pass behind the
+				     dock; HORIZONTAL scroll lives on the inner wrapper instead, so its
+				     scrollbar renders there (above the dock) rather than at <main>'s
+				     bottom edge, which sits hidden behind the dock overlay. -->
+				<main
+					class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto [padding:20px_18px_24px] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
+					bind:this={scoreAreaEl}
+					style="padding-bottom: {desktopDockHeight}px"
+					onscroll={closeContextMenuOnScroll}
+				>
+					<div
+						class="flex [justify-content:safe_center] overflow-x-auto"
+						onscroll={closeContextMenuOnScroll}
+					>
+						<ScoreArea
+							onHeaderClick={() => {
+								store.tempoOpen = false;
+								store.addRemoveOpen = false;
+								store.songModalOpen = !store.songModalOpen;
+							}}
+						/>
+					</div>
+				</main>
+
+				<!-- Left panel: note properties (when editMode is on), floated in
+				     front of the score at the left edge. The spacer div only supplies
+				     the floating card's 16px margins (matching the dock) plus a bottom
+				     pad equal to the dock height so the card clears the floating dock.
+				     It's pointer-events-none so its transparent margin/buffer lets
+				     clicks fall through to the score and dock beneath; only the card
+				     and the resize handle opt back into pointer events. -->
 				{#if store.editMode}
 					<div
-						class="relative shrink-0 overflow-x-hidden overflow-y-auto border-r border-border"
-						style="width:{leftPanelW}px"
+						class="pointer-events-none absolute inset-y-0 left-0 z-30 p-4"
+						style="width:{leftPanelW}px; padding-bottom:{desktopDockHeight + 32}px"
 					>
 						<NotePropertiesPanel />
-						<div
-							class="absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize"
-							onpointerdown={startLeftResize}
-						></div>
+						<!-- Resize handle only makes sense while docked — a popped-out
+						     panel is a free-floating window, not a column. -->
+						{#if !store.leftPanelPopped}
+							<div
+								class="pointer-events-auto absolute right-3 z-20 w-2 cursor-col-resize"
+								style="top:1rem; bottom:{desktopDockHeight + 32}px"
+								onpointerdown={startLeftResize}
+							></div>
+						{/if}
 					</div>
 				{/if}
 
-				<!-- Score area. The bottom dock (tracks/key-input/bottom bar) is a
-				     normal flex sibling below the row, not an overlay — so this
-				     box's own bottom edge (and its horizontal scrollbar, when the
-				     sheet is wider than the squeezed space between open side
-				     panels) always lands just above the dock, fully visible and
-				     usable instead of hidden underneath it. -->
-				<main
-					class="flex min-h-0 flex-1 [justify-content:safe_center] overflow-auto [padding:20px_18px_24px] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
-					bind:this={scoreAreaEl}
-					onscroll={closeContextMenuOnScroll}
-				>
-					<ScoreArea
-						onHeaderClick={() => {
-							store.tempoOpen = false;
-							store.addRemoveOpen = false;
-							store.songModalOpen = !store.songModalOpen;
-						}}
-					/>
-				</main>
-
-				<!-- Right panel: tempo / song details / add-remove -->
+				<!-- Right panel: tempo / song details / add-remove. Same floating
+				     overlay treatment as the left panel (see comment above). -->
 				{#if showRightPanel}
 					<div
-						class="relative flex shrink-0 flex-col overflow-hidden"
-						style="width:{rightPanelW}px"
+						class="pointer-events-none absolute inset-y-0 right-0 z-30 p-4"
+						style="width:{rightPanelW}px; padding-bottom:{desktopDockHeight + 32}px"
 					>
-						<div
-							class="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize"
-							onpointerdown={startRightResize}
-						></div>
+						{#if !store.rightPanelPopped}
+							<div
+								class="pointer-events-auto absolute left-3 z-20 w-2 cursor-col-resize"
+								style="top:1rem; bottom:{desktopDockHeight + 32}px"
+								onpointerdown={startRightResize}
+							></div>
+						{/if}
 						<RightPanel />
 					</div>
 				{/if}
 			</div>
 
-			<!-- Bottom dock -->
-			<div class="flex shrink-0 flex-col print:hidden">
+			<!-- Bottom dock: overlays the score area (see main's comment above).
+			     Floated off the edges (inset margins) so it reads as a card and,
+			     crucially, so the score's right-hand vertical scrollbar stays
+			     uncovered — the dock used to span the full width and hide it. -->
+			<div
+				class="absolute inset-x-4 bottom-4 z-20 flex shrink-0 flex-col overflow-hidden rounded-lg border border-border shadow-[0_6px_24px_rgba(0,0,0,0.14)] print:hidden"
+				bind:clientHeight={desktopDockHeight}
+			>
 				<!-- Tracks Panel (toggleable on desktop, vertically resizable) -->
 				{#if store.mixerOpen}
 					<div class="shrink-0 overflow-hidden">
@@ -197,14 +233,22 @@
 					</div>
 				{/if}
 
-				<!-- Key input strip (when open) -->
-				{#if store.keyInputOpen}
+				<!-- Key input strip — docked here only while attached; when popped
+				     out it renders as a floating window below (and may sit alongside
+				     the tracks panel). -->
+				{#if store.keyInputOpen && !store.keyInputPopped}
 					<KeyInput />
 				{/if}
 
 				<!-- Bottom bar -->
 				<BottomBar />
 			</div>
+
+			<!-- Detached key input: a free-floating, draggable window outside the
+			     dock, so it can be open together with the tracks panel. -->
+			{#if store.keyInputOpen && store.keyInputPopped}
+				<KeyInput />
+			{/if}
 		</div>
 	{:else}
 		<!-- ═══════════════════════════════════════════════════════════════
@@ -216,15 +260,19 @@
 			<main
 				class="flex min-h-0 flex-1 justify-center overflow-y-auto [padding:20px_18px_0] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
 				bind:this={scoreAreaEl}
-				style="padding-bottom: {bottomBarHeight + 16}px"
+				style="padding-bottom: {bottomBarHeight + (dockPanel ? dockPanelHeight : 0) + 16}px"
 				onscroll={closeContextMenuOnScroll}
 			>
 				<ScoreArea onHeaderClick={() => (store.songModalOpen = true)} />
 			</main>
 
-			<div class="fixed inset-x-0 bottom-0 z-50 print:hidden">
+			<!-- Bottom dock floated off the edges so it reads as a card and leaves
+			     the score's vertical scrollbar visible on the right. -->
+			<div
+				class="fixed inset-x-3 bottom-3 z-50 overflow-hidden rounded-lg border border-border shadow-[0_6px_24px_rgba(0,0,0,0.18)] print:hidden"
+			>
 				{#if dockPanel}
-					<div class="relative z-[1] shadow-[var(--shadow-3)]" transition:fly={dockTransition}>
+					<div class="relative z-[1] shadow-[var(--shadow-3)]" bind:clientHeight={dockPanelHeight}>
 						{#if dockPanel === 'edit'}
 							<EditPanel />
 						{:else}

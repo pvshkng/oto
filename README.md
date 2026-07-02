@@ -28,7 +28,7 @@ runes, Tailwind, [bits-ui](https://github.com/huntabyte/bits-ui) and Tone.js.
 - **Playback** with Tone.js: press **Space** to play from the cursor, again to stop.
 - **Loop selection**: shift-click or shift-arrow to select a region, then loop it.
 - **Metronome** toggle, synced to the transport.
-- **Virtual fretboard** for finding notes and visualising hand positions; click to enter & audition.
+- **Virtual ** for finding notes and visualising hand positions; click to enter & audition.
 - **Transpose & detune** any track at any time (non-destructive display transpose, fret transpose,
   or tuning detune), plus capo support.
 - **Guitar Pro import** (`.gp`, `.gpx`, `.gp3/4/5`, `.gp7`) — parsed in-browser via alphaTab and

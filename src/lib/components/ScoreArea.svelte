@@ -37,7 +37,7 @@
 </script>
 
 <div
-	class="[padding:28px_30px_36px] h-fit w-full max-w-[1080px] rounded-legacy-md border border-border bg-paper shadow-[var(--shadow-1),var(--shadow-2)] max-[720px]:[padding:18px_12px_26px] lg:min-w-[860px] print:max-w-none print:min-w-0 print:border-none print:shadow-none"
+	class="[padding:28px_30px_36px] h-fit w-full max-w-[1080px] rounded-md border border-border bg-paper shadow-[var(--shadow-1),var(--shadow-2)] max-[720px]:[padding:18px_12px_26px] lg:min-w-[860px] print:max-w-none print:min-w-0 print:border-none print:shadow-none"
 >
 	<button
 		class="group relative mb-[22px] block w-full cursor-pointer border-none bg-transparent [background-image:none!important] [padding:0_0_16px] text-center [border-bottom:1px_solid_var(--border)]"

@@ -1,24 +1,31 @@
 <script lang="ts">
-	import * as Drawer from '$lib/components/ui/drawer';
+	// Track control: instrument, tuning, notation and colour for one track. A
+	// centered dialog (mobile) styled like the Song details dialog — the overlay
+	// dimmer is suppressed and the panel is backdrop-blurred so the score stays
+	// visible behind it. Changes apply instantly.
+	import * as Dialog from '$lib/components/ui/dialog';
 	import { buttonVariants } from '$lib/components/ui/button';
 	import TrackControlForm from './TrackControlForm.svelte';
 
 	let { open = $bindable(false), index = -1 }: { open: boolean; index?: number } = $props();
 </script>
 
-<Drawer.Root bind:open direction="bottom">
-	<Drawer.Content class="mx-auto flex w-full max-w-md flex-col rounded-t-2xl border-t outline-none">
-		<Drawer.Header class="border-b">
-			<Drawer.Title>Track control</Drawer.Title>
-			<Drawer.Description>
+<Dialog.Root bind:open>
+	<Dialog.Content
+		overlayClass="bg-transparent"
+		class="grid max-h-[85vh] max-w-md grid-rows-[auto_minmax(0,1fr)_auto] gap-0 p-0"
+	>
+		<Dialog.Header class="p-4 pb-0">
+			<Dialog.Title>Track control</Dialog.Title>
+			<Dialog.Description>
 				Adjust this track instrument, tuning and notation. Changes apply instantly.
-			</Drawer.Description>
-		</Drawer.Header>
+			</Dialog.Description>
+		</Dialog.Header>
 
 		<TrackControlForm {index} onClose={() => (open = false)} />
 
-		<Drawer.Footer class="flex-row justify-end border-t">
-			<Drawer.Close class={buttonVariants({ variant: 'outline' })}>Done</Drawer.Close>
-		</Drawer.Footer>
-	</Drawer.Content>
-</Drawer.Root>
+		<div class="flex flex-row justify-end border-t p-4">
+			<Dialog.Close class={buttonVariants({ variant: 'outline' })}>Done</Dialog.Close>
+		</div>
+	</Dialog.Content>
+</Dialog.Root>

@@ -1,28 +1,28 @@
 <script lang="ts">
 	// Song configuration: title, composer, tempo and the starting time signature.
-	// A bottom drawer (consistent with the rest of the app's mobile-first sheets),
-	// opened from the bottom bar cog or the score title. Desktop shows the same
-	// fields inline in RightPanel's "song" mode instead (see RightPanel.svelte);
-	// this component is only mounted on mobile.
+	// A centered dialog (mobile only) opened from the bottom bar cog or the score
+	// title. The overlay dimmer is suppressed and the panel is backdrop-blurred so
+	// the score stays visible behind it. Desktop shows the same fields inline in
+	// RightPanel's "song" mode instead (see RightPanel.svelte).
 	import { store } from '$lib/stores/score.svelte';
-	import * as Drawer from '$lib/components/ui/drawer';
+	import * as Dialog from '$lib/components/ui/dialog';
 	import { buttonVariants } from '$lib/components/ui/button';
 	import SongDetailsFields from './SongDetailsFields.svelte';
 </script>
 
-<Drawer.Root bind:open={store.songModalOpen} direction="bottom">
-	<Drawer.Content class="mx-auto w-full max-w-md rounded-t-2xl border outline-none">
-		<Drawer.Header>
-			<Drawer.Title>Song details</Drawer.Title>
-			<Drawer.Description>Title, composer, tempo and starting time signature.</Drawer.Description>
-		</Drawer.Header>
+<Dialog.Root bind:open={store.songModalOpen}>
+	<Dialog.Content overlayClass="bg-transparent" class="max-w-md gap-4 p-0">
+		<Dialog.Header class="p-4 pb-0">
+			<Dialog.Title>Song details</Dialog.Title>
+			<Dialog.Description>Title, composer, tempo and starting time signature.</Dialog.Description>
+		</Dialog.Header>
 
-		<div class="grid gap-4 overflow-y-auto p-4 pt-0">
+		<div class="grid max-h-[70vh] gap-4 overflow-y-auto p-4 pt-0">
 			<SongDetailsFields />
 		</div>
 
-		<Drawer.Footer class="flex-row justify-end border-t">
-			<Drawer.Close class={buttonVariants({ variant: 'outline' })}>Done</Drawer.Close>
-		</Drawer.Footer>
-	</Drawer.Content>
-</Drawer.Root>
+		<div class="flex flex-row justify-end p-4">
+			<Dialog.Close class={buttonVariants({ variant: 'outline' })}>Done</Dialog.Close>
+		</div>
+	</Dialog.Content>
+</Dialog.Root>

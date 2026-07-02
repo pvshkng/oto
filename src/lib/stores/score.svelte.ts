@@ -76,9 +76,9 @@ export class ScoreStore {
 	/** Clipboard for cut/copy/paste operations. Outer array = bar groups, inner = beats per bar. */
 	clipboard = $state<OtoBeat[][] | null>(null);
 
-	// Bottom edit panel UI. The note editor (keypad/fretboard) and the tracks
-	// panel share the same dock and are mutually exclusive — opening one closes
-	// the other.
+	// Bottom edit panel UI. On mobile, the note editor and tracks panel share
+	// the same dock and are mutually exclusive. On desktop, the tracks panel
+	// and the key-input strip share the dock instead — see mixerOpen/keyInputOpen.
 	#editModeState = $state(false);
 	#mixerOpenState = $state(false);
 	editTool = $state<'keypad' | 'fretboard' | 'piano'>('keypad');
@@ -91,11 +91,20 @@ export class ScoreStore {
 	// tempoOpen and addRemoveOpen lift those formerly-local BottomBar states into
 	// the store so the desktop right panel can read them.
 	isDesktop = $state(false);
-	keyInputOpen = $state(false);
+	#keyInputOpenState = $state(false);
 	tempoOpen = $state(false);
 	addRemoveOpen = $state(false);
 	trackControlOpen = $state(false);
 	trackControlIndex = $state(-1);
+
+	// Desktop side panels can be "popped out" of their dock into a free-floating,
+	// draggable window (constrained to the viewport). Tracks that toggle per side.
+	leftPanelPopped = $state(false);
+	rightPanelPopped = $state(false);
+	// The key-input strip (keypad/fretboard/piano) can likewise detach into a
+	// floating window. While detached it leaves the dock, so it no longer needs to
+	// be mutually exclusive with the tracks panel — the two can be open together.
+	keyInputPopped = $state(false);
 
 	/** Call once from onMount after browser APIs are available. */
 	initLayout() {
@@ -122,13 +131,29 @@ export class ScoreStore {
 		if (v && !this.isDesktop) this.#mixerOpenState = false;
 	}
 
-	/** Tracks panel (the menubar "Tracks" panel). */
+	/** Tracks panel (the menubar "Tracks" panel). Mutually exclusive on desktop
+	 *  with the bottom key-input strip (keypad/fretboard/piano) so the two
+	 *  bottom-dock panels never stack. */
 	get mixerOpen(): boolean {
 		return this.#mixerOpenState;
 	}
 	set mixerOpen(v: boolean) {
 		this.#mixerOpenState = v;
 		if (v) this.#editModeState = false;
+		// A detached (popped-out) key-input isn't in the dock, so it can coexist.
+		if (v && this.isDesktop && !this.keyInputPopped) this.#keyInputOpenState = false;
+	}
+
+	/** Bottom key-input strip (keypad/fretboard/piano). Desktop-only; mutually
+	 *  exclusive with the tracks panel — see mixerOpen. */
+	get keyInputOpen(): boolean {
+		return this.#keyInputOpenState;
+	}
+	set keyInputOpen(v: boolean) {
+		this.#keyInputOpenState = v;
+		if (v && this.isDesktop && !this.keyInputPopped) this.#mixerOpenState = false;
+		// Re-dock on close so it reopens in the bottom dock next time.
+		if (!v) this.keyInputPopped = false;
 	}
 
 	// Track focus / fold state (UI-only, keyed by track id, not persisted).

@@ -5,13 +5,19 @@
 
 	import { store } from '$lib/stores/score.svelte';
 	import { enterDigit } from '$lib/editing/entry';
+	import { draggable } from '@neodrag/svelte';
+	import { panelDragOptions } from '$lib/floating-panel';
 	import Fretboard from './Fretboard.svelte';
 	import Piano from './Piano.svelte';
 	import X from 'phosphor-svelte/lib/X';
+	import ArrowSquareOut from 'phosphor-svelte/lib/ArrowSquareOut';
+	import ArrowSquareIn from 'phosphor-svelte/lib/ArrowSquareIn';
+
+	const popped = $derived(store.keyInputPopped);
 </script>
 
-<div class="key-input">
-	<div class="key-input-header">
+<div class="key-input {popped ? 'key-input--popped' : ''}" use:draggable={panelDragOptions(popped)}>
+	<div class="key-input-header" data-panel-handle class:handle={popped}>
 		<span class="tool-name">
 			{store.editTool === 'keypad'
 				? 'Keypad'
@@ -19,14 +25,30 @@
 					? 'Fretboard'
 					: 'Piano'}
 		</span>
-		<button
-			class="hide-btn"
-			onclick={() => (store.keyInputOpen = false)}
-			title="Close key input"
-			aria-label="Close key input"
-		>
-			<X class="size-4" />
-		</button>
+		<div class="header-actions">
+			<button
+				class="hide-btn"
+				data-panel-cancel
+				onclick={() => (store.keyInputPopped = !store.keyInputPopped)}
+				title={popped ? 'Dock key input' : 'Pop out key input'}
+				aria-label={popped ? 'Dock key input' : 'Pop out key input'}
+			>
+				{#if popped}
+					<ArrowSquareIn class="size-4" />
+				{:else}
+					<ArrowSquareOut class="size-4" />
+				{/if}
+			</button>
+			<button
+				class="hide-btn"
+				data-panel-cancel
+				onclick={() => (store.keyInputOpen = false)}
+				title="Close key input"
+				aria-label="Close key input"
+			>
+				<X class="size-4" />
+			</button>
+		</div>
 	</div>
 
 	<div class="key-input-body">
@@ -55,10 +77,22 @@
 
 <style>
 	.key-input {
-		background: color-mix(in srgb, var(--panel) 70%, transparent);
+		background: color-mix(in srgb, var(--background) 70%, transparent);
 		backdrop-filter: blur(12px);
 		-webkit-backdrop-filter: blur(12px);
-		border-top: 1px solid var(--border-strong);
+	}
+	/* Detached, free-floating window (draggable, constrained to the viewport). */
+	.key-input--popped {
+		position: fixed;
+		left: 1rem;
+		bottom: 6rem;
+		z-index: 50;
+		width: min(640px, 92vw);
+		max-height: 70vh;
+		overflow: auto;
+		border: 1px solid var(--border);
+		border-radius: 12px;
+		box-shadow: 0 6px 24px rgba(0, 0, 0, 0.14);
 	}
 	.key-input-header {
 		display: flex;
@@ -66,6 +100,14 @@
 		justify-content: space-between;
 		padding: 6px 10px;
 		border-bottom: 1px solid var(--border);
+	}
+	.key-input-header.handle {
+		cursor: move;
+	}
+	.header-actions {
+		display: flex;
+		align-items: center;
+		gap: 2px;
 	}
 	.tool-name {
 		font-size: 12px;

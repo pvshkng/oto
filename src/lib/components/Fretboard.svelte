@@ -74,7 +74,7 @@
 <style>
 	.fretboard {
 		overflow-x: auto;
-		background: color-mix(in srgb, var(--panel) 70%, transparent);
+		background: color-mix(in srgb, var(--background) 70%, transparent);
 		backdrop-filter: blur(12px);
 		-webkit-backdrop-filter: blur(12px);
 		border: 1px solid var(--border-strong);

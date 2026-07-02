@@ -133,9 +133,7 @@
 	</Dialog.Root>
 {:else}
 	<Drawer.Root bind:open direction="bottom">
-		<Drawer.Content
-			class="mx-auto flex w-full max-w-md flex-col rounded-t-2xl border-t outline-none"
-		>
+		<Drawer.Content class="mx-auto flex w-full max-w-md flex-col rounded-t-2xl outline-none">
 			<Drawer.Header class="border-b">
 				<Drawer.Title>Custom tuning</Drawer.Title>
 				<Drawer.Description>Set the exact pitch of every string.</Drawer.Description>

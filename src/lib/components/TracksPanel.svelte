@@ -26,6 +26,7 @@
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 	import Minus from 'phosphor-svelte/lib/Minus';
 	import List from 'phosphor-svelte/lib/List';
+	import SpeakerSimpleHigh from 'phosphor-svelte/lib/SpeakerSimpleHigh';
 
 	// Width of the frozen track-controls column. Desktop: draggable 350–520 px.
 	// Mobile: fixed 250 px.
@@ -210,51 +211,14 @@
 
 <div
 	class={cn(
-		'bg-background/70 flex flex-col border-t backdrop-blur-md',
-		!store.isDesktop && 'max-h-[55vh]'
+		'bg-background/70 flex flex-col backdrop-blur-md',
+		store.isDesktop ? 'max-h-[300px]' : 'max-h-[55vh]'
 	)}
 >
-	<div class="flex flex-row items-center justify-between gap-2 border-b px-4 py-3">
-		<div class="mr-1 flex shrink-0 items-stretch">
-			<button
-				class={cn(
-					'text-muted-foreground flex size-7 items-center justify-center rounded-md rounded-r-none border [background-image:none!important]',
-					cell <= MIN_CELL ? 'sunk' : 'hover:text-foreground'
-				)}
-				title="Zoom out timeline"
-				aria-label="Zoom out timeline"
-				disabled={cell <= MIN_CELL}
-				onclick={() => zoom(-1)}
-			>
-				<MagnifyingGlassMinus class="size-4" />
-			</button>
-			<button
-				class={cn(
-					'text-muted-foreground flex size-7 items-center justify-center rounded-md rounded-l-none border border-l-0 [background-image:none!important]',
-					cell >= MAX_CELL ? 'sunk' : 'hover:text-foreground'
-				)}
-				title="Zoom in timeline"
-				aria-label="Zoom in timeline"
-				disabled={cell >= MAX_CELL}
-				onclick={() => zoom(1)}
-			>
-				<MagnifyingGlassPlus class="size-4" />
-			</button>
-		</div>
-		<div class="flex items-center gap-1.5">
-			<button
-				class="text-muted-foreground hover:text-foreground [background-image:none!important] p-1"
-				title="Close tracks panel"
-				aria-label="Close tracks panel"
-				onclick={() => (store.mixerOpen = false)}
-			>
-				<X class="size-5" />
-			</button>
-		</div>
-	</div>
-
-	<!-- Scrollable mixer body, both axes. Left column is sticky; timeline scrolls under it. -->
-	<div class={cn('overflow-auto overscroll-contain', !store.isDesktop && 'min-h-0 flex-1')}>
+	<!-- Scrollable mixer body, both axes. Left column is sticky; timeline scrolls
+	     under it. Header removed — close via the menubar Tracks button. Capped at
+	     300px (desktop), scrolls vertically beyond that. -->
+	<div class="min-h-0 flex-1 overflow-auto overscroll-contain">
 		<div class="relative w-max min-w-full text-sm">
 			<!-- Playback/cursor position. Sits above track content but below the
 				     frozen controls column (z-10) so it tucks away when scrolled. -->
@@ -279,14 +243,20 @@
 							<CaretDown class={cn('size-3.5 transition-transform', allRowsOpen && 'rotate-180')} />
 						</button>
 					{/if}
-					<span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
-						>Track</span
+					<!-- Add track (leftmost) -->
+					<button
+						class="text-muted-foreground hover:text-foreground hover:border-border [background-image:none!important] flex size-6 shrink-0 items-center justify-center rounded-md border"
+						title="Add track"
+						aria-label="Add track"
+						onclick={addTrack}
 					>
+						<Plus class="size-3.5" />
+					</button>
 					<!-- Single / Multi track view toggle -->
-					<div class="ml-auto flex shrink-0 items-stretch">
+					<div class="flex shrink-0 items-stretch">
 						<button
 							class={cn(
-								'flex h-6 w-6 items-center justify-center rounded-l-md rounded-r-none border text-[11px] [background-image:none!important]',
+								'flex size-6 items-center justify-center rounded-l-md rounded-r-none border text-[11px] [background-image:none!important]',
 								store.trackViewMode === 'single'
 									? 'sunk text-foreground'
 									: 'text-muted-foreground hover:text-foreground'
@@ -300,7 +270,7 @@
 						</button>
 						<button
 							class={cn(
-								'flex h-6 w-6 items-center justify-center rounded-l-none rounded-r-md border border-l-0 text-[11px] [background-image:none!important]',
+								'flex size-6 items-center justify-center rounded-l-none rounded-r-md border border-l-0 text-[11px] [background-image:none!important]',
 								store.trackViewMode === 'multi'
 									? 'sunk text-foreground'
 									: 'text-muted-foreground hover:text-foreground'
@@ -313,14 +283,33 @@
 							<List class="size-3.5" />
 						</button>
 					</div>
-					<button
-						class="text-muted-foreground hover:text-foreground hover:border-border [background-image:none!important] flex size-5 shrink-0 items-center justify-center rounded-sm border border-transparent"
-						title="Add track"
-						aria-label="Add track"
-						onclick={addTrack}
-					>
-						<Plus class="size-3.5" />
-					</button>
+					<!-- Timeline zoom (magnifiers), aligned right -->
+					<div class="ml-auto flex shrink-0 items-stretch">
+						<button
+							class={cn(
+								'flex size-6 items-center justify-center rounded-l-md rounded-r-none border [background-image:none!important]',
+								cell <= MIN_CELL ? 'sunk' : 'text-muted-foreground hover:text-foreground'
+							)}
+							title="Zoom out timeline"
+							aria-label="Zoom out timeline"
+							disabled={cell <= MIN_CELL}
+							onclick={() => zoom(-1)}
+						>
+							<MagnifyingGlassMinus class="size-3.5" />
+						</button>
+						<button
+							class={cn(
+								'flex size-6 items-center justify-center rounded-l-none rounded-r-md border border-l-0 [background-image:none!important]',
+								cell >= MAX_CELL ? 'sunk' : 'text-muted-foreground hover:text-foreground'
+							)}
+							title="Zoom in timeline"
+							aria-label="Zoom in timeline"
+							disabled={cell >= MAX_CELL}
+							onclick={() => zoom(1)}
+						>
+							<MagnifyingGlassPlus class="size-3.5" />
+						</button>
+					</div>
 				</div>
 				<div class="relative shrink-0" style="width:{timelineW}px">
 					<div class="flex h-full">
@@ -328,11 +317,11 @@
 							<div
 								class={cn(
 									'text-muted-foreground flex items-center justify-start py-1.5 pl-1 text-[10px] tabular-nums',
-									(mi + 1) % 4 === 0 ? 'border-r border-border' : 'border-r border-border/40'
+									(mi + 1) % 4 === 0 ? 'border-r border-border' : ''
 								)}
 								style="width:{cell}px"
 							>
-								{#if mi === 0 || (mi + 1) % 4 === 0}{mi + 1}{/if}
+								{#if mi === 0 || mi % 4 === 0}{mi + 1}{/if}
 							</div>
 						{/each}
 					</div>
@@ -372,7 +361,6 @@
 									{track}
 									eqOpen={!!eqOpen[track.id]}
 									onEqOpenChange={(v) => (eqOpen = { ...eqOpen, [track.id]: v })}
-									showVolumeReadout={false}
 									onVolume={(v) => setVolume(i, v)}
 									onPan={(v) => setPan(i, v)}
 									onEqBand={(band, db) => setEqBand(i, band, db)}
@@ -412,7 +400,6 @@
 										{track}
 										eqOpen={!!eqOpen[track.id]}
 										onEqOpenChange={(v) => (eqOpen = { ...eqOpen, [track.id]: v })}
-										showVolumeReadout={true}
 										onVolume={(v) => setVolume(i, v)}
 										onPan={(v) => setPan(i, v)}
 										onEqBand={(band, db) => setEqBand(i, band, db)}
@@ -484,54 +471,56 @@
 				</div>
 			{/each}
 
-			<!-- Master strip -->
-			<div class="flex border-b bg-muted/30">
-				<div
-					class="bg-muted/40 sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r px-2.5 py-2.5"
-					style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px"
-				>
-					<span class="text-foreground shrink-0 text-[13px] font-bold">Master</span>
-					<input
-						type="range"
-						min="0"
-						max="1"
-						step="0.01"
-						aria-label="Master volume"
-						title="Master volume"
-						class={cn(MIXER_FADER_CLASS, 'min-w-0 flex-1')}
-						value={store.score.masterVolume}
-						aria-valuetext={`${Math.round(store.score.masterVolume * 100)} percent`}
-						onpointerdown={() => store.beginGesture()}
-						onpointerup={() => store.endGesture()}
-						onpointercancel={() => store.endGesture()}
-						oninput={(e) => setMaster(e.currentTarget.valueAsNumber)}
-					/>
-					<span
-						class="text-muted-foreground w-9 shrink-0 text-right text-[11px] tabular-nums"
-						title="Master volume">{Math.round(store.score.masterVolume * 100)}%</span
-					>
-				</div>
-				<div class="shrink-0" style="width:{timelineW}px"></div>
-			</div>
-
 			<!-- Section markers -->
 			<div class="flex">
 				<div
-					class="bg-background sticky left-0 z-10 flex shrink-0 items-center justify-between gap-2 border-r px-2.5 py-2"
+					class="bg-background sticky left-0 z-10 flex shrink-0 items-center justify-between gap-2 border-r px-2.5 py-1"
 					style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px"
 				>
-					<span class="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
-						>Sections</span
-					>
+					<!-- Master volume: compact speaker button + readout, opens a small
+					     popover fader (mirrors the section-marker popover style). -->
+					<Popover.Root>
+						<Popover.Trigger
+							class="text-muted-foreground hover:text-foreground [background-image:none!important] flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] tabular-nums"
+							title="Master volume"
+							aria-label="Master volume"
+						>
+							<SpeakerSimpleHigh class="size-3.5" />
+							{Math.round(store.score.masterVolume * 100)}%
+						</Popover.Trigger>
+						<Popover.Content side="top" align="start" class="w-44 p-1.5">
+							<div class="flex items-center gap-2">
+								<SpeakerSimpleHigh class="text-muted-foreground size-3.5 shrink-0" />
+								<input
+									type="range"
+									min="0"
+									max="1"
+									step="0.01"
+									aria-label="Master volume"
+									title="Master volume"
+									class={cn(MIXER_FADER_CLASS, 'min-w-0 flex-1')}
+									value={store.score.masterVolume}
+									aria-valuetext={`${Math.round(store.score.masterVolume * 100)} percent`}
+									onpointerdown={() => store.beginGesture()}
+									onpointerup={() => store.endGesture()}
+									onpointercancel={() => store.endGesture()}
+									oninput={(e) => setMaster(e.currentTarget.valueAsNumber)}
+								/>
+								<span class="text-muted-foreground w-9 shrink-0 text-right text-[11px] tabular-nums"
+									>{Math.round(store.score.masterVolume * 100)}%</span
+								>
+							</div>
+						</Popover.Content>
+					</Popover.Root>
 					<button
-						class="text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-40 [background-image:none!important] flex items-center gap-1 rounded-md border px-1.5 py-1 text-[11px]"
+						class="text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-40 [background-image:none!important] flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px]"
 						title={store.canAddSection
 							? 'Add a section marker at the current bar'
 							: 'Section limit reached (A–Z, 26 max)'}
 						disabled={!store.canAddSection}
 						onclick={() => store.addSection(store.cursor.measure)}
 					>
-						<MapPin class="size-3.5" /> Add
+						<MapPin class="size-3.5" /> Marker
 					</button>
 				</div>
 				<div class="relative shrink-0 py-2" style="width:{timelineW}px;min-height:34px">

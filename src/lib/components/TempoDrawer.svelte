@@ -1,21 +1,22 @@
 <script lang="ts">
-	// BPM bottom drawer: a big tap-to-read number, +/- steppers and a slider
-	// for fast scrubbing, replacing the old tempo popover.
+	// BPM dialog: a big tap-to-read number, +/- steppers and a slider for fast
+	// scrubbing. Rendered as a centered dialog (mobile only) with the overlay
+	// dimmer suppressed and a backdrop blur, so the score stays visible behind it.
 	import { store } from '$lib/stores/score.svelte';
-	// open prop is kept for API compatibility but store.tempoOpen drives the drawer
-	import * as Drawer from '$lib/components/ui/drawer';
+	// open prop is kept for API compatibility but store.tempoOpen drives the dialog
+	import * as Dialog from '$lib/components/ui/dialog';
 	import TempoControls from './TempoControls.svelte';
 
 	let { open = $bindable(false) }: { open?: boolean } = $props();
 </script>
 
-<Drawer.Root bind:open={store.tempoOpen} direction="bottom">
-	<Drawer.Content class="mx-auto w-full max-w-md rounded-t-2xl border outline-none">
-		<Drawer.Header>
-			<Drawer.Title>Tempo</Drawer.Title>
-			<Drawer.Description>Set the song's beats per minute.</Drawer.Description>
-		</Drawer.Header>
+<Dialog.Root bind:open={store.tempoOpen}>
+	<Dialog.Content overlayClass="bg-transparent" class="max-w-md gap-4 p-0">
+		<Dialog.Header class="p-4 pb-0">
+			<Dialog.Title>Tempo</Dialog.Title>
+			<Dialog.Description>Set the song's beats per minute.</Dialog.Description>
+		</Dialog.Header>
 
 		<TempoControls variant="drawer" />
-	</Drawer.Content>
-</Drawer.Root>
+	</Dialog.Content>
+</Dialog.Root>

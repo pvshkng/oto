@@ -9,12 +9,12 @@
 	import Knob from '../Knob.svelte';
 	import { MIXER_FADER_CLASS } from './mixer-fader';
 	import type { OtoTrack } from '$lib/oto/types';
+	import SpeakerSimpleHigh from 'phosphor-svelte/lib/SpeakerSimpleHigh';
 
 	let {
 		track,
 		eqOpen,
 		onEqOpenChange,
-		showVolumeReadout,
 		onVolume,
 		onPan,
 		onEqBand,
@@ -23,7 +23,6 @@
 		track: OtoTrack;
 		eqOpen: boolean;
 		onEqOpenChange: (v: boolean) => void;
-		showVolumeReadout: boolean;
 		onVolume: (v: number) => void;
 		onPan: (v: number) => void;
 		onEqBand: (band: 'low' | 'mid' | 'high', db: number) => void;
@@ -42,27 +41,41 @@
 	}
 </script>
 
-<input
-	type="range"
-	min="0"
-	max="1"
-	step="0.01"
-	aria-label={`${track.name} volume`}
-	title={showVolumeReadout ? 'Volume' : `Volume: ${Math.round(track.volume * 100)}%`}
-	class={cn(MIXER_FADER_CLASS, showVolumeReadout ? 'min-w-0 flex-1' : 'w-20 shrink-0')}
-	value={track.volume}
-	aria-valuetext={`${Math.round(track.volume * 100)} percent`}
-	onpointerdown={() => store.beginGesture()}
-	onpointerup={() => store.endGesture()}
-	onpointercancel={() => store.endGesture()}
-	oninput={(e) => onVolume(e.currentTarget.valueAsNumber)}
-/>
-{#if showVolumeReadout}
-	<span
-		class="text-muted-foreground w-9 shrink-0 text-right text-[11px] tabular-nums"
-		title="Volume">{Math.round(track.volume * 100)}%</span
+<!-- Volume: a compact square button (styled like the focus/M/S buttons) that
+     opens a small popover fader — mirrors the master-volume control. -->
+<Popover.Root>
+	<Popover.Trigger
+		class="text-muted-foreground hover:text-foreground flex h-7 shrink-0 items-center gap-1 rounded-md border px-1.5 text-[11px] tabular-nums"
+		title={`Volume: ${Math.round(track.volume * 100)}%`}
+		aria-label={`${track.name} volume`}
 	>
-{/if}
+		<SpeakerSimpleHigh class="size-3.5" />
+		{Math.round(track.volume * 100)}%
+	</Popover.Trigger>
+	<Popover.Content side="top" align="end" class="w-44 p-1.5">
+		<div class="flex items-center gap-2">
+			<SpeakerSimpleHigh class="text-muted-foreground size-3.5 shrink-0" />
+			<input
+				type="range"
+				min="0"
+				max="1"
+				step="0.01"
+				aria-label={`${track.name} volume`}
+				title="Volume"
+				class={cn(MIXER_FADER_CLASS, 'min-w-0 flex-1')}
+				value={track.volume}
+				aria-valuetext={`${Math.round(track.volume * 100)} percent`}
+				onpointerdown={() => store.beginGesture()}
+				onpointerup={() => store.endGesture()}
+				onpointercancel={() => store.endGesture()}
+				oninput={(e) => onVolume(e.currentTarget.valueAsNumber)}
+			/>
+			<span class="text-muted-foreground w-9 shrink-0 text-right text-[11px] tabular-nums"
+				>{Math.round(track.volume * 100)}%</span
+			>
+		</div>
+	</Popover.Content>
+</Popover.Root>
 <Knob
 	value={track.pan}
 	min={-1}

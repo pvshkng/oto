@@ -1,8 +1,10 @@
-// Desktop drag-to-select: horizontal drag extends the beat-range loop
+// Mouse drag-to-select: horizontal drag extends the beat-range loop
 // selection, vertical drag (within the tab band) extends the note/string
-// selection. Extracted from TrackStaff.svelte as a factory so the pointer
-// state (anchor, mode, dragging flag) lives in one place independent of the
-// component's own reactive state.
+// selection. Gated on pointerType rather than viewport width so it still
+// works when a mouse is used on a narrow (mobile-layout) window. Extracted
+// from TrackStaff.svelte as a factory so the pointer state (anchor, mode,
+// dragging flag) lives in one place independent of the component's own
+// reactive state.
 
 import { SvelteSet } from 'svelte/reactivity';
 import { store } from '$lib/stores/score.svelte';
@@ -79,7 +81,7 @@ export function createDragSelect(opts: DragSelectOptions) {
 	}
 
 	function onDragPointerDown(e: PointerEvent) {
-		if (!store.isDesktop || e.button !== 0) return;
+		if (e.pointerType !== 'mouse' || e.button !== 0) return;
 		dragStartClient = { x: e.clientX, y: e.clientY };
 		dragAnchor = findBeatAtClient(e.clientX, e.clientY);
 		dragAnchorString = findStringAtClient(e.clientX, e.clientY);

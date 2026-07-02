@@ -126,12 +126,10 @@
 <style>
 	.piano {
 		overflow-x: auto;
-		background: color-mix(in srgb, var(--panel) 70%, transparent);
+		background: color-mix(in srgb, var(--background) 70%, transparent);
 		backdrop-filter: blur(12px);
 		-webkit-backdrop-filter: blur(12px);
 		border: 1px solid var(--border-strong);
-		border-radius: var(--r-sm);
-		padding: 8px;
 	}
 	.keys {
 		position: relative;
@@ -149,7 +147,7 @@
 		align-items: flex-end;
 		justify-content: center;
 		padding-bottom: 4px;
-		border-radius: 0 0 3px 3px;
+
 		flex-shrink: 0;
 	}
 	.white:first-child {

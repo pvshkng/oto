@@ -50,6 +50,7 @@
 	"dependencies": {
 		"@coderline/alphatab": "^1.7.1",
 		"@coderline/alphatab-vite": "^1.7.1",
+		"@neodrag/svelte": "^2.3.3",
 		"bits-ui": "^2.18.1",
 		"clsx": "^2.1.1",
 		"install": "^0.13.0",
