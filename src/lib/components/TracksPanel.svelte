@@ -211,7 +211,7 @@
 
 <div
 	class={cn(
-		'bg-background/70 flex flex-col backdrop-blur-md',
+		'bg-background/55 flex flex-col backdrop-blur-lg',
 		store.isDesktop ? 'max-h-[300px]' : 'max-h-[55vh]'
 	)}
 >
@@ -228,9 +228,9 @@
 			></div>
 
 			<!-- Measure ruler -->
-			<div class="bg-background/70 sticky top-0 z-20 flex border-b backdrop-blur-md">
+			<div class="bg-background/40 sticky top-0 z-20 flex border-b backdrop-blur-lg">
 				<div
-					class="bg-background/70 sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r px-3 py-1.5 backdrop-blur-md"
+					class="bg-background/25 sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r px-3 py-1.5 backdrop-blur-lg"
 					style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px"
 				>
 					{#if !store.isDesktop}
@@ -335,8 +335,8 @@
 					<!-- Frozen controls column -->
 					<div
 						class={cn(
-							'bg-background/70 sticky left-0 z-10 flex shrink-0 flex-col gap-1.5 border-r px-2.5 py-2 backdrop-blur-md',
-							active && 'bg-muted/60'
+							'bg-background/40 sticky left-0 z-10 flex shrink-0 flex-col gap-1.5 border-r px-2.5 py-2 backdrop-blur-lg',
+							active && 'bg-muted/45'
 						)}
 						style="width:{store.isDesktop
 							? LEAD
@@ -474,7 +474,7 @@
 			<!-- Section markers -->
 			<div class="flex">
 				<div
-					class="bg-background/70 sticky left-0 z-10 flex shrink-0 items-center justify-between gap-2 border-r px-2.5 py-1 backdrop-blur-md"
+					class="bg-background/40 sticky left-0 z-10 flex shrink-0 items-center justify-between gap-2 border-r px-2.5 py-1 backdrop-blur-lg"
 					style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px"
 				>
 					<!-- Master volume: compact speaker button + readout, opens a small
