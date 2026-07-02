@@ -5,6 +5,8 @@
 
 	import { store } from '$lib/stores/score.svelte';
 	import { enterDigit } from '$lib/editing/entry';
+	import Fretboard from './Fretboard.svelte';
+	import Piano from './Piano.svelte';
 	import X from 'phosphor-svelte/lib/X';
 </script>
 
@@ -41,15 +43,11 @@
 			</div>
 		{:else if store.editTool === 'fretboard'}
 			<div class="tool-wrap">
-				{#await import('./Fretboard.svelte') then { default: Fretboard }}
-					<Fretboard />
-				{/await}
+				<Fretboard />
 			</div>
 		{:else}
 			<div class="tool-wrap">
-				{#await import('./Piano.svelte') then { default: Piano }}
-					<Piano />
-				{/await}
+				<Piano />
 			</div>
 		{/if}
 	</div>

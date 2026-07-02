@@ -200,7 +200,7 @@ function normaliseSection(s: unknown): Section {
 	return {
 		id: typeof o.id === 'string' ? o.id : uid('sec'),
 		measure: typeof o.measure === 'number' ? Math.max(0, Math.floor(o.measure)) : 0,
-		label: typeof o.label === 'string' ? o.label : 'Section'
+		label: typeof o.label === 'string' ? o.label : ''
 	};
 }
 

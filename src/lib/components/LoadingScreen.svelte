@@ -7,21 +7,34 @@
 	import { loading } from '$lib/stores/loading.svelte';
 	import { fade } from 'svelte/transition';
 
+	// `forceActive` keeps the overlay up before the app has finished its
+	// initial load (score restore + layout detection + sample warm-up), even
+	// if `loading.active` hasn't flipped on yet — so the very first paint is
+	// the loading screen, not a flash of an empty/default score.
+	let { forceActive = false }: { forceActive?: boolean } = $props();
+
 	const pct = $derived(Math.round(loading.progress * 100));
+	const determinate = $derived(loading.total > 0);
 </script>
 
-{#if loading.active}
+{#if loading.active || forceActive}
 	<div class="overlay" role="status" aria-live="polite" transition:fade={{ duration: 200 }}>
 		<div class="panel">
 			<div class="mark">oto</div>
-			<div class="label">{loading.label}</div>
+			<div class="label">{determinate ? loading.label : 'Loading'}</div>
 			<div class="track">
-				<div class="bar" style="width:{pct}%"></div>
+				<div
+					class="bar"
+					style="width:{determinate ? pct : 100}%"
+					class:indeterminate={!determinate}
+				></div>
 			</div>
-			<div class="meta">
-				<span class="tabular">{pct}%</span>
-				<span class="dim">{loading.done} / {loading.total}</span>
-			</div>
+			{#if determinate}
+				<div class="meta">
+					<span class="tabular">{pct}%</span>
+					<span class="dim">{loading.done} / {loading.total}</span>
+				</div>
+			{/if}
 		</div>
 	</div>
 {/if}
@@ -73,6 +86,19 @@
 		border-radius: var(--r-pill);
 		background: var(--ink);
 		transition: width 0.18s ease-out;
+	}
+	.bar.indeterminate {
+		opacity: 0.35;
+		animation: pulse 1.1s ease-in-out infinite;
+	}
+	@keyframes pulse {
+		0%,
+		100% {
+			opacity: 0.2;
+		}
+		50% {
+			opacity: 0.45;
+		}
 	}
 	.meta {
 		display: flex;

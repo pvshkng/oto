@@ -10,21 +10,17 @@
 	import BarTimeSigPicker from './note-edit/BarTimeSigPicker.svelte';
 	import BeatActions from './note-edit/BeatActions.svelte';
 	import EffectsGrid from './note-edit/EffectsGrid.svelte';
-	import X from 'phosphor-svelte/lib/X';
+	import PanelHeader from './PanelHeader.svelte';
 </script>
 
-<aside class="flex h-full w-full flex-col overflow-x-hidden border-r border-border bg-panel">
-	<div class="flex shrink-0 items-center justify-between border-b border-border px-3 py-2.5">
-		<span class="text-[13px] font-bold tracking-[0.4px] text-ink uppercase">Note</span>
-		<button
-			class="inline-flex size-7 cursor-pointer items-center justify-center rounded-legacy-xs border-none bg-transparent [background-image:none!important] text-text-muted hover:bg-panel-2 hover:text-ink"
-			title="Close note editor"
-			aria-label="Close note editor"
-			onclick={() => (store.editMode = false)}
-		>
-			<X class="size-4" />
-		</button>
-	</div>
+<aside
+	class="bg-panel/70 flex h-full w-full flex-col overflow-x-hidden border-r border-border backdrop-blur-md"
+>
+	<PanelHeader
+		title="Note"
+		onClose={() => (store.editMode = false)}
+		closeLabel="Close note editor"
+	/>
 
 	<div class="flex flex-col gap-1.5 border-b border-border px-3 py-2.5">
 		<span class="text-[10px] font-bold tracking-[0.4px] text-text-muted uppercase">Duration</span>

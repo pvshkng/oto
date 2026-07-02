@@ -1,7 +1,9 @@
 <script lang="ts">
 	// Song configuration: title, composer, tempo and the starting time signature.
 	// A bottom drawer (consistent with the rest of the app's mobile-first sheets),
-	// opened from the bottom bar cog or the score title.
+	// opened from the bottom bar cog or the score title. Desktop shows the same
+	// fields inline in RightPanel's "song" mode instead (see RightPanel.svelte);
+	// this component is only mounted on mobile.
 	import { store } from '$lib/stores/score.svelte';
 	import * as Drawer from '$lib/components/ui/drawer';
 	import { buttonVariants } from '$lib/components/ui/button';

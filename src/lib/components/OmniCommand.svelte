@@ -19,10 +19,15 @@
 </script>
 
 <Dialog.Root bind:open>
-	<Dialog.Content class="overflow-hidden p-0" showCloseButton={false}>
+	<Dialog.Content
+		class="overflow-hidden p-0"
+		showCloseButton={false}
+		overlayClass="bg-transparent"
+		onOpenAutoFocus={(e) => e.preventDefault()}
+	>
 		<Dialog.Title class="sr-only">Command palette</Dialog.Title>
 		<Dialog.Description class="sr-only">Search and run any editor action</Dialog.Description>
-		<Command.Root class="[&_[data-command-group-heading]]:px-2">
+		<Command.Root class="bg-transparent [&_[data-command-group-heading]]:px-2">
 			<Command.Input placeholder="Type a command or search..." />
 			<Command.List>
 				<Command.Empty>No results found.</Command.Empty>

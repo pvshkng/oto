@@ -7,8 +7,6 @@
 
 	import { store } from '$lib/stores/score.svelte';
 	import { play, pausePlayback, stopPlayback, goToStart } from '$lib/audio/playback';
-	// import * as Popover from '$lib/components/ui/popover';
-	// import * as Command from '$lib/components/ui/command';
 	import { Button } from '$lib/components/ui/button';
 	import { cn } from '$lib/utils';
 	import OmniCommand from './OmniCommand.svelte';
@@ -29,28 +27,10 @@
 	import PianoKeys from 'phosphor-svelte/lib/PianoKeys';
 	import Sliders from 'phosphor-svelte/lib/Sliders';
 	import GearSix from 'phosphor-svelte/lib/GearSix';
-	// import File from 'phosphor-svelte/lib/File';
-	// import FilePlus from 'phosphor-svelte/lib/FilePlus';
-	// import FloppyDisk from 'phosphor-svelte/lib/FloppyDisk';
-	// import FilePdf from 'phosphor-svelte/lib/FilePdf';
-	// import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
 	import ArrowCounterClockwise from 'phosphor-svelte/lib/ArrowCounterClockwise';
 	import ArrowClockwise from 'phosphor-svelte/lib/ArrowClockwise';
-	// import PlusMinus from 'phosphor-svelte/lib/PlusMinus';
-	// import Scissors from 'phosphor-svelte/lib/Scissors';
-	// import Copy from 'phosphor-svelte/lib/Copy';
-	// import ClipboardText from 'phosphor-svelte/lib/ClipboardText';
 
 	let omniOpen = $state(false);
-	// let fileOpen = $state(false);
-
-	// function confirmNew() {
-	// 	if (confirm('Start a new score? Your current one stays in the last save.')) store.newScore();
-	// }
-	// function runFile(fn: () => void | Promise<void>) {
-	// 	fn();
-	// 	fileOpen = false;
-	// }
 
 	// Desktop edit tool buttons: pressing a tool button while it's active toggles
 	// the key-input strip off; pressing an inactive one opens the strip on that tool.
@@ -82,15 +62,6 @@
 			store.songModalOpen = true;
 		}
 	}
-	// function toggleAddRemove() {
-	// 	if (store.addRemoveOpen) {
-	// 		store.addRemoveOpen = false;
-	// 	} else {
-	// 		store.tempoOpen = false;
-	// 		store.songModalOpen = false;
-	// 		store.addRemoveOpen = true;
-	// 	}
-	// }
 </script>
 
 <div
@@ -108,47 +79,6 @@
 	>
 		<DotsThreeVertical class="size-5" weight="bold" />
 	</Button>
-
-	<!-- File combobox
-	<Popover.Root bind:open={fileOpen}>
-		<Popover.Trigger
-			class={cn(buttonVariants({ variant: 'outline', size: 'icon' }), 'size-9 shrink-0')}
-			title="File"
-			aria-label="File"
-		>
-			<File class="size-4" />
-		</Popover.Trigger>
-		<Popover.Content side="top" align="start" class="w-56 p-0">
-			<Command.Root>
-				<Command.List>
-					<Command.Group>
-						<Command.Item onSelect={() => runFile(confirmNew)}>
-							<FilePlus class="size-4" /> New
-						</Command.Item>
-						<Command.Item
-							onSelect={() => runFile(() => import('$lib/io/files').then((m) => m.downloadOto()))}
-						>
-							<FloppyDisk class="size-4" /> Save .oto
-						</Command.Item>
-						<Command.Item
-							onSelect={() => runFile(() => import('$lib/io/files').then((m) => m.exportPdf()))}
-						>
-							<FilePdf class="size-4" /> Export PDF
-						</Command.Item>
-					</Command.Group>
-					<Command.Separator />
-					<Command.Group>
-						<Command.Item
-							onSelect={() => runFile(() => import('$lib/io/files').then((m) => m.openFile()))}
-						>
-							<FolderOpen class="size-4" /> Open / Import
-						</Command.Item>
-					</Command.Group>
-				</Command.List>
-			</Command.Root>
-		</Popover.Content>
-	</Popover.Root>
-	-->
 
 	<!-- Undo / redo -->
 	<div class="flex shrink-0 items-stretch">

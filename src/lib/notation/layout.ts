@@ -5,6 +5,7 @@
 import { analyzeMeasure, beatFraction } from '$lib/oto/duration';
 import { frettedMidi } from '$lib/oto/pitch';
 import { accidentalGlyph, beamCount, midiToStaffStep } from './glyphs';
+import { sectionLetterAt, sortSections } from '$lib/oto/sections';
 import type { OtoScore, OtoTrack, DurationValue, TrackKind } from '$lib/oto/types';
 
 export interface LayoutOptions {
@@ -12,6 +13,18 @@ export interface LayoutOptions {
 	showStandard: boolean;
 	showTab: boolean;
 	showRhythm: boolean;
+	/** Pre-computed system breaks + measure widths shared across every track
+	 *  in a multi-track view, so bars line up in parallel instead of each
+	 *  track wrapping to a new line independently. See `computeSharedSystems`. */
+	shared?: SharedSystems;
+}
+
+/** System groupings (arrays of absolute measure indices) and the final px
+ *  width of every measure, computed once across a set of tracks so they all
+ *  wrap at the same points and their bars line up. */
+export interface SharedSystems {
+	systems: number[][];
+	measureWidths: number[];
 }
 
 export const METRICS = {
@@ -22,8 +35,10 @@ export const METRICS = {
 	beatPadding: 22,
 	measurePadStart: 14,
 	measurePadEnd: 10,
+	rowEndPad: 14, // gap after the last barline of a row so it isn't cropped at the edge
 	headerWidth: 56, // clef + tuning column on first measure of a row
 	systemGap: 26,
+	sectionLabelHeight: 16, // reserved strip above the bands for section markers
 	standardHeight: 0, // computed
 	tabHeight: 0,
 	rhythmHeight: 18 * 2
@@ -82,6 +97,12 @@ export interface LaidMeasure {
 	overflow: boolean;
 	showHeader: boolean;
 	timeSignature: [number, number] | null; // shown when it changes
+	/** Section marker starting at this measure, if any — id/letter/name split so the
+	 *  letter is always derived from position (see `$lib/oto/sections`) rather than
+	 *  baked into stored data. */
+	sectionId: string | null;
+	sectionLetter: string | null;
+	sectionName: string | null;
 }
 
 export interface LaidSystem {
@@ -174,7 +195,7 @@ function keySignatureGlyphs(
 }
 
 /** Extra header width needed to fit a key signature's accidentals. */
-function keySignatureWidth(fifths: number): number {
+export function keySignatureWidth(fifths: number): number {
 	if (fifths === 0) return 0;
 	return Math.min(Math.abs(fifths), 7) * KEY_SIG_GLYPH_GAP + 6;
 }
@@ -196,6 +217,70 @@ function intrinsicMeasureWidth(
 	return w + (showHeader ? headerWidth : 0);
 }
 
+/**
+ * Computes one shared system breakdown (which measures share a line, and each
+ * measure's final px width) across every given track, so that when several
+ * tracks are shown together their bars wrap at the same points and line up
+ * in parallel — e.g. track 1 and track 2 both show bars 1–2 on line one, then
+ * both show bars 3–4 on line two, rather than each track wrapping wherever
+ * its own note density happens to fit.
+ *
+ * A measure's shared width is driven by the densest track at that measure
+ * (the most beats), so every track's bar for that measure gets the same box
+ * even if a given track has fewer notes in it. Header width (clef + key
+ * signature) doesn't vary by track — key signature is score-level.
+ */
+export function computeSharedSystems(
+	score: OtoScore,
+	tracks: OtoTrack[],
+	containerWidth: number
+): SharedSystems {
+	const headerWidth = METRICS.headerWidth + keySignatureWidth(score.keySignature ?? 0);
+	const measureCount = Math.max(0, ...tracks.map((t) => t.measures.length));
+	const maxBeatCounts: number[] = [];
+	for (let mi = 0; mi < measureCount; mi++) {
+		maxBeatCounts.push(Math.max(1, ...tracks.map((t) => t.measures[mi]?.beats.length ?? 1)));
+	}
+
+	// No artificial minimum here beyond guarding degenerate values — systems
+	// must always fit the real available width so the staff never needs to
+	// scroll horizontally, however narrow the container actually is.
+	const avail = Math.max(100, containerWidth);
+	const systems: number[][] = [];
+	let row: number[] = [];
+	let rowWidth = 0;
+	const flush = () => {
+		if (row.length) systems.push(row);
+		row = [];
+		rowWidth = 0;
+	};
+	for (let mi = 0; mi < measureCount; mi++) {
+		const showHeader = row.length === 0;
+		const w = intrinsicMeasureWidth(maxBeatCounts[mi], showHeader, headerWidth);
+		if (row.length > 0 && rowWidth + w > avail) flush();
+		row.push(mi);
+		rowWidth += intrinsicMeasureWidth(maxBeatCounts[mi], row.length === 1, headerWidth);
+	}
+	flush();
+
+	const measureWidths: number[] = new Array(measureCount).fill(0);
+	for (const sys of systems) {
+		const intrinsic = sys.map((mi, i) =>
+			intrinsicMeasureWidth(maxBeatCounts[mi], i === 0, headerWidth)
+		);
+		const totalIntrinsic = intrinsic.reduce((a, b) => a + b, 0);
+		// No upper cap: every system — including a sparse last line — always
+		// stretches to fill the row width (minus a small trailing pad so the
+		// final barline isn't cropped at the edge) rather than leaving a
+		// larger blank gap at the end.
+		const scale = totalIntrinsic > 0 ? (avail - METRICS.rowEndPad) / totalIntrinsic : 1;
+		sys.forEach((mi, i) => {
+			measureWidths[mi] = intrinsic[i] * scale;
+		});
+	}
+	return { systems, measureWidths };
+}
+
 export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOptions): TrackLayout {
 	const stringCount = track.tuning.length;
 	const clef = clefForKind(track.kind);
@@ -211,8 +296,13 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 	const tabHeight = (stringCount - 1) * METRICS.tabLineGap + 28;
 	const rhythmHeight = 30;
 
+	// Sections lettered A–Z by position (index in the measure-sorted list),
+	// never by anything stored — see `$lib/oto/sections`.
+	const sortedSections = sortSections(score.sections);
+
 	// Vertical bands within a system.
-	let y = 8;
+	const hasSections = score.sections.length > 0;
+	let y = hasSections ? 8 + METRICS.sectionLabelHeight : 8;
 	const bands: TrackLayout['bands'] = { standard: null, tab: null, rhythm: null };
 	if (opts.showStandard) {
 		bands.standard = { offsetY: y, height: standardHeight };
@@ -228,25 +318,37 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 	}
 	const systemHeight = y + METRICS.systemGap;
 
-	// Pack measures into systems greedily by width.
-	const avail = Math.max(360, opts.containerWidth);
+	// Pack measures into systems greedily by width — unless a shared
+	// breakdown was supplied (multi-track view), in which case every track
+	// uses the exact same system groupings and measure widths so their bars
+	// line up in parallel instead of wrapping independently. No artificial
+	// minimum beyond guarding degenerate values: systems must always fit the
+	// real available width so the staff never needs to scroll horizontally.
+	const avail = Math.max(100, opts.containerWidth);
 	const systems: LaidSystem[] = [];
-	let row: number[] = [];
-	let rowWidth = 0;
-	const flush = () => {
-		if (row.length) systems.push(buildSystem(row, true));
-		row = [];
-		rowWidth = 0;
-	};
-	for (let mi = 0; mi < track.measures.length; mi++) {
-		const beatCount = track.measures[mi].beats.length;
-		const showHeader = row.length === 0;
-		const w = intrinsicMeasureWidth(beatCount, showHeader, headerWidth);
-		if (row.length > 0 && rowWidth + w > avail) flush();
-		row.push(mi);
-		rowWidth += intrinsicMeasureWidth(beatCount, row.length === 1, headerWidth);
+	if (opts.shared) {
+		for (const measureIndexes of opts.shared.systems) {
+			const row = measureIndexes.filter((mi) => mi < track.measures.length);
+			if (row.length) systems.push(buildSystem(row, false));
+		}
+	} else {
+		let row: number[] = [];
+		let rowWidth = 0;
+		const flush = () => {
+			if (row.length) systems.push(buildSystem(row, true));
+			row = [];
+			rowWidth = 0;
+		};
+		for (let mi = 0; mi < track.measures.length; mi++) {
+			const beatCount = track.measures[mi].beats.length;
+			const showHeader = row.length === 0;
+			const w = intrinsicMeasureWidth(beatCount, showHeader, headerWidth);
+			if (row.length > 0 && rowWidth + w > avail) flush();
+			row.push(mi);
+			rowWidth += intrinsicMeasureWidth(beatCount, row.length === 1, headerWidth);
+		}
+		flush();
 	}
-	flush();
 
 	// Build each system's geometry.
 	function buildSystem(measureIndexes: number[], justify: boolean): LaidSystem {
@@ -255,7 +357,11 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 			intrinsicMeasureWidth(track.measures[mi].beats.length, i === 0, headerWidth)
 		);
 		const totalIntrinsic = intrinsic.reduce((a, b) => a + b, 0);
-		const scale = justify && totalIntrinsic > 0 ? Math.min(1.6, avail / totalIntrinsic) : 1;
+		// No upper cap: every system — including a sparse last line — always
+		// stretches to fill the row width (minus a small trailing pad so the
+		// final barline isn't cropped at the edge) rather than leaving a
+		// larger blank gap at the end.
+		const scale = justify && totalIntrinsic > 0 ? (avail - METRICS.rowEndPad) / totalIntrinsic : 1;
 
 		let mx = 0;
 		let prevTimeSig: [number, number] = score.timeSignature;
@@ -263,7 +369,7 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 			const measure = track.measures[mi];
 			const showHeader = i === 0;
 			const headerW = showHeader ? headerWidth : 0;
-			const width = intrinsic[i] * scale;
+			const width = opts.shared ? opts.shared.measureWidths[mi] : intrinsic[i] * scale;
 			const innerStart = mx + headerW + METRICS.measurePadStart;
 			const innerWidth = width - headerW - METRICS.measurePadStart - METRICS.measurePadEnd;
 			const fill = analyzeMeasure(measure, score.timeSignature);
@@ -370,6 +476,9 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 						measure.timeSignature[1] !== prevTimeSig[1]));
 			if (measure.timeSignature) prevTimeSig = measure.timeSignature;
 
+			const sectionIdx = sortedSections.findIndex((s) => s.measure === mi);
+			const section = sectionIdx >= 0 ? sortedSections[sectionIdx] : null;
+
 			const laid: LaidMeasure = {
 				index: mi,
 				x: mx,
@@ -378,7 +487,10 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 				voice2,
 				overflow: fill.overflow,
 				showHeader,
-				timeSignature: showTs ? (measure.timeSignature ?? score.timeSignature) : null
+				timeSignature: showTs ? (measure.timeSignature ?? score.timeSignature) : null,
+				sectionId: section?.id ?? null,
+				sectionLetter: section ? sectionLetterAt(sectionIdx) : null,
+				sectionName: section?.label || null
 			};
 			mx += width;
 			return laid;

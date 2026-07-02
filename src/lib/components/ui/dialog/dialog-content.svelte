@@ -10,22 +10,26 @@
 		class: className,
 		portalProps,
 		showCloseButton = true,
+		overlayClass,
 		children,
 		...restProps
 	}: DialogPrimitive.ContentProps & {
 		portalProps?: DialogPrimitive.PortalProps;
 		showCloseButton?: boolean;
+		/** Override the overlay's dimmer — e.g. `bg-transparent` for palettes that
+		 *  shouldn't darken the app behind them. */
+		overlayClass?: string;
 		children: Snippet;
 	} = $props();
 </script>
 
 <DialogPrimitive.Portal {...portalProps}>
-	<DialogOverlay />
+	<DialogOverlay class={overlayClass} />
 	<DialogPrimitive.Content
 		bind:ref
 		data-slot="dialog-content"
 		class={cn(
-			'bg-background fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg sm:max-w-lg',
+			'bg-background/85 supports-[backdrop-filter]:bg-background/70 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg backdrop-blur-md sm:max-w-lg',
 			className
 		)}
 		{...restProps}

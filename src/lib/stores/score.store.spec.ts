@@ -302,11 +302,19 @@ describe('ScoreStore sections', () => {
 	let s: ScoreStore;
 	beforeEach(() => (s = freshStore()));
 
-	it('adds a section with an auto label and keeps them sorted by measure', () => {
+	it('adds a section with no label by default and keeps them sorted by measure', () => {
 		s.addSection(8);
 		s.addSection(2);
 		expect(s.score.sections.map((x) => x.measure)).toEqual([2, 8]);
-		expect(s.score.sections[1].label).toBeTruthy();
+		expect(s.score.sections[1].label).toBe('');
+	});
+
+	it('stops adding sections once the 26-letter (A–Z) limit is reached', () => {
+		for (let i = 0; i < 26; i++) s.addSection(i);
+		expect(s.score.sections).toHaveLength(26);
+		expect(s.canAddSection).toBe(false);
+		s.addSection(26);
+		expect(s.score.sections).toHaveLength(26);
 	});
 
 	it('updates a section label and re-sorts when the measure changes', () => {

@@ -16,6 +16,7 @@ import {
 } from '$lib/oto/format';
 import { analyzeMeasure, beatsFilled, measureCapacity } from '$lib/oto/duration';
 import { detuneTrack, transposeTrackFrets, retuneTrack } from '$lib/oto/transpose';
+import { MAX_SECTIONS } from '$lib/oto/sections';
 import type { MetronomeSound } from '$lib/audio/engine';
 import type {
 	DurationValue,
@@ -551,15 +552,25 @@ export class ScoreStore {
 
 	// ---- sections / markers ------------------------------------------------
 
+	/** Sections are lettered A–Z by position (see `$lib/oto/sections`); once 26 exist, no more can be added. */
+	get canAddSection(): boolean {
+		return this.score.sections.length < MAX_SECTIONS;
+	}
+
 	addSection(measure: number, label?: string) {
+		if (!this.canAddSection) return;
+		const m = Math.max(0, Math.floor(measure));
+		if (this.score.sections.some((s) => s.measure === m)) return;
 		this.commit(() => {
-			const m = Math.max(0, Math.floor(measure));
-			const auto = String.fromCharCode(65 + (this.score.sections.length % 26));
-			this.score.sections.push({ id: uid('sec'), measure: m, label: label ?? `Section ${auto}` });
+			this.score.sections.push({ id: uid('sec'), measure: m, label: label ?? '' });
 			this.score.sections.sort((a, b) => a.measure - b.measure);
 		});
 	}
 	updateSection(id: string, patch: Partial<Section>) {
+		if (patch.measure !== undefined) {
+			const m = Math.max(0, Math.floor(patch.measure));
+			if (this.score.sections.some((s) => s.id !== id && s.measure === m)) return;
+		}
 		this.commit(() => {
 			const s = this.score.sections.find((x) => x.id === id);
 			if (!s) return;
@@ -834,6 +845,14 @@ export class ScoreStore {
 				} else if (c.measure < track.measures.length - 1) {
 					c.measure += 1;
 					c.beat = 0;
+				} else {
+					if (!keepSelection) this.selection = null;
+					this.addMeasureToAll();
+					c.measure += 1;
+					c.beat = 0;
+					this.cursor = c;
+					this.clampCursor();
+					return;
 				}
 			}
 		}

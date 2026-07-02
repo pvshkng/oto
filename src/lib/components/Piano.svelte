@@ -126,7 +126,9 @@
 <style>
 	.piano {
 		overflow-x: auto;
-		background: var(--panel);
+		background: color-mix(in srgb, var(--panel) 70%, transparent);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
 		border: 1px solid var(--border-strong);
 		border-radius: var(--r-sm);
 		padding: 8px;
@@ -201,12 +203,14 @@
 	.black .note-dot {
 		color: var(--accent-ink);
 	}
+	/* Taller (but not wider) keys on small screens for easier tapping. Width
+	   must stay driven only by `WHITE_KEY_W` in the script — the black keys'
+	   `left` offsets are computed from that same constant, so overriding
+	   white-key width here without updating the black-key math would throw
+	   every black key out of alignment with its neighbouring white keys. */
 	@media (max-width: 720px) {
 		.keys {
 			height: 130px;
-		}
-		.white {
-			width: 40px !important;
 		}
 	}
 </style>

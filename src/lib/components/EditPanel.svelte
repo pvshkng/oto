@@ -12,6 +12,8 @@
 	import BarTimeSigPicker from './note-edit/BarTimeSigPicker.svelte';
 	import BeatActions from './note-edit/BeatActions.svelte';
 	import EffectsGrid from './note-edit/EffectsGrid.svelte';
+	import Fretboard from './Fretboard.svelte';
+	import Piano from './Piano.svelte';
 	import X from 'phosphor-svelte/lib/X';
 	import Numpad from 'phosphor-svelte/lib/Numpad';
 	import Guitar from 'phosphor-svelte/lib/Guitar';
@@ -135,15 +137,11 @@
 		</div>
 	{:else if store.editTool === 'fretboard'}
 		<div class="fretboard-wrap">
-			{#await import('./Fretboard.svelte') then { default: Fretboard }}
-				<Fretboard />
-			{/await}
+			<Fretboard />
 		</div>
 	{:else}
 		<div class="fretboard-wrap">
-			{#await import('./Piano.svelte') then { default: Piano }}
-				<Piano />
-			{/await}
+			<Piano />
 		</div>
 	{/if}
 </div>

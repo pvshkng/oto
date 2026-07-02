@@ -9,10 +9,12 @@
 	import { store } from '$lib/stores/score.svelte';
 	import { audio } from '$lib/audio/engine';
 	import { analyzeMeasure } from '$lib/oto/duration';
+	import { sectionLetterAt } from '$lib/oto/sections';
 	import { cn } from '$lib/utils';
 	import TrackControlDrawer from './TrackControlDrawer.svelte';
 	import TrackIdentityRow from './tracks-panel/TrackIdentityRow.svelte';
 	import TrackMixerControls from './tracks-panel/TrackMixerControls.svelte';
+	import * as Popover from '$lib/components/ui/popover';
 	import { MIXER_FADER_CLASS } from './tracks-panel/mixer-fader';
 	import type { OtoTrack } from '$lib/oto/types';
 
@@ -61,21 +63,21 @@
 	const timelineW = $derived(measureCount * cell);
 	const sections = $derived([...store.score.sections].sort((a, b) => a.measure - b.measure));
 
-	// Section markers are absolutely positioned by measure and collide when placed
-	// close together. Greedily pack them into rows so each label clears the one to
-	// its left, stacking downward when there isn't room on a row.
-	const MARKER_W = 92;
+	// Section markers are absolutely positioned by measure and always stay on a
+	// single row (never stack). Each marker is a small letter chip — click it to
+	// open a popover with the (optional) name — so neighbors never overlap or
+	// wrap to a new row regardless of how close together sections are.
+	const MARKER_COMPACT_W = 26;
+	const MARKER_GAP = 4;
 	const laidOutSections = $derived.by(() => {
-		const rowRightEdge: number[] = [];
+		let cursor = -Infinity;
 		return sections.map((sec, si) => {
-			const left = Math.min(sec.measure, measureCount - 1) * cell;
-			let row = 0;
-			while (row < rowRightEdge.length && rowRightEdge[row] > left + 0.5) row++;
-			rowRightEdge[row] = left + MARKER_W;
-			return { sec, si, left, row };
+			const preferredLeft = Math.min(sec.measure, measureCount - 1) * cell;
+			const left = Math.max(preferredLeft, cursor);
+			cursor = left + MARKER_COMPACT_W + MARKER_GAP;
+			return { sec, si, left };
 		});
 	});
-	const markerRows = $derived(Math.max(1, ...laidOutSections.map((m) => m.row + 1)));
 
 	// Playhead position (px from the timeline's left edge). During playback this
 	// tracks the live beat; otherwise it falls back to the edit cursor so
@@ -135,6 +137,13 @@
 
 	function jumpTo(measure: number, track = store.cursor.track) {
 		store.setCursor({ track, measure, beat: 0 });
+	}
+
+	// Deleting a section is cheap to undo (Ctrl+Z), but a stray tap on the tiny
+	// X next to the letter chip is easy to fire by accident, so confirm first.
+	function confirmRemoveSection(sec: { id: string; label: string }) {
+		const name = sec.label ? `"${sec.label}"` : 'this section';
+		if (confirm(`Remove ${name}?`)) store.removeSection(sec.id);
 	}
 
 	// Double tap/click a colored (content-bearing) block in the arrangement to
@@ -515,42 +524,59 @@
 						>Sections</span
 					>
 					<button
-						class="text-muted-foreground hover:text-foreground [background-image:none!important] flex items-center gap-1 rounded-md border px-1.5 py-1 text-[11px]"
-						title="Add a section marker at the current bar"
+						class="text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-40 [background-image:none!important] flex items-center gap-1 rounded-md border px-1.5 py-1 text-[11px]"
+						title={store.canAddSection
+							? 'Add a section marker at the current bar'
+							: 'Section limit reached (A–Z, 26 max)'}
+						disabled={!store.canAddSection}
 						onclick={() => store.addSection(store.cursor.measure)}
 					>
 						<MapPin class="size-3.5" /> Add
 					</button>
 				</div>
-				<div
-					class="relative shrink-0 py-2"
-					style="width:{timelineW}px;min-height:{markerRows * 30 + 8}px"
-				>
-					{#each laidOutSections as { sec, si, left, row } (sec.id)}
-						<div
-							class="absolute flex items-center gap-1 rounded-md border bg-card px-1 py-0.5 shadow-sm"
-							style="left:{left}px;top:{row * 30 + 4}px"
-						>
-							<button
-								class="bg-primary text-primary-foreground [background-image:none!important] flex size-4 items-center justify-center rounded text-[9px] font-bold"
-								title="Jump to this section"
-								onclick={() => jumpTo(sec.measure)}
-							>
-								{String.fromCharCode(65 + (si % 26))}
-							</button>
-							<input
-								class="hover:bg-muted focus:bg-muted w-16 rounded-sm bg-transparent px-1 text-[11px] focus:outline-none"
-								value={sec.label}
-								onchange={(e) => store.updateSection(sec.id, { label: e.currentTarget.value })}
-							/>
-							<button
-								class="text-muted-foreground hover:text-destructive [background-image:none!important]"
-								title="Remove section"
-								aria-label="Remove section"
-								onclick={() => store.removeSection(sec.id)}
-							>
-								<X class="size-3" />
-							</button>
+				<div class="relative shrink-0 py-2" style="width:{timelineW}px;min-height:34px">
+					{#each laidOutSections as { sec, si, left } (sec.id)}
+						{@const letter = sectionLetterAt(si)}
+						<div class="absolute" style="left:{left}px;top:4px">
+							<Popover.Root>
+								<Popover.Trigger
+									class="bg-primary text-primary-foreground [background-image:none!important] flex size-5 items-center justify-center rounded text-[9px] font-bold shadow-sm"
+									title={sec.label ? `Edit "${sec.label}"` : 'Edit section name'}
+									aria-label={`Edit section ${letter}${sec.label ? ': ' + sec.label : ''}`}
+								>
+									{letter}
+								</Popover.Trigger>
+								<Popover.Content side="top" align="start" class="w-44 p-1.5">
+									<div class="flex items-center gap-1">
+										<button
+											class="bg-primary text-primary-foreground [background-image:none!important] flex size-4 shrink-0 items-center justify-center rounded text-[9px] font-bold"
+											title="Jump to this section"
+											onclick={() => jumpTo(sec.measure)}
+										>
+											{letter}
+										</button>
+										<input
+											class="hover:bg-muted focus:bg-muted w-full min-w-0 flex-1 rounded-sm bg-transparent px-1 text-[11px] focus:outline-none"
+											value={sec.label}
+											placeholder=""
+											onfocus={(e) => e.currentTarget.select()}
+											onkeydown={(e) => {
+												if (e.key === 'Enter') e.currentTarget.blur();
+											}}
+											onchange={(e) =>
+												store.updateSection(sec.id, { label: e.currentTarget.value })}
+										/>
+										<button
+											class="text-muted-foreground hover:text-destructive [background-image:none!important] shrink-0"
+											title="Remove section"
+											aria-label="Remove section"
+											onclick={() => confirmRemoveSection(sec)}
+										>
+											<X class="size-3" />
+										</button>
+									</div>
+								</Popover.Content>
+							</Popover.Root>
 						</div>
 					{/each}
 				</div>

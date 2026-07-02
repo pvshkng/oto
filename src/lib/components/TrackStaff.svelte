@@ -4,7 +4,13 @@
 	// selection. Layout geometry comes from notation/layout.ts.
 
 	import { store } from '$lib/stores/score.svelte';
-	import { layoutTrack, METRICS, type LaidMeasure } from '$lib/notation/layout';
+	import {
+		layoutTrack,
+		computeSharedSystems,
+		METRICS,
+		type LaidMeasure,
+		type SharedSystems
+	} from '$lib/notation/layout';
 	import { GLYPH, restGlyph, timeSigGlyphs } from '$lib/notation/glyphs';
 	import { ContextMenu as ContextMenuPrimitive } from 'bits-ui';
 	import { beamGroups } from './track-staff/beam-geometry';
@@ -14,7 +20,22 @@
 	import StaffContextMenu from './track-staff/StaffContextMenu.svelte';
 	import { noteheadStyle } from './track-staff/note-styles';
 
-	let { trackIndex }: { trackIndex: number } = $props();
+	let {
+		trackIndex,
+		onlySystemIndex,
+		sharedOverride
+	}: {
+		trackIndex: number;
+		/** Multi-track (interleaved) view: render only this one system (row),
+		 *  so ScoreArea can place all tracks' Nth system together before
+		 *  moving on to their (N+1)th, instead of stacking a track's whole
+		 *  staff before the next track's. */
+		onlySystemIndex?: number;
+		/** Pre-computed shared system breakdown from ScoreArea, so every track
+		 *  instance agrees on the exact same breaks without recomputing it
+		 *  (and re-measuring width) independently per track. */
+		sharedOverride?: SharedSystems;
+	} = $props();
 
 	const ctxNote = $derived(store.currentNote);
 
@@ -22,14 +43,40 @@
 	let container: HTMLDivElement;
 
 	const track = $derived(store.score.tracks[trackIndex]);
+
+	// When multiple tracks are shown together (multi-track view), every
+	// track's systems must break at the same measures so bars line up in
+	// parallel — track 1 and track 2 both show bars 1–2 on line one, then
+	// both show bars 3–4 on line two, instead of each wrapping independently.
+	const visibleTracks = $derived(store.score.tracks.filter((t) => store.isTrackVisible(t.id)));
+	const shared = $derived(
+		sharedOverride ??
+			(store.trackViewMode === 'multi' && visibleTracks.length > 1
+				? computeSharedSystems(store.score, visibleTracks, containerWidth - 8)
+				: undefined)
+	);
+
 	const layout = $derived(
 		layoutTrack(store.score, track, {
 			containerWidth: containerWidth - 8,
 			showStandard: track.view.standard,
 			showTab: track.view.tab,
-			showRhythm: track.view.rhythm
+			showRhythm: track.view.rhythm,
+			shared
 		})
 	);
+
+	// When rendering just one system (interleaved multi-track view), only
+	// that system is drawn; otherwise every system for this track is.
+	const systemsToRender = $derived(
+		onlySystemIndex != null ? [layout.systems[onlySystemIndex]].filter(Boolean) : layout.systems
+	);
+
+	// Small vertical track-name label to the left of the first bar. Shown on
+	// every rendered row in the interleaved multi-track view (each row is a
+	// separate instance there), since otherwise a row's track wouldn't be
+	// identifiable once tracks alternate line by line.
+	const showTrackLabel = $derived(onlySystemIndex != null);
 
 	const isActiveTrack = $derived(store.cursor.track === trackIndex);
 
@@ -110,6 +157,34 @@
 		return 0;
 	}
 
+	// Inline section-name editing, triggered by clicking a section marker's
+	// label above the staff. Committed through the same `store.updateSection`
+	// the tracks panel section navigator uses, so both stay in sync.
+	let editingSectionId = $state<string | null>(null);
+	let editingSectionText = $state('');
+	let editingSectionInput = $state<HTMLInputElement | null>(null);
+
+	function startEditSection(measure: LaidMeasure) {
+		if (!measure.sectionId) return;
+		editingSectionId = measure.sectionId;
+		editingSectionText = measure.sectionName ?? '';
+	}
+	function commitEditSection() {
+		if (editingSectionId)
+			store.updateSection(editingSectionId, { label: editingSectionText.trim() });
+		editingSectionId = null;
+	}
+	function cancelEditSection() {
+		editingSectionId = null;
+	}
+
+	$effect(() => {
+		if (editingSectionId && editingSectionInput) {
+			editingSectionInput.focus();
+			editingSectionInput.select();
+		}
+	});
+
 	$effect(() => {
 		if (!container) return;
 		const ro = new ResizeObserver((entries) => {
@@ -136,313 +211,397 @@
 
 <ContextMenuPrimitive.Root bind:open={store.contextMenuOpen}>
 	<ContextMenuPrimitive.Trigger class="block">
-		<div
-			class="w-full overflow-x-auto bg-paper select-none"
-			bind:this={container}
-			class:active={isActiveTrack}
-			onpointerdown={drag.onDragPointerDown}
-		>
-			{#each layout.systems as system (system.y)}
-				<svg
-					class="system block"
-					data-first-measure={system.measures[0]?.index}
-					data-last-measure={system.measures[system.measures.length - 1]?.index}
-					width={Math.max(system.width, containerWidth - 8)}
-					height={system.height}
-					role="presentation"
+		<div class="flex items-start">
+			{#if showTrackLabel}
+				<div
+					class="text-muted-foreground flex shrink-0 items-center justify-center overflow-hidden text-[10px] font-semibold [text-orientation:mixed] [writing-mode:vertical-lr]"
+					style="width:18px;height:{systemsToRender[0]?.height ?? 0}px"
+					title={track.name}
 				>
-					{#each system.measures as measure (measure.index)}
-						<!-- ===== Standard staff band ===== -->
-						{#if layout.bands.standard}
-							{@const band = layout.bands.standard}
-							<g
-								transform="translate(0,{band.offsetY})"
-								onclick={(e) => handleClick(e, measure, 'standard')}
-								ondblclick={(e) => handleDoubleClick(e, measure, 'standard')}
-								onpointerdown={(e) => primeContext(e, measure, 'standard')}
-								role="presentation"
-							>
-								<!-- Invisible full-band rect so taps on empty space (not just on a
+					<span class="truncate">{track.name}</span>
+				</div>
+			{/if}
+			<div
+				class="min-w-0 flex-1 overflow-x-hidden bg-paper select-none"
+				bind:this={container}
+				class:active={isActiveTrack}
+				onpointerdown={drag.onDragPointerDown}
+			>
+				{#each systemsToRender as system (system.y)}
+					<svg
+						class="system block"
+						data-first-measure={system.measures[0]?.index}
+						data-last-measure={system.measures[system.measures.length - 1]?.index}
+						width={Math.max(system.width, containerWidth - 8)}
+						height={system.height}
+						role="presentation"
+					>
+						{#each system.measures as measure (measure.index)}
+							<!-- ===== Standard staff band ===== -->
+							{#if layout.bands.standard}
+								{@const band = layout.bands.standard}
+								<g
+									transform="translate(0,{band.offsetY})"
+									onclick={(e) => handleClick(e, measure, 'standard')}
+									ondblclick={(e) => handleDoubleClick(e, measure, 'standard')}
+									onpointerdown={(e) => primeContext(e, measure, 'standard')}
+									role="presentation"
+								>
+									<!-- Invisible full-band rect so taps on empty space (not just on a
 								     drawn line/note) still register a click on this <g>. -->
-								<rect
-									x={measure.x}
-									y="0"
-									width={measure.width}
-									height={band.height}
-									class={HIT_AREA}
-								/>
-								<!-- 5 staff lines -->
-								{#each [0, 1, 2, 3, 4] as i (i)}
-									<line
-										x1={measure.x + (measure.showHeader ? 4 : 0)}
-										y1={METRICS.stdTopPad + METRICS.staffLineGap + i * METRICS.staffLineGap}
-										x2={measure.x + measure.width}
-										y2={METRICS.stdTopPad + METRICS.staffLineGap + i * METRICS.staffLineGap}
-										class={STAFF_LINE}
-									/>
-								{/each}
-								<!-- barlines -->
-								<line
-									x1={measure.x}
-									y1={METRICS.stdTopPad + METRICS.staffLineGap}
-									x2={measure.x}
-									y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
-									class={BARLINE}
-								/>
-								<line
-									x1={measure.x + measure.width}
-									y1={METRICS.stdTopPad + METRICS.staffLineGap}
-									x2={measure.x + measure.width}
-									y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
-									class={BARLINE}
-								/>
-
-								{#if measure.showHeader}
-									{#if layout.clef === 'bass'}
-										<text
-											x={measure.x + 8}
-											y={METRICS.stdTopPad + 2.5 * METRICS.staffLineGap}
-											class="{BRAVURA} text-[40px]">{GLYPH.bassClef}</text
-										>
-									{:else}
-										<text
-											x={measure.x + 8}
-											y={METRICS.stdTopPad + 3.4 * METRICS.staffLineGap}
-											class="{BRAVURA} text-[40px]">{GLYPH.trebleClef}</text
-										>
-									{/if}
-								{/if}
-								{#if measure.showHeader}
-									{#each layout.keySigGlyphs as g, gi (gi)}
-										<text x={measure.x + g.dx} y={g.y} class="{BRAVURA} text-[24px]">{g.glyph}</text
-										>
-									{/each}
-								{/if}
-								{#if measure.timeSignature}
-									<text
-										x={measure.x + (measure.showHeader ? 34 + layout.keySigWidth : 6)}
-										y={METRICS.stdTopPad + 2 * METRICS.staffLineGap + 1}
-										class="{BRAVURA} text-[26px]">{timeSigGlyphs(measure.timeSignature[0])}</text
-									>
-									<text
-										x={measure.x + (measure.showHeader ? 34 + layout.keySigWidth : 6)}
-										y={METRICS.stdTopPad + 4 * METRICS.staffLineGap + 1}
-										class="{BRAVURA} text-[26px]">{timeSigGlyphs(measure.timeSignature[1])}</text
-									>
-								{/if}
-
-								<StdVoice
-									beats={measure.beats}
-									measureIndex={measure.index}
-									vIdx={0}
-									bandHeight={band.height}
-									{isActiveTrack}
-									{trackIndex}
-								/>
-								{#if measure.voice2}
-									<StdVoice
-										beats={measure.voice2}
-										measureIndex={measure.index}
-										vIdx={1}
-										bandHeight={band.height}
-										{isActiveTrack}
-										{trackIndex}
-									/>
-								{/if}
-							</g>
-						{/if}
-
-						<!-- ===== Tablature band ===== -->
-						{#if layout.bands.tab}
-							{@const band = layout.bands.tab}
-							<g
-								transform="translate(0,{band.offsetY})"
-								onclick={(e) => handleClick(e, measure, 'tab')}
-								ondblclick={(e) => handleDoubleClick(e, measure, 'tab')}
-								onpointerdown={(e) => primeContext(e, measure, 'tab')}
-								role="presentation"
-							>
-								<rect
-									x={measure.x}
-									y="0"
-									width={measure.width}
-									height={band.height}
-									class={HIT_AREA}
-								/>
-								{#if measure.overflow}
 									<rect
 										x={measure.x}
 										y="0"
 										width={measure.width}
 										height={band.height}
-										class="fill-[rgba(185,28,28,0.1)]"
+										class={HIT_AREA}
 									/>
-								{/if}
-								<!-- string lines -->
-								{#each track.tuning as _, i (i)}
+									<!-- 5 staff lines -->
+									{#each [0, 1, 2, 3, 4] as i (i)}
+										<line
+											x1={measure.x + (measure.showHeader ? 4 : 0)}
+											y1={METRICS.stdTopPad + METRICS.staffLineGap + i * METRICS.staffLineGap}
+											x2={measure.x + measure.width}
+											y2={METRICS.stdTopPad + METRICS.staffLineGap + i * METRICS.staffLineGap}
+											class={STAFF_LINE}
+										/>
+									{/each}
+									<!-- barlines -->
 									<line
-										x1={measure.x + (measure.showHeader ? 4 : 0)}
-										y1={14 + i * METRICS.tabLineGap}
-										x2={measure.x + measure.width}
-										y2={14 + i * METRICS.tabLineGap}
-										class={STAFF_LINE}
+										x1={measure.x}
+										y1={METRICS.stdTopPad + METRICS.staffLineGap}
+										x2={measure.x}
+										y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
+										class={BARLINE}
 									/>
-								{/each}
-								<line
-									x1={measure.x}
-									y1={14}
-									x2={measure.x}
-									y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
-									class={BARLINE}
-								/>
-								<line
-									x1={measure.x + measure.width}
-									y1={14}
-									x2={measure.x + measure.width}
-									y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
-									class={BARLINE}
-								/>
+									<line
+										x1={measure.x + measure.width}
+										y1={METRICS.stdTopPad + METRICS.staffLineGap}
+										x2={measure.x + measure.width}
+										y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
+										class={BARLINE}
+									/>
 
-								{#if measure.showHeader}
-									<text
-										x={measure.x + 8}
-										y={14 + ((track.tuning.length - 1) * METRICS.tabLineGap) / 2 + 4}
-										class="[font:700_9px_ui-sans-serif,sans-serif] fill-[#a1a1aa] tracking-[1px]"
-										>TAB</text
-									>
-								{/if}
+									{#if measure.showHeader}
+										{#if layout.clef === 'bass'}
+											<text
+												x={measure.x + 8}
+												y={METRICS.stdTopPad + 2.5 * METRICS.staffLineGap}
+												class="{BRAVURA} text-[40px]">{GLYPH.bassClef}</text
+											>
+										{:else}
+											<text
+												x={measure.x + 8}
+												y={METRICS.stdTopPad + 3.4 * METRICS.staffLineGap}
+												class="{BRAVURA} text-[40px]">{GLYPH.trebleClef}</text
+											>
+										{/if}
+									{/if}
+									{#if measure.showHeader}
+										{#each layout.keySigGlyphs as g, gi (gi)}
+											<text x={measure.x + g.dx} y={g.y} class="{BRAVURA} text-[24px]"
+												>{g.glyph}</text
+											>
+										{/each}
+									{/if}
+									{#if measure.timeSignature}
+										<text
+											x={measure.x + (measure.showHeader ? 34 + layout.keySigWidth : 6)}
+											y={METRICS.stdTopPad + 2 * METRICS.staffLineGap + 1}
+											class="{BRAVURA} text-[26px]">{timeSigGlyphs(measure.timeSignature[0])}</text
+										>
+										<text
+											x={measure.x + (measure.showHeader ? 34 + layout.keySigWidth : 6)}
+											y={METRICS.stdTopPad + 4 * METRICS.staffLineGap + 1}
+											class="{BRAVURA} text-[26px]">{timeSigGlyphs(measure.timeSignature[1])}</text
+										>
+									{/if}
 
-								<TabVoice
-									beats={measure.beats}
-									measureIndex={measure.index}
-									vIdx={0}
-									bandHeight={band.height}
-									{isActiveTrack}
-									{trackIndex}
-								/>
-								{#if measure.voice2}
-									<TabVoice
-										beats={measure.voice2}
+									<StdVoice
+										beats={measure.beats}
 										measureIndex={measure.index}
-										vIdx={1}
+										vIdx={0}
 										bandHeight={band.height}
 										{isActiveTrack}
 										{trackIndex}
 									/>
-								{/if}
-							</g>
-						{/if}
+									{#if measure.voice2}
+										<StdVoice
+											beats={measure.voice2}
+											measureIndex={measure.index}
+											vIdx={1}
+											bandHeight={band.height}
+											{isActiveTrack}
+											{trackIndex}
+										/>
+									{/if}
+								</g>
+							{/if}
 
-						<!-- ===== Rhythm-only band ===== -->
-						{#if layout.bands.rhythm}
-							{@const band = layout.bands.rhythm}
-							{@const stemTop = band.height / 2 - 18}
-							<g
-								transform="translate(0,{band.offsetY})"
-								onclick={(e) => handleClick(e, measure, 'rhythm')}
-								onpointerdown={(e) => primeContext(e, measure, 'rhythm')}
-								role="presentation"
-							>
-								<rect
-									x={measure.x}
-									y="0"
-									width={measure.width}
-									height={band.height}
-									class={HIT_AREA}
-								/>
-								<line
-									x1={measure.x}
-									y1={band.height / 2}
-									x2={measure.x + measure.width}
-									y2={band.height / 2}
-									class={STAFF_LINE}
-								/>
-								<line
-									x1={measure.x}
-									y1={band.height / 2 - 8}
-									x2={measure.x}
-									y2={band.height / 2 + 8}
-									class={BARLINE}
-								/>
-								<!-- Beams first: consecutive same-rhythm beats connect into a group. -->
-								{#each beamGroups(measure.beats) as group (group)}
-									{@const members = measure.beats.filter((b) => b.beamGroup === group)}
-									<line
-										x1={members[0].x}
-										y1={stemTop}
-										x2={members[members.length - 1].x}
-										y2={stemTop}
-										class={BEAM}
+							<!-- ===== Tablature band ===== -->
+							{#if layout.bands.tab}
+								{@const band = layout.bands.tab}
+								<g
+									transform="translate(0,{band.offsetY})"
+									onclick={(e) => handleClick(e, measure, 'tab')}
+									ondblclick={(e) => handleDoubleClick(e, measure, 'tab')}
+									onpointerdown={(e) => primeContext(e, measure, 'tab')}
+									role="presentation"
+								>
+									<rect
+										x={measure.x}
+										y="0"
+										width={measure.width}
+										height={band.height}
+										class={HIT_AREA}
 									/>
-									{#each members as m (m.index)}
-										<line x1={m.x} y1={band.height / 2} x2={m.x} y2={stemTop} class={STEM} />
-										{#if m.beams >= 2}
-											<line x1={m.x} y1={stemTop + 4} x2={m.x + 8} y2={stemTop + 4} class={BEAM} />
+									{#if measure.overflow}
+										<rect
+											x={measure.x}
+											y="0"
+											width={measure.width}
+											height={band.height}
+											class="fill-[rgba(185,28,28,0.1)]"
+										/>
+									{/if}
+									<!-- string lines -->
+									{#each track.tuning as _, i (i)}
+										<line
+											x1={measure.x + (measure.showHeader ? 4 : 0)}
+											y1={14 + i * METRICS.tabLineGap}
+											x2={measure.x + measure.width}
+											y2={14 + i * METRICS.tabLineGap}
+											class={STAFF_LINE}
+										/>
+									{/each}
+									<line
+										x1={measure.x}
+										y1={14}
+										x2={measure.x}
+										y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
+										class={BARLINE}
+									/>
+									<line
+										x1={measure.x + measure.width}
+										y1={14}
+										x2={measure.x + measure.width}
+										y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
+										class={BARLINE}
+									/>
+
+									{#if measure.showHeader}
+										<text
+											x={measure.x + 8}
+											y={14 + ((track.tuning.length - 1) * METRICS.tabLineGap) / 2 + 4}
+											class="[font:700_9px_ui-sans-serif,sans-serif] fill-[#a1a1aa] tracking-[1px]"
+											>TAB</text
+										>
+									{/if}
+
+									<TabVoice
+										beats={measure.beats}
+										measureIndex={measure.index}
+										vIdx={0}
+										bandHeight={band.height}
+										{isActiveTrack}
+										{trackIndex}
+									/>
+									{#if measure.voice2}
+										<TabVoice
+											beats={measure.voice2}
+											measureIndex={measure.index}
+											vIdx={1}
+											bandHeight={band.height}
+											{isActiveTrack}
+											{trackIndex}
+										/>
+									{/if}
+								</g>
+							{/if}
+
+							<!-- ===== Rhythm-only band ===== -->
+							{#if layout.bands.rhythm}
+								{@const band = layout.bands.rhythm}
+								{@const stemTop = band.height / 2 - 18}
+								<g
+									transform="translate(0,{band.offsetY})"
+									onclick={(e) => handleClick(e, measure, 'rhythm')}
+									onpointerdown={(e) => primeContext(e, measure, 'rhythm')}
+									role="presentation"
+								>
+									<rect
+										x={measure.x}
+										y="0"
+										width={measure.width}
+										height={band.height}
+										class={HIT_AREA}
+									/>
+									<line
+										x1={measure.x}
+										y1={band.height / 2}
+										x2={measure.x + measure.width}
+										y2={band.height / 2}
+										class={STAFF_LINE}
+									/>
+									<line
+										x1={measure.x}
+										y1={band.height / 2 - 8}
+										x2={measure.x}
+										y2={band.height / 2 + 8}
+										class={BARLINE}
+									/>
+									<!-- Beams first: consecutive same-rhythm beats connect into a group. -->
+									{#each beamGroups(measure.beats) as group (group)}
+										{@const members = measure.beats.filter((b) => b.beamGroup === group)}
+										<line
+											x1={members[0].x}
+											y1={stemTop}
+											x2={members[members.length - 1].x}
+											y2={stemTop}
+											class={BEAM}
+										/>
+										{#each members as m (m.index)}
+											<line x1={m.x} y1={band.height / 2} x2={m.x} y2={stemTop} class={STEM} />
+											{#if m.beams >= 2}
+												<line
+													x1={m.x}
+													y1={stemTop + 4}
+													x2={m.x + 8}
+													y2={stemTop + 4}
+													class={BEAM}
+												/>
+											{/if}
+										{/each}
+									{/each}
+									{#each measure.beats as beat (beat.index)}
+										{#if beat.rest}
+											<text x={beat.x - 3} y={band.height / 2 + 4} class="{BRAVURA} text-[26px]"
+												>{restGlyph(beat.duration)}</text
+											>
+										{:else}
+											{#if beat.beamGroup === -1}
+												<line
+													x1={beat.x}
+													y1={band.height / 2}
+													x2={beat.x}
+													y2={stemTop}
+													class={STEM}
+												/>
+												{#if beat.beams > 0}
+													<text
+														x={beat.x}
+														y={stemTop}
+														class="{BRAVURA} text-[26px] [dominant-baseline:middle]"
+														>{beat.beams === 1 ? GLYPH.flag8thUp : GLYPH.flag16thUp}</text
+													>
+												{/if}
+											{/if}
+											<ellipse
+												cx={beat.x}
+												cy={band.height / 2}
+												rx="4.5"
+												ry="3.4"
+												class={noteheadStyle({
+													hollow: beat.duration <= 2,
+													v2: false,
+													ghost: false
+												})}
+											/>
 										{/if}
 									{/each}
-								{/each}
-								{#each measure.beats as beat (beat.index)}
-									{#if beat.rest}
-										<text x={beat.x - 3} y={band.height / 2 + 4} class="{BRAVURA} text-[26px]"
-											>{restGlyph(beat.duration)}</text
-										>
-									{:else}
-										{#if beat.beamGroup === -1}
-											<line
-												x1={beat.x}
-												y1={band.height / 2}
-												x2={beat.x}
-												y2={stemTop}
-												class={STEM}
-											/>
-											{#if beat.beams > 0}
-												<text
-													x={beat.x}
-													y={stemTop}
-													class="{BRAVURA} text-[26px] [dominant-baseline:middle]"
-													>{beat.beams === 1 ? GLYPH.flag8thUp : GLYPH.flag16thUp}</text
-												>
-											{/if}
-										{/if}
-										<ellipse
-											cx={beat.x}
-											cy={band.height / 2}
-											rx="4.5"
-											ry="3.4"
-											class={noteheadStyle({ hollow: beat.duration <= 2, v2: false, ghost: false })}
+								</g>
+							{/if}
+							<!-- Section-marker label: small text above the staff bands. Rendered
+						     last (on top) so its hit area always wins over the bands' glyphs.
+						     Click to rename inline; the same store update the tracks panel uses. -->
+							{#if measure.sectionLetter}
+								{#if editingSectionId === measure.sectionId}
+									<foreignObject
+										x={measure.x + (measure.showHeader ? 4 : 2)}
+										y="0"
+										width={Math.max(60, measure.width - 6)}
+										height={METRICS.sectionLabelHeight}
+									>
+										<input
+											bind:this={editingSectionInput}
+											class="h-[15px] w-full rounded-sm border border-border-strong bg-paper px-1 text-[10px] font-bold text-ink outline-none"
+											value={editingSectionText}
+											placeholder={measure.sectionLetter}
+											oninput={(e) => (editingSectionText = e.currentTarget.value)}
+											onblur={commitEditSection}
+											onkeydown={(e) => {
+												if (e.key === 'Enter') e.currentTarget.blur();
+												else if (e.key === 'Escape') cancelEditSection();
+											}}
+											onclick={(e) => e.stopPropagation()}
+											onpointerdown={(e) => e.stopPropagation()}
 										/>
-									{/if}
-								{/each}
-							</g>
-						{/if}
-					{/each}
-
-					<!-- Pending mark-start flag: thin vertical line at the anchor beat -->
-					{#if store.markStartPending && store.markStartPos?.track === trackIndex}
-						{@const pos = store.markStartPos!}
-						{#each system.measures as m (m.index)}
-							{#if m.index === pos.measure}
-								{#each m.beats as beat (beat.index)}
-									{#if beat.index === pos.beat}
-										<line
-											x1={beat.x - 9}
-											y1={4}
-											x2={beat.x - 9}
-											y2={system.height - 4}
-											class="stroke-[#f59e0b] [stroke-width:2] [stroke-dasharray:4_3] pointer-events-none"
+									</foreignObject>
+								{:else}
+									<g
+										class="cursor-text"
+										onclick={(e) => {
+											e.stopPropagation();
+											startEditSection(measure);
+										}}
+										onpointerdown={(e) => e.stopPropagation()}
+										onkeydown={(e) => {
+											if (e.key === 'Enter' || e.key === ' ') {
+												e.preventDefault();
+												startEditSection(measure);
+											}
+										}}
+										role="button"
+										tabindex="0"
+										aria-label={`Edit section ${measure.sectionLetter}${measure.sectionName ? ': ' + measure.sectionName : ''}`}
+									>
+										<rect
+											x={measure.x}
+											y="0"
+											width={measure.width}
+											height={METRICS.sectionLabelHeight}
+											class="fill-transparent [pointer-events:all]"
 										/>
 										<text
-											x={beat.x - 6}
-											y={14}
-											class="fill-[#f59e0b] text-[13px] font-black pointer-events-none">[</text
+											x={measure.x + (measure.showHeader ? 4 : 2)}
+											y="12"
+											class="fill-[#71717a] [font:700_10px_ui-sans-serif,sans-serif] tracking-[0.3px]"
+											>{measure.sectionLetter}{measure.sectionName
+												? ' ' + measure.sectionName
+												: ''}</text
 										>
-									{/if}
-								{/each}
+									</g>
+								{/if}
 							{/if}
 						{/each}
-					{/if}
-				</svg>
-			{/each}
+
+						<!-- Pending mark-start flag: thin vertical line at the anchor beat -->
+						{#if store.markStartPending && store.markStartPos?.track === trackIndex}
+							{@const pos = store.markStartPos!}
+							{#each system.measures as m (m.index)}
+								{#if m.index === pos.measure}
+									{#each m.beats as beat (beat.index)}
+										{#if beat.index === pos.beat}
+											<line
+												x1={beat.x - 9}
+												y1={4}
+												x2={beat.x - 9}
+												y2={system.height - 4}
+												class="stroke-[#f59e0b] [stroke-width:2] [stroke-dasharray:4_3] pointer-events-none"
+											/>
+											<text
+												x={beat.x - 6}
+												y={14}
+												class="fill-[#f59e0b] text-[13px] font-black pointer-events-none">[</text
+											>
+										{/if}
+									{/each}
+								{/if}
+							{/each}
+						{/if}
+					</svg>
+				{/each}
+			</div>
 		</div>
 	</ContextMenuPrimitive.Trigger>
 	<StaffContextMenu bind:ctxOpen={store.contextMenuOpen} {ctxNote} {track} />
