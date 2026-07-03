@@ -29,8 +29,8 @@
 	import SpeakerSimpleHigh from 'phosphor-svelte/lib/SpeakerSimpleHigh';
 
 	// Width of the frozen track-controls column. Desktop: draggable 350–520 px.
-	// Mobile: fixed 250 px.
-	const LEAD_MOBILE = 250;
+	// Mobile: fixed, narrow enough to leave more room for the timeline.
+	const LEAD_MOBILE = 210;
 	let LEAD = $state(350);
 
 	function startColumnResize(e: PointerEvent) {
@@ -225,9 +225,9 @@
 			></div>
 
 			<!-- Measure ruler -->
-			<div class="bg-background sticky top-0 z-20 flex border-b">
+			<div class="bg-background/70 sticky top-0 z-20 flex border-b backdrop-blur-md">
 				<div
-					class="bg-background sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r px-3 py-1.5"
+					class="bg-background/70 sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r px-3 py-1.5 backdrop-blur-md"
 					style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px"
 				>
 					{#if !store.isDesktop}
@@ -340,10 +340,7 @@
 				<div class={cn('relative flex border-b', active && 'bg-muted/40')}>
 					<!-- Frozen controls column -->
 					<div
-						class={cn(
-							'bg-background sticky left-0 z-10 flex shrink-0 flex-col gap-1.5 border-r px-2.5 py-2',
-							active && 'bg-muted/60'
-						)}
+						class="bg-background/70 sticky left-0 z-10 flex shrink-0 flex-col gap-1.5 border-r px-2.5 py-2 backdrop-blur-md"
 						style="width:{store.isDesktop
 							? LEAD
 							: LEAD_MOBILE}px;border-left:3px solid {track.color}"
@@ -477,7 +474,7 @@
 			<!-- Section markers -->
 			<div class="flex">
 				<div
-					class="bg-background sticky left-0 z-10 flex shrink-0 items-center justify-between gap-2 border-r px-2.5 py-1"
+					class="bg-background/70 sticky left-0 z-10 flex shrink-0 items-center justify-between gap-2 border-r px-2.5 py-1 backdrop-blur-md"
 					style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px"
 				>
 					<!-- Master volume: compact speaker button + readout, opens a small
