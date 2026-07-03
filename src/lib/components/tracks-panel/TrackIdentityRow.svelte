@@ -10,11 +10,15 @@
 	let {
 		track,
 		index,
-		onNameClick
+		onNameClick,
+		onToggleMute,
+		onToggleSolo
 	}: {
 		track: OtoTrack;
 		index: number;
 		onNameClick: () => void;
+		onToggleMute: () => void;
+		onToggleSolo: () => void;
 	} = $props();
 </script>
 
@@ -63,7 +67,7 @@
 		)}
 		title="Mute"
 		aria-pressed={track.muted}
-		onclick={() => store.toggleMute(index)}>M</button
+		onclick={onToggleMute}>M</button
 	>
 	<!-- Solo -->
 	<button
@@ -73,6 +77,6 @@
 		)}
 		title="Solo"
 		aria-pressed={track.soloed}
-		onclick={() => store.toggleSolo(index)}>S</button
+		onclick={onToggleSolo}>S</button
 	>
 </div>

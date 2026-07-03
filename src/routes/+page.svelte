@@ -76,34 +76,56 @@
 		return id === 'note' ? '19rem' : '21rem';
 	}
 
+	// Multi-track view splits a track's systems across several sections
+	// (interleaved with other tracks' matching systems), so a track can have
+	// more than one section — gather them all and search across. Shared by the
+	// explicit "scroll to track" requests below and the playback auto-follow
+	// effect further down.
+	function findSystemFor(trackId: string, measure?: number): Element | null {
+		const trackEls = [...document.querySelectorAll(`[data-track-id="${CSS.escape(trackId)}"]`)];
+		if (!trackEls.length) return null;
+		if (measure == null) return trackEls[0];
+		for (const trackEl of trackEls) {
+			for (const el of trackEl.querySelectorAll('svg.system')) {
+				const first = Number(el.getAttribute('data-first-measure'));
+				const last = Number(el.getAttribute('data-last-measure'));
+				if (measure >= first && measure <= last) return el;
+			}
+		}
+		return trackEls[0];
+	}
+
 	$effect(() => {
 		const req = store.scrollRequest;
 		if (!req || !scoreAreaEl) return;
 		if (req.kind === 'start') {
 			scoreAreaEl.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
 		} else if (req.kind === 'track' && req.trackId) {
-			// Multi-track view splits a track's systems across several sections
-			// (interleaved with other tracks' matching systems), so a track can
-			// have more than one section — gather them all and search across.
-			const trackEls = [
-				...document.querySelectorAll(`[data-track-id="${CSS.escape(req.trackId)}"]`)
-			];
-			if (!trackEls.length) return;
-			let target: Element = trackEls[0];
-			if (req.measure != null) {
-				outer: for (const trackEl of trackEls) {
-					for (const el of trackEl.querySelectorAll('svg.system')) {
-						const first = Number(el.getAttribute('data-first-measure'));
-						const last = Number(el.getAttribute('data-last-measure'));
-						if (req.measure! >= first && req.measure! <= last) {
-							target = el;
-							break outer;
-						}
-					}
-				}
-			}
-			target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			const target = findSystemFor(req.trackId, req.measure);
+			target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		}
+	});
+
+	// Playback auto-scroll: keep the moving playhead in view. Only nudges the
+	// view once the current system (staff line) has fully left the visible
+	// area — not on every beat, and not while it's merely near an edge — so it
+	// reads as the score "keeping up" with playback rather than fighting a
+	// manual scroll. Re-checked once per measure (not per beat) since that's
+	// the coarsest grain a scroll could possibly be needed at.
+	let followedMeasure = -1;
+	$effect(() => {
+		const measure = store.isPlaying ? store.playhead?.measure : undefined;
+		if (measure == null || !scoreAreaEl) return;
+		if (measure === followedMeasure) return;
+		followedMeasure = measure;
+		const trackId = store.score.tracks.find((t) => store.isTrackVisible(t.id))?.id;
+		if (!trackId) return;
+		const target = findSystemFor(trackId, measure);
+		if (!target) return;
+		const view = scoreAreaEl.getBoundingClientRect();
+		const rect = target.getBoundingClientRect();
+		const outOfView = rect.bottom <= view.top || rect.top >= view.bottom;
+		if (outOfView) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
 	});
 
 	// The right-click track-staff context menu doesn't track the page under

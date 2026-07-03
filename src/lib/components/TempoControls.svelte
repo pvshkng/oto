@@ -6,6 +6,7 @@
 	// between the two markups — all state/behavior below is unified.
 	import { store } from '$lib/stores/score.svelte';
 	import { audio, METRONOME_SOUNDS, type MetronomeSound } from '$lib/audio/engine';
+	import { reflectTempoChange } from '$lib/audio/playback';
 	import { Button } from '$lib/components/ui/button';
 	import { cn } from '$lib/utils';
 	import Minus from 'phosphor-svelte/lib/Minus';
@@ -19,6 +20,13 @@
 
 	function step(delta: number) {
 		store.setTempo(store.score.tempo + delta);
+		// Apply immediately, even mid-playback, instead of waiting for the next play().
+		reflectTempoChange();
+	}
+
+	function setTempoLive(tempo: number) {
+		store.setTempoLive(tempo);
+		reflectTempoChange();
 	}
 
 	function pickSound(id: MetronomeSound) {
@@ -75,7 +83,7 @@
 			onpointerdown={() => store.beginGesture()}
 			onpointerup={() => store.endGesture()}
 			onpointercancel={() => store.endGesture()}
-			oninput={(e) => store.setTempoLive(+e.currentTarget.value)}
+			oninput={(e) => setTempoLive(+e.currentTarget.value)}
 			aria-label="Tempo slider"
 		/>
 
@@ -166,7 +174,7 @@
 			onpointerdown={() => store.beginGesture()}
 			onpointerup={() => store.endGesture()}
 			onpointercancel={() => store.endGesture()}
-			oninput={(e) => store.setTempoLive(+e.currentTarget.value)}
+			oninput={(e) => setTempoLive(+e.currentTarget.value)}
 			aria-label="Tempo slider"
 		/>
 	</div>

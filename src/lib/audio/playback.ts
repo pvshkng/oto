@@ -51,11 +51,15 @@ function countInFor(measure: number): { beats: number; interval: number } {
 	return { beats: ts[0], interval };
 }
 
-/** Start playback from the cursor (or the loop region, if looping). A no-op if
- *  already playing — the cursor is always the single source of truth for where
- *  playback begins, whether this is a fresh play or a resume after pause. */
-export async function play() {
-	if (store.isPlaying) return;
+/** Shared by `play()` and the live tempo-change reschedule: compute the
+ *  window/loop for a given start position and hand it to the audio engine.
+ *  Doesn't guard on `store.isPlaying` — callers decide whether this is a
+ *  fresh start or a reschedule of an already-playing piece. */
+async function startPlaybackFrom(
+	startMeasure: number,
+	startBeat: number,
+	opts: { countIn: boolean }
+) {
 	const compiled = getCompiledScore();
 
 	let window: { start: number; end: number } | null = null;
@@ -73,7 +77,7 @@ export async function play() {
 				? timeAt(compiled, bounds.endMeasure, bounds.endBeat + 1)
 				: timeAt(compiled, bounds.endMeasure + 1, 0) || compiled.totalTime;
 
-		const cursorTime = timeAt(compiled, store.cursor.measure, store.cursor.beat);
+		const cursorTime = timeAt(compiled, startMeasure, startBeat);
 		if (cursorTime < loopStart - 1e-6) {
 			// Cursor is before the loop region: play from cursor, then loop within
 			// the selection after reaching its start for the first time.
@@ -85,16 +89,13 @@ export async function play() {
 			loopPoint = 0;
 		}
 		repeat = true;
-	} else if (store.cursor.measure > 0 || store.cursor.beat > 0) {
-		// No loop — one-shot playback from the cursor position.
-		const start = timeAt(compiled, store.cursor.measure, store.cursor.beat);
+	} else if (startMeasure > 0 || startBeat > 0) {
+		// No loop — one-shot playback from the start position.
+		const start = timeAt(compiled, startMeasure, startBeat);
 		if (start > 0.01) window = { start, end: compiled.totalTime };
 	}
 
-	// Count-in and initial playhead always track the cursor, not the loop region.
-	const startMeasure = store.cursor.measure;
-	const startBeat = store.cursor.beat;
-	const countIn = store.countInOn ? countInFor(startMeasure) : null;
+	const countIn = opts.countIn ? countInFor(startMeasure) : null;
 
 	store.isPlaying = true;
 	store.isPaused = false;
@@ -125,6 +126,36 @@ export async function play() {
 		store.playhead = null;
 		store.audioError = "Audio couldn't start — tap Play again.";
 	}
+}
+
+/** Start playback from the cursor (or the loop region, if looping). A no-op if
+ *  already playing — the cursor is always the single source of truth for where
+ *  playback begins, whether this is a fresh play or a resume after pause. */
+export async function play() {
+	if (store.isPlaying) return;
+	await startPlaybackFrom(store.cursor.measure, store.cursor.beat, {
+		countIn: store.countInOn
+	});
+}
+
+let tempoRescheduleTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Call after a tempo change (stepper or live slider) so a piece already
+ *  playing picks up the new speed immediately instead of waiting for the next
+ *  Play. Tempo is baked into the compiled schedule's absolute note times, so
+ *  "live" here means reschedule from the current playhead with the newly
+ *  compiled (faster/slower) timeline — debounced so a slider drag doesn't
+ *  trigger a reschedule on every pointer-move tick. No-op while stopped/paused,
+ *  since the next Play already picks up the new tempo on its own. */
+export function reflectTempoChange() {
+	if (!store.isPlaying) return;
+	if (tempoRescheduleTimer) clearTimeout(tempoRescheduleTimer);
+	tempoRescheduleTimer = setTimeout(() => {
+		tempoRescheduleTimer = null;
+		if (!store.isPlaying) return;
+		const at = store.playhead ?? { measure: store.cursor.measure, beat: store.cursor.beat };
+		startPlaybackFrom(at.measure, at.beat, { countIn: false });
+	}, 120);
 }
 
 /** Pause in place: freezes the audio and syncs the cursor to the exact beat it

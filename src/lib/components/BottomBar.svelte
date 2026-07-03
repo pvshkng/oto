@@ -7,6 +7,7 @@
 
 	import { store } from '$lib/stores/score.svelte';
 	import { play, pausePlayback, stopPlayback, goToStart } from '$lib/audio/playback';
+	import { audio } from '$lib/audio/engine';
 	import { Button } from '$lib/components/ui/button';
 	import { cn } from '$lib/utils';
 	import OmniCommand from './OmniCommand.svelte';
@@ -307,7 +308,11 @@
 			title="Metronome"
 			aria-label="Toggle metronome"
 			aria-pressed={store.metronomeOn}
-			onclick={() => (store.metronomeOn = !store.metronomeOn)}
+			onclick={() => {
+				store.metronomeOn = !store.metronomeOn;
+				// Apply immediately, even mid-playback, instead of waiting for the next play().
+				audio.setMetronomeEnabled(store.metronomeOn);
+			}}
 		>
 			<Metronome class="size-5" />
 		</Button>
