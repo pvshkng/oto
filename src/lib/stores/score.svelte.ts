@@ -714,6 +714,7 @@ export class ScoreStore {
 			this.cursor = { track: 0, measure: 0, beat: 0, string: 0, voice: 0 };
 			this.selection = null;
 		});
+		this.#refocusAfterLoad();
 	}
 
 	loadScore(text: string) {
@@ -724,6 +725,17 @@ export class ScoreStore {
 			this.cursor = { track: 0, measure: 0, beat: 0, string: 0, voice: 0 };
 			this.selection = null;
 		});
+		this.#refocusAfterLoad();
+	}
+
+	/** Re-anchor track focus/fold state to the freshly loaded score. Without
+	 *  this, focusedTrackId keeps pointing at a track ID from the previous
+	 *  score (tracks get fresh IDs on import), so isTrackVisible() matches
+	 *  nothing and the score area renders blank until a track is clicked. */
+	#refocusAfterLoad() {
+		this.collapsed = {};
+		this.focusedTrackIds = new SvelteSet();
+		this.focusedTrackId = this.score.tracks[0]?.id ?? null;
 	}
 
 	/** Close the current score by resetting to a fresh blank one (one track, four
@@ -744,6 +756,7 @@ export class ScoreStore {
 				/* ignore */
 			}
 		}
+		this.#refocusAfterLoad();
 	}
 
 	toJSON(): string {
