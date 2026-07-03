@@ -230,6 +230,25 @@ describe('ScoreStore transpose & tracks', () => {
 		const v = s.score.tracks[0].view;
 		expect(v.standard || v.tab || v.rhythm).toBe(true);
 	});
+
+	it('loadScore re-anchors focus to the new score so tracks render immediately', () => {
+		// Simulate a stale focus left over from the previous document (e.g. an
+		// import replacing the score with tracks that have fresh IDs).
+		s.focusedTrackId = 'stale-id-from-previous-score';
+		const imported = makeScore({
+			tracks: [makeTrack({ name: 'Imported Guitar' })]
+		});
+		s.loadScore(JSON.stringify(imported));
+		expect(s.focusedTrackId).toBe(s.score.tracks[0].id);
+		expect(s.isTrackVisible(s.score.tracks[0].id)).toBe(true);
+	});
+
+	it('newScore re-anchors focus to the fresh blank score', () => {
+		s.focusedTrackId = 'stale-id-from-previous-score';
+		s.newScore();
+		expect(s.focusedTrackId).toBe(s.score.tracks[0].id);
+		expect(s.isTrackVisible(s.score.tracks[0].id)).toBe(true);
+	});
 });
 
 describe('ScoreStore mixer setters', () => {
