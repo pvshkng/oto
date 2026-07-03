@@ -204,6 +204,15 @@
 		store.setMasterVolume(v);
 		audio.setMasterVolume(v); // live while playing
 	}
+	function toggleMute(i: number) {
+		store.toggleMute(i);
+		// Solo/mute change every track's effective gain, so re-sync all of them.
+		audio.syncAllTracks(tracks);
+	}
+	function toggleSolo(i: number) {
+		store.toggleSolo(i);
+		audio.syncAllTracks(tracks);
+	}
 </script>
 
 <div
@@ -355,6 +364,8 @@
 										store.trackControlIndex = i;
 										store.openPanel('track');
 									}}
+									onToggleMute={() => toggleMute(i)}
+									onToggleSolo={() => toggleSolo(i)}
 								/>
 								<!-- Mixer controls: Vol · Pan · EQ (with gap between each) -->
 								<TrackMixerControls
@@ -377,6 +388,8 @@
 										editIndex = i;
 										editOpen = true;
 									}}
+									onToggleMute={() => toggleMute(i)}
+									onToggleSolo={() => toggleSolo(i)}
 								/>
 								<!-- Expand chevron (mobile only) -->
 								<button

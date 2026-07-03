@@ -51,7 +51,6 @@ export interface ScheduledNote {
 	freq: number;
 	velocity: number;
 	trackId: string;
-	muted: boolean;
 	bend?: number;
 	slideToFreq?: number;
 	vibrato?: boolean;
@@ -78,7 +77,10 @@ export function compileScore(score: OtoScore): CompiledScore {
 	const notes: ScheduledNote[] = [];
 	const markers: BeatMarker[] = [];
 	const beatMarkers: BeatMarker[] = [];
-	const anySolo = score.tracks.some((t) => t.soloed);
+
+	// Mute/solo are applied live via each track's gain node (see
+	// AudioEngine.applyTrackSettings), not baked into the schedule here, so
+	// toggling either mid-playback takes effect immediately.
 
 	// Use the longest track to drive measure timing / markers.
 	const measureCount = Math.max(...score.tracks.map((t) => t.measures.length), 0);
@@ -139,7 +141,6 @@ export function compileScore(score: OtoScore): CompiledScore {
 								// that keeps the fader audible mid-playback.
 								velocity: note.techniques?.includes('ghost') ? 0.4 : 1,
 								trackId: track.id,
-								muted: track.muted || (anySolo && !track.soloed),
 								bend: note.techniques?.includes('bend') ? (note.bend ?? 1) : undefined,
 								slideToFreq,
 								vibrato: note.techniques?.includes('vibrato') || undefined,
@@ -469,9 +470,16 @@ export class AudioEngine {
 	private metroGain: Tone.Gain | null = null;
 	private metroSound: MetronomeSound = 'click';
 	private metroVolume = 1;
+	/** Live on/off switch, checked at each click's trigger time rather than
+	 *  baked into the schedule, so toggling the metronome mid-playback takes
+	 *  effect on the very next beat instead of waiting for the next Play. */
+	private metroEnabled = false;
 	private master: Tone.Gain | null = null;
 	private reverb: Tone.Reverb | null = null;
 	private started = false;
+	/** Tracks passed to the current/last play() call — read by
+	 *  applyTrackSettings() to resolve solo state across the whole score. */
+	private currentTracks: OtoTrack[] = [];
 	playing = false;
 	/** Set when ensureStarted() fails (e.g. blocked autoplay policy), so callers
 	 *  can surface a UX warning instead of silently producing no sound. */
@@ -524,6 +532,14 @@ export class AudioEngine {
 	setMetronomeVolume(v: number) {
 		this.metroVolume = Math.max(0, Math.min(1, v));
 		if (this.metroGain) this.metroGain.gain.value = this.metroVolume;
+	}
+
+	/** Turn the metronome on/off live. Safe to call before the engine has
+	 *  started or before playback begins — `play()` also sets this from
+	 *  `PlayOptions.metronome` so a fresh Play always starts in sync with the
+	 *  toggle's current state. */
+	setMetronomeEnabled(v: boolean) {
+		this.metroEnabled = v;
 	}
 
 	private instrumentFor(track: OtoTrack): Instrument {
@@ -601,8 +617,25 @@ export class AudioEngine {
 		if (voice) this.applyTrackSettings(track, voice);
 	}
 
+	/**
+	 * Re-apply every track's live volume/pan/EQ/mute/solo. Toggling one track's
+	 * mute or solo can change every *other* track's effective muted state (solo
+	 * silences everything else), so a mute/solo toggle re-syncs the whole score
+	 * rather than just the one track — this is what makes M/S audible instantly
+	 * while a piece is playing instead of waiting for the next Play.
+	 */
+	syncAllTracks(tracks: OtoTrack[]) {
+		this.currentTracks = tracks;
+		for (const t of tracks) {
+			const voice = this.voices.get(t.id);
+			if (voice) this.applyTrackSettings(t, voice);
+		}
+	}
+
 	private applyTrackSettings(track: OtoTrack, voice: TrackVoice) {
-		voice.gain.gain.value = Math.max(0, Math.min(1, track.volume ?? 1));
+		const anySolo = this.currentTracks.some((t) => t.soloed);
+		const effectivelyMuted = track.muted || (anySolo && !track.soloed);
+		voice.gain.gain.value = effectivelyMuted ? 0 : Math.max(0, Math.min(1, track.volume ?? 1));
 		voice.panner.pan.value = Math.max(-1, Math.min(1, track.pan ?? 0));
 		const eq = track.eq ?? { low: 0, mid: 0, high: 0 };
 		voice.eq.low.value = eq.low;
@@ -644,9 +677,13 @@ export class AudioEngine {
 		this.playing = true;
 		this.setMetronomeSound(opts.metronomeSound);
 		this.setMetronomeVolume(opts.metronomeVolume);
+		this.setMetronomeEnabled(opts.metronome);
 
-		// Apply master level and refresh every track's pan/EQ before scheduling.
+		// Apply master level and refresh every track's pan/EQ/mute/solo before
+		// scheduling — currentTracks must be set first since applyTrackSettings
+		// resolves solo state across the whole score.
 		this.setMasterVolume(score.masterVolume ?? 0.85);
+		this.currentTracks = score.tracks;
 		for (const t of score.tracks) this.instrumentFor(t);
 
 		const transport = Tone.getTransport();
@@ -667,9 +704,11 @@ export class AudioEngine {
 			}
 		}
 
-		// Schedule notes inside the window.
+		// Schedule notes inside the window. Muted/soloed-out tracks are still
+		// scheduled — their gain node (see applyTrackSettings) is what silences
+		// them, live, so toggling M/S mid-playback takes effect immediately
+		// instead of only on the next Play.
 		for (const ev of compiled.notes) {
-			if (ev.muted) continue;
 			if (ev.time < windowStart - 1e-6 || ev.time >= windowEnd - 1e-6) continue;
 			const instrument = this.instrumentFor(score.tracks.find((t) => t.id === ev.trackId)!);
 			const rel = ev.time - windowStart + lead;
@@ -688,16 +727,16 @@ export class AudioEngine {
 			}, rel);
 		}
 
-		// Metronome clicks.
-		if (opts.metronome) {
-			for (const t of compiled.beatTimes) {
-				if (t < windowStart - 1e-6 || t >= windowEnd - 1e-6) continue;
-				const rel = t - windowStart + lead;
-				transport.schedule((time) => {
-					this.metro?.triggerAttackRelease('C2', 0.05, time, 0.6);
-					opts.onBeat(time);
-				}, rel);
-			}
+		// Metronome clicks — always scheduled; gated by the live `metroEnabled`
+		// flag at trigger time (see setMetronomeEnabled) so turning the
+		// metronome on/off mid-playback takes effect on the very next beat.
+		for (const t of compiled.beatTimes) {
+			if (t < windowStart - 1e-6 || t >= windowEnd - 1e-6) continue;
+			const rel = t - windowStart + lead;
+			transport.schedule((time) => {
+				if (this.metroEnabled) this.metro?.triggerAttackRelease('C2', 0.05, time, 0.6);
+				opts.onBeat(time);
+			}, rel);
 		}
 
 		// Playhead markers (per measure, kept for callers that only need the bar).
