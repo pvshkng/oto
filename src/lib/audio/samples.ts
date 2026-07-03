@@ -13,6 +13,7 @@
 // without paying for the samples more than once.
 
 import * as Tone from 'tone';
+import { base } from '$app/paths';
 
 export type SampleSet =
 	| 'bass-electric'
@@ -22,7 +23,7 @@ export type SampleSet =
 	| 'piano';
 
 /** Where the vendored samples are served from (static/samples → /samples). */
-const BASE_URL = '/samples/';
+const BASE_URL = `${base}/samples/`;
 
 // Maps below are verbatim from the upstream library, with two upstream octave
 // typos dropped (guitar-acoustic D#4→Ds3, guitar-nylon G5→G3) so the Sampler
@@ -483,7 +484,7 @@ export function createSampler(set: SampleSet, dest: Tone.InputNode): SampledInst
 // lists the files that are actually present. Until it lists any, nothing loads
 // and the engine keeps using its synthesised kit.
 
-const DRUMS_BASE_URL = '/samples/drums/';
+const DRUMS_BASE_URL = `${base}/samples/drums/`;
 const drumBuffers = new Map<string, Tone.ToneAudioBuffer>();
 let drumLoadPromise: Promise<void> | null = null;
 

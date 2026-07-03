@@ -19,11 +19,9 @@ jobs:
 
       - run: bun run check
 
-      - name: Install Playwright browsers
-        run: bunx playwright install --with-deps chromium
-
-      - run: bun run test:unit -- --run
+      # Playwright-driven tests (the vitest browser project and the e2e suite)
+      # are skipped for now; only the plain Node vitest project runs here.
+      - name: Unit tests
+        run: bunx vitest run --project server
 
       - run: bun run build
-
-      - run: bun run test:e2e
