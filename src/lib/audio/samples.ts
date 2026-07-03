@@ -473,3 +473,58 @@ export function createSampler(set: SampleSet, dest: Tone.InputNode): SampledInst
 	if (!cache.has(set)) return null;
 	return new SamplerVoice(set, dest);
 }
+
+// ── Drum one-shots ─────────────────────────────────────────────────────────
+//
+// Unlike the pitched instruments above, drums don't pitch-shift a Sampler — each
+// kit piece plays its own recorded one-shot. Files live at
+// /samples/drums/<file> and are opt-in via a manifest so the app never 404s a
+// piece whose .mp3 hasn't been dropped in yet: static/samples/drums/manifest.json
+// lists the files that are actually present. Until it lists any, nothing loads
+// and the engine keeps using its synthesised kit.
+
+const DRUMS_BASE_URL = '/samples/drums/';
+const drumBuffers = new Map<string, Tone.ToneAudioBuffer>();
+let drumLoadPromise: Promise<void> | null = null;
+
+/** A decoded drum one-shot for `sample` (e.g. "38.mp3"), or undefined if the file
+ *  isn't present / hasn't loaded — callers fall back to synthesis. */
+export function getDrumBuffer(sample: string): Tone.ToneAudioBuffer | undefined {
+	return drumBuffers.get(sample);
+}
+
+/**
+ * Load whatever drum one-shots are declared available in the manifest. Idempotent
+ * and safe to call whenever a drum track might play — resolves immediately once
+ * done, and swallows a missing/empty manifest (the common case until real audio
+ * is added) so playback silently stays on the synth kit.
+ */
+export function loadDrumSamples(): Promise<void> {
+	if (drumLoadPromise) return drumLoadPromise;
+	drumLoadPromise = (async () => {
+		let available: string[] = [];
+		try {
+			const res = await fetch(`${DRUMS_BASE_URL}manifest.json`);
+			if (res.ok) {
+				const data = (await res.json()) as { available?: unknown };
+				if (Array.isArray(data.available))
+					available = data.available.filter((f): f is string => typeof f === 'string');
+			}
+		} catch {
+			/* no manifest yet — stay on the synth kit */
+		}
+		await Promise.all(
+			available.map(async (file) => {
+				if (drumBuffers.has(file)) return;
+				try {
+					const buf = new Tone.ToneAudioBuffer();
+					await buf.load(`${DRUMS_BASE_URL}${file}`);
+					drumBuffers.set(file, buf);
+				} catch {
+					/* skip a file that failed to load */
+				}
+			})
+		);
+	})();
+	return drumLoadPromise;
+}

@@ -26,7 +26,9 @@ export const GLYPH = {
 	flag16thDown: cp(0xe243),
 	accidentalSharp: cp(0xe262),
 	accidentalFlat: cp(0xe260),
-	accidentalNatural: cp(0xe261)
+	accidentalNatural: cp(0xe261),
+	// Small quarter note designed for tempo markings (e.g. "♩ = 120").
+	metNoteQuarterUp: cp(0xeca5)
 } as const;
 
 // SMuFL time-signature digits live at U+E080–U+E089 (timeSig0 … timeSig9). The

@@ -52,13 +52,13 @@
 	const shared = $derived(
 		sharedOverride ??
 			(store.trackViewMode === 'multi' && visibleTracks.length > 1
-				? computeSharedSystems(store.score, visibleTracks, containerWidth - 8)
+				? computeSharedSystems(store.score, visibleTracks, containerWidth)
 				: undefined)
 	);
 
 	const layout = $derived(
 		layoutTrack(store.score, track, {
-			containerWidth: containerWidth - 8,
+			containerWidth: containerWidth,
 			showStandard: track.view.standard,
 			showTab: track.view.tab,
 			showRhythm: track.view.rhythm,
@@ -201,10 +201,15 @@
 		trackIndex: () => trackIndex
 	});
 
+	// Absolute index of the track's final measure — it gets a double barline
+	// (thin + thick) to mark the end of the score, like an engraved sheet.
+	const lastMeasureIndex = $derived(track.measures.length - 1);
+
 	const BRAVURA = "[font-family:'Bravura',serif] fill-[#18181b]";
 	const HIT_AREA = 'fill-transparent [pointer-events:all] touch-manipulation';
 	const STAFF_LINE = 'stroke-[#d4d4d8] [stroke-width:1]';
 	const BARLINE = 'stroke-[#3f3f46] [stroke-width:1.4]';
+	const BARLINE_THICK = 'stroke-[#3f3f46] [stroke-width:4]';
 	const STEM = 'stroke-[#18181b] [stroke-width:1.4]';
 	const BEAM = 'stroke-[#18181b] [stroke-width:3.4] [stroke-linecap:butt]';
 </script>
@@ -232,7 +237,7 @@
 						class="system block"
 						data-first-measure={system.measures[0]?.index}
 						data-last-measure={system.measures[system.measures.length - 1]?.index}
-						width={Math.max(system.width, containerWidth - 8)}
+						width={Math.max(system.width, containerWidth)}
 						height={system.height}
 						role="presentation"
 					>
@@ -274,13 +279,31 @@
 										y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
 										class={BARLINE}
 									/>
-									<line
-										x1={measure.x + measure.width}
-										y1={METRICS.stdTopPad + METRICS.staffLineGap}
-										x2={measure.x + measure.width}
-										y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
-										class={BARLINE}
-									/>
+									{#if measure.index === lastMeasureIndex}
+										<!-- Final double barline: thin then thick at the very end. -->
+										<line
+											x1={measure.x + measure.width - 5}
+											y1={METRICS.stdTopPad + METRICS.staffLineGap}
+											x2={measure.x + measure.width - 5}
+											y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
+											class={BARLINE}
+										/>
+										<line
+											x1={measure.x + measure.width - 1.5}
+											y1={METRICS.stdTopPad + METRICS.staffLineGap}
+											x2={measure.x + measure.width - 1.5}
+											y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
+											class={BARLINE_THICK}
+										/>
+									{:else}
+										<line
+											x1={measure.x + measure.width}
+											y1={METRICS.stdTopPad + METRICS.staffLineGap}
+											x2={measure.x + measure.width}
+											y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
+											class={BARLINE}
+										/>
+									{/if}
 
 									{#if measure.showHeader}
 										{#if layout.clef === 'bass'}
@@ -381,13 +404,30 @@
 										y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
 										class={BARLINE}
 									/>
-									<line
-										x1={measure.x + measure.width}
-										y1={14}
-										x2={measure.x + measure.width}
-										y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
-										class={BARLINE}
-									/>
+									{#if measure.index === lastMeasureIndex}
+										<line
+											x1={measure.x + measure.width - 5}
+											y1={14}
+											x2={measure.x + measure.width - 5}
+											y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
+											class={BARLINE}
+										/>
+										<line
+											x1={measure.x + measure.width - 1.5}
+											y1={14}
+											x2={measure.x + measure.width - 1.5}
+											y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
+											class={BARLINE_THICK}
+										/>
+									{:else}
+										<line
+											x1={measure.x + measure.width}
+											y1={14}
+											x2={measure.x + measure.width}
+											y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
+											class={BARLINE}
+										/>
+									{/if}
 
 									{#if measure.showHeader}
 										<text

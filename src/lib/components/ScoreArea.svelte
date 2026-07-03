@@ -5,9 +5,17 @@
 	// (desktop closes the other right-panel modes first; mobile doesn't).
 	import { store } from '$lib/stores/score.svelte';
 	import { computeSharedSystems } from '$lib/notation/layout';
+	import { GLYPH } from '$lib/notation/glyphs';
 	import TrackStaff from './TrackStaff.svelte';
 
 	let { onHeaderClick }: { onHeaderClick: () => void } = $props();
+
+	// Tempo marking sits above the first staff, like an engraved score. Clicking it
+	// opens the tempo editor — the desktop right panel, or the mobile drawer.
+	function toggleTempo() {
+		if (store.isDesktop) store.togglePanel('tempo');
+		else store.tempoOpen = true;
+	}
 
 	// Width available to each track's staff, measured once here so every
 	// track's shared system breakdown (below) agrees on the same value.
@@ -31,7 +39,7 @@
 	// followed by the next track's whole staff.
 	const shared = $derived(
 		store.trackViewMode === 'multi' && visibleTracks.length > 1
-			? computeSharedSystems(store.score, visibleTracks, tracksWidth - 8)
+			? computeSharedSystems(store.score, visibleTracks, tracksWidth)
 			: undefined
 	);
 </script>
@@ -56,6 +64,19 @@
 			class="absolute top-0 right-0 rounded-legacy-xs border border-border-strong px-1.5 py-0.5 text-[10px] text-text-muted opacity-0 transition-opacity duration-150 group-hover:opacity-100 max-[720px]:opacity-100"
 			>edit ✎</span
 		>
+	</button>
+
+	<!-- Tempo marking (♩ = bpm), engraved above the first staff. Click to edit. -->
+	<button
+		class="mb-1.5 inline-flex cursor-pointer items-center gap-1 border-none bg-transparent [background-image:none!important] p-1 text-ink hover:opacity-70"
+		onclick={toggleTempo}
+		title="Tempo — click to edit"
+		aria-label="Tempo {store.score.tempo} bpm, click to edit"
+	>
+		<span class="[font-family:'Bravura',serif] text-[19px] leading-none"
+			>{GLYPH.metNoteQuarterUp}</span
+		>
+		<span class="text-[15px] font-semibold [font-family:var(--serif)]">= {store.score.tempo}</span>
 	</button>
 
 	<div bind:this={tracksWrapperEl}>

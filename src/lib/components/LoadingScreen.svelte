@@ -6,6 +6,7 @@
 
 	import { loading } from '$lib/stores/loading.svelte';
 	import { fade } from 'svelte/transition';
+	import mark from '$lib/assets/android-chrome-512x512-transparent.png';
 
 	// `forceActive` keeps the overlay up before the app has finished its
 	// initial load (score restore + layout detection + sample warm-up), even
@@ -20,7 +21,7 @@
 {#if loading.active || forceActive}
 	<div class="overlay" role="status" aria-live="polite" transition:fade={{ duration: 200 }}>
 		<div class="panel">
-			<div class="mark">音</div>
+			<img class="mark" src={mark} alt="oto" />
 			<div class="label">{determinate ? loading.label : 'Loading'}</div>
 			<div class="track">
 				<div
@@ -59,11 +60,8 @@
 		max-width: 280px;
 	}
 	.mark {
-		font-family: var(--serif);
-		font-size: 50px;
-		font-weight: 600;
-		letter-spacing: 0.04em;
-		color: var(--ink);
+		width: 150px;
+		height: 150px;
 	}
 	.label {
 		font-size: 12px;

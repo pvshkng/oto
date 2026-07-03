@@ -41,7 +41,18 @@
 	}
 
 	function pickInstrument(p: InstrumentPreset) {
-		store.updateTrack(index, { instrument: p.engine, kind: p.kind, tuning: [...p.tuning] });
+		const patch: Partial<typeof track> = {
+			instrument: p.engine,
+			kind: p.kind,
+			tuning: [...p.tuning]
+		};
+		// Standard notation of drum MIDIs is meaningless, so a drum kit shows just
+		// the tab (one line per kit piece). Restore the normal staff+tab when
+		// switching a drum track back to a pitched instrument.
+		if (p.engine === 'drums') patch.view = { standard: false, tab: true, rhythm: false };
+		else if (track?.instrument === 'drums')
+			patch.view = { standard: true, tab: true, rhythm: false };
+		store.updateTrack(index, patch);
 		audio.ensureSamples([p.engine]);
 		instOpen = false;
 	}

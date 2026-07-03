@@ -14,7 +14,6 @@
 	import RightPanel from '$lib/components/RightPanel.svelte';
 	import StatusBanner from '$lib/components/StatusBanner.svelte';
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
-	import WelcomeScreen from '$lib/components/WelcomeScreen.svelte';
 	import { audio } from '$lib/audio/engine';
 
 	// Mobile dock panel — mutually exclusive (editMode vs mixerOpen)
@@ -158,10 +157,7 @@
 </svelte:head>
 
 {#if ready}
-	{#if !store.documentOpen}
-		<!-- No score open (first visit, or after Close): welcome / empty state. -->
-		<WelcomeScreen />
-	{:else if store.isDesktop}
+	{#if store.isDesktop}
 		<!-- ═══════════════════════════════════════════════════════════════
 	     DESKTOP LAYOUT  (≥ 1024 px)
 	     ┌──────────┬─────────────────────────────────┬───────────┐

@@ -1,6 +1,8 @@
 // Pitch helpers: convert between scientific pitch notation, MIDI numbers and
 // (string, fret) positions on a fretted instrument.
 
+import { DEFAULT_DRUM_KIT } from './drums';
+
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const NOTE_INDEX: Record<string, number> = {
 	C: 0,
@@ -79,9 +81,11 @@ export const TUNINGS: Record<string, string[]> = {
 	'Bass Standard': ['G2', 'D2', 'A1', 'E1'],
 	'Bass 5-String': ['G2', 'D2', 'A1', 'E1', 'B0'],
 	Ukulele: ['A4', 'E4', 'C4', 'G4'],
-	// Drum "tuning": each line maps to a kit piece by register (the drum engine
-	// routes by pitch — high → hi-hat, low → kick). Top line is the hi-hat.
-	'Drum Kit': ['E5', 'C4', 'C3', 'C2']
+	// Drum "tuning": each line is one GM kit piece. The open note of a line IS that
+	// piece's percussion MIDI note (fret 0), so playing the line sounds the piece
+	// and the audio engine can look it up in the drum map. Ordered top → bottom
+	// (crash, hi-hats, snare, toms, kick) rather than by pitch.
+	'Drum Kit': DEFAULT_DRUM_KIT.map((p) => midiToNote(p.midi))
 };
 
 /** Standard pitch-class names for the note name labels. */

@@ -13,13 +13,16 @@ import { beatFraction, beatsCutoff } from '$lib/oto/duration';
 import { measureVoices, type OtoScore, type OtoTrack } from '$lib/oto/types';
 import {
 	createSampler,
+	getDrumBuffer,
 	isSampledInstrument,
 	isSetLoaded,
+	loadDrumSamples,
 	loadSets,
 	pendingSampleCount,
 	sampleSetForEngine,
 	type SampleSet
 } from './samples';
+import { drumForMidi, type DrumVoice } from '$lib/oto/drums';
 import { loading } from '$lib/stores/loading.svelte';
 import { store } from '$lib/stores/score.svelte';
 
@@ -204,19 +207,37 @@ class PluckPoly implements Instrument {
 	}
 }
 
+/** MIDI → drum synthesis voice, for a hit whose exact GM piece isn't in the map:
+ *  approximate it by register (low = kick, then tom, snare, up to cymbals). */
+function drumVoiceByRegister(midi: number): DrumVoice {
+	if (midi <= 37) return 'kick';
+	if (midi <= 41) return 'snare';
+	if (midi <= 50) return 'tom';
+	return 'cymbal';
+}
+
 /**
- * A small synthesised drum kit. The notation model is pitch-based (a fret maps to
- * a frequency), so we route each hit to a kick / snare / hat / tom by register:
- * the lower the pitch, the deeper the drum. It's an approximation of a real kit,
- * but it makes a "Drums" track read as percussion instead of a melodic synth.
+ * A General-MIDI drum kit. Each note's frequency is mapped back to its GM
+ * percussion MIDI (the drum "tuning" makes a line's open note that piece's MIDI —
+ * see oto/drums.ts), then played as its recorded one-shot when a sample is present
+ * (static/samples/drums/<file>), or synthesised by the piece's `voice` otherwise.
+ * So a "Drums" track reads as a real kit — kick, snare, toms, hi-hats, cymbals —
+ * rather than a melodic synth, and drops in real audio the moment the .mp3s exist.
  */
 class DrumKit implements Instrument {
+	private out: Tone.ToneAudioNode;
 	private kick: Tone.MembraneSynth;
 	private tom: Tone.MembraneSynth;
 	private snare: Tone.NoiseSynth;
-	private hat: Tone.MetalSynth;
+	private hatClosed: Tone.MetalSynth;
+	private hatOpen: Tone.MetalSynth;
+	private cymbal: Tone.MetalSynth;
+	private perc: Tone.NoiseSynth;
+	/** Live one-shot sample players, so releaseAll/dispose can stop them. */
+	private shots = new Set<Tone.ToneBufferSource>();
 	constructor(dest: Tone.InputNode) {
 		const out = dest as Tone.ToneAudioNode;
+		this.out = out;
 		this.kick = new Tone.MembraneSynth({
 			pitchDecay: 0.05,
 			octaves: 6,
@@ -231,33 +252,88 @@ class DrumKit implements Instrument {
 			noise: { type: 'white' },
 			envelope: { attack: 0.001, decay: 0.18, sustain: 0 }
 		}).connect(out);
-		this.hat = new Tone.MetalSynth({
+		this.hatClosed = new Tone.MetalSynth({
 			envelope: { attack: 0.001, decay: 0.08, release: 0.02 },
 			harmonicity: 5.1,
 			resonance: 4000,
 			octaves: 1.5
 		}).connect(out);
+		this.hatOpen = new Tone.MetalSynth({
+			envelope: { attack: 0.001, decay: 0.4, release: 0.1 },
+			harmonicity: 5.1,
+			resonance: 4000,
+			octaves: 1.5
+		}).connect(out);
+		this.cymbal = new Tone.MetalSynth({
+			envelope: { attack: 0.001, decay: 1.2, release: 0.2 },
+			harmonicity: 3.4,
+			resonance: 3000,
+			octaves: 2
+		}).connect(out);
+		this.perc = new Tone.NoiseSynth({
+			noise: { type: 'pink' },
+			envelope: { attack: 0.001, decay: 0.06, sustain: 0 }
+		}).connect(out);
 	}
 	triggerAttackRelease(freq: number, dur: number, time?: number, velocity = 1) {
 		const t = time ?? Tone.now();
-		if (freq < 110) {
-			this.kick.triggerAttackRelease('C1', 0.4, t, velocity);
-		} else if (freq < 220) {
-			this.tom.triggerAttackRelease(freq, 0.2, t, velocity);
-		} else if (freq < 600) {
-			this.snare.triggerAttackRelease(0.18, t, velocity);
-		} else {
-			this.hat.triggerAttackRelease(0.05, t, velocity * 0.6);
+		const midi = Math.round(69 + 12 * Math.log2(freq / 440));
+		const piece = drumForMidi(midi);
+
+		// Prefer a recorded one-shot when its sample is loaded.
+		const buffer = piece && getDrumBuffer(piece.sample);
+		if (buffer) {
+			const source = new Tone.ToneBufferSource({
+				url: buffer,
+				onended: (s) => {
+					this.shots.delete(s as Tone.ToneBufferSource);
+					s.dispose();
+				}
+			}).connect(this.out);
+			this.shots.add(source);
+			source.start(t, 0, undefined, velocity);
+			return;
+		}
+
+		const voice = piece?.voice ?? drumVoiceByRegister(midi);
+		switch (voice) {
+			case 'kick':
+				this.kick.triggerAttackRelease('C1', 0.4, t, velocity);
+				break;
+			case 'tom':
+				// Higher GM tom notes → higher-pitched drum.
+				this.tom.triggerAttackRelease(70 + (midi - 41) * 7, 0.22, t, velocity);
+				break;
+			case 'snare':
+				this.snare.triggerAttackRelease(0.18, t, velocity);
+				break;
+			case 'hihat-closed':
+				this.hatClosed.triggerAttackRelease(0.05, t, velocity * 0.6);
+				break;
+			case 'hihat-open':
+				this.hatOpen.triggerAttackRelease(0.35, t, velocity * 0.5);
+				break;
+			case 'cymbal':
+				this.cymbal.triggerAttackRelease(1.0, t, velocity * 0.5);
+				break;
+			case 'perc':
+				this.perc.triggerAttackRelease(0.05, t, velocity * 0.7);
+				break;
 		}
 	}
 	releaseAll() {
-		/* percussion decays on its own */
+		for (const s of this.shots) s.stop();
 	}
 	dispose() {
 		this.kick.dispose();
 		this.tom.dispose();
 		this.snare.dispose();
-		this.hat.dispose();
+		this.hatClosed.dispose();
+		this.hatOpen.dispose();
+		this.cymbal.dispose();
+		this.perc.dispose();
+		for (const s of this.shots) s.dispose();
+		this.shots.clear();
 	}
 }
 
@@ -591,6 +667,9 @@ export class AudioEngine {
 	 * happened.
 	 */
 	async ensureSamples(engineNames: string[]): Promise<void> {
+		// Drums load their own one-shot samples (manifest-gated, so it's a no-op
+		// until real .mp3s are dropped in) rather than a pitch-shifting Sampler set.
+		if (engineNames.includes('drums')) void loadDrumSamples();
 		const sets = [
 			...new Set(engineNames.map(sampleSetForEngine).filter((s): s is SampleSet => s !== null))
 		];

@@ -35,7 +35,10 @@ export const METRICS = {
 	beatPadding: 22,
 	measurePadStart: 14,
 	measurePadEnd: 10,
-	rowEndPad: 14, // gap after the last barline of a row so it isn't cropped at the edge
+	// Equal blank margin kept on BOTH sides of every system so the staff is
+	// horizontally symmetric (same gap before the first barline as after the
+	// last), instead of sitting flush-left with all the slack on the right.
+	systemSideInset: 8,
 	headerWidth: 56, // clef + tuning column on first measure of a row
 	systemGap: 26,
 	sectionLabelHeight: 16, // reserved strip above the bands for section markers
@@ -263,20 +266,15 @@ export function computeSharedSystems(
 	}
 	flush();
 
+	// Every bar in a system gets the SAME width (equal distribution), so bars read
+	// as an even grid instead of the first (header) bar ballooning wider than the
+	// rest. The row fills the width between the two symmetric side insets; the
+	// header/clef is drawn inside the first bar's equal box.
 	const measureWidths: number[] = new Array(measureCount).fill(0);
+	const usableW = avail - 2 * METRICS.systemSideInset;
 	for (const sys of systems) {
-		const intrinsic = sys.map((mi, i) =>
-			intrinsicMeasureWidth(maxBeatCounts[mi], i === 0, headerWidth)
-		);
-		const totalIntrinsic = intrinsic.reduce((a, b) => a + b, 0);
-		// No upper cap: every system — including a sparse last line — always
-		// stretches to fill the row width (minus a small trailing pad so the
-		// final barline isn't cropped at the edge) rather than leaving a
-		// larger blank gap at the end.
-		const scale = totalIntrinsic > 0 ? (avail - METRICS.rowEndPad) / totalIntrinsic : 1;
-		sys.forEach((mi, i) => {
-			measureWidths[mi] = intrinsic[i] * scale;
-		});
+		const w = sys.length > 0 ? usableW / sys.length : usableW;
+		for (const mi of sys) measureWidths[mi] = w;
 	}
 	return { systems, measureWidths };
 }
@@ -350,28 +348,26 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 		flush();
 	}
 
-	// Build each system's geometry.
-	function buildSystem(measureIndexes: number[], justify: boolean): LaidSystem {
-		// First pass: intrinsic widths.
-		const intrinsic = measureIndexes.map((mi, i) =>
-			intrinsicMeasureWidth(track.measures[mi].beats.length, i === 0, headerWidth)
-		);
-		const totalIntrinsic = intrinsic.reduce((a, b) => a + b, 0);
-		// No upper cap: every system — including a sparse last line — always
-		// stretches to fill the row width (minus a small trailing pad so the
-		// final barline isn't cropped at the edge) rather than leaving a
-		// larger blank gap at the end.
-		const scale = justify && totalIntrinsic > 0 ? (avail - METRICS.rowEndPad) / totalIntrinsic : 1;
+	// Build each system's geometry. Every bar in the row is given the SAME
+	// width so the barlines form an even grid; the row spans the width between
+	// two equal side insets, keeping the staff horizontally symmetric.
+	function buildSystem(measureIndexes: number[], _justify: boolean): LaidSystem {
+		const usableWidth = Math.max(100, avail) - 2 * METRICS.systemSideInset;
+		const equalWidth =
+			measureIndexes.length > 0 ? usableWidth / measureIndexes.length : usableWidth;
 
-		let mx = 0;
+		let mx = METRICS.systemSideInset;
 		let prevTimeSig: [number, number] = score.timeSignature;
 		const measures: LaidMeasure[] = measureIndexes.map((mi, i) => {
 			const measure = track.measures[mi];
 			const showHeader = i === 0;
 			const headerW = showHeader ? headerWidth : 0;
-			const width = opts.shared ? opts.shared.measureWidths[mi] : intrinsic[i] * scale;
+			const width = opts.shared ? opts.shared.measureWidths[mi] : equalWidth;
 			const innerStart = mx + headerW + METRICS.measurePadStart;
-			const innerWidth = width - headerW - METRICS.measurePadStart - METRICS.measurePadEnd;
+			const innerWidth = Math.max(
+				16,
+				width - headerW - METRICS.measurePadStart - METRICS.measurePadEnd
+			);
 			const fill = analyzeMeasure(measure, score.timeSignature);
 
 			// Beat-unit (whole-note fraction) for beam grouping: beam runs break at

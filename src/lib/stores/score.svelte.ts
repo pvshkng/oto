@@ -151,7 +151,7 @@ export class ScoreStore {
 	// load from whether an autosaved score exists, set true by New/Open, and
 	// cleared by closeDocument() (which also drops the autosave so a reload lands
 	// back on the welcome screen).
-	documentOpen = $state(false);
+	documentOpen = $state(true);
 	#keyInputOpenState = $state(false);
 	tempoOpen = $state(false);
 	addRemoveOpen = $state(false);
@@ -726,11 +726,12 @@ export class ScoreStore {
 		});
 	}
 
-	/** Close the current score back to the welcome/empty state. Drops the
-	 *  autosave and resets to a blank score so a reload (or a subsequent New)
-	 *  starts clean. Callers confirm unsaved-change loss first. */
+	/** Close the current score by resetting to a fresh blank one (one track, four
+	 *  empty bars). There's no welcome/empty state anymore, so the editor stays
+	 *  open on the blank score. Drops the autosave. Callers confirm unsaved-change
+	 *  loss first. */
 	closeDocument() {
-		this.documentOpen = false;
+		this.documentOpen = true;
 		this.score = makeScore();
 		this.cursor = { track: 0, measure: 0, beat: 0, string: 0, voice: 0 };
 		this.selection = null;

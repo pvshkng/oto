@@ -53,29 +53,20 @@
 	/>
 
 	{#if horizontal}
-		<!-- Bottom strip: a wide toolbar with comfortably-sized controls that fills
-		     the strip's height (no narrow column, no cramped/dense buttons). -->
-		<div class="flex min-h-0 flex-1 flex-col gap-2.5 px-3 py-2.5">
-			<!-- Row 1: Duration on its own line. -->
+		<!-- Bottom strip: everything inline like the mobile edit panel — no section
+		     labels, just the controls separated by thin dividers, wrapping to the
+		     next line when the strip runs out of width. -->
+		<div class="flex min-h-0 flex-1 flex-col gap-2 px-3 py-2.5">
 			<div class={wrapRow}>
-				<span class={label}>Duration</span>
 				<div class="inline-flex flex-none items-center gap-[3px]"><DurationPicker /></div>
-			</div>
-			<!-- Row 2: Voice · Bar · Beats together. Neither row scrolls; they wrap. -->
-			<div class={wrapRow}>
-				<span class={label}>Voice</span>
+				<span class={divider}></span>
 				<div class="inline-flex flex-none items-center gap-[3px]"><VoiceToggle /></div>
 				<span class={divider}></span>
-				<span class={label}>Bar</span>
 				<div class="inline-flex flex-none items-center"><BarTimeSigPicker side="top" /></div>
 				<span class={divider}></span>
-				<span class={label}>Beats</span>
 				<div class="inline-flex flex-none items-center gap-[3px]"><BeatActions /></div>
 			</div>
-			<div class="flex min-h-0 flex-1 flex-col gap-1.5">
-				<span class={label}>Techniques</span>
-				<div class="flex flex-wrap content-start items-center gap-1.5"><EffectsGrid /></div>
-			</div>
+			<div class="flex flex-wrap content-start items-center gap-1.5"><EffectsGrid /></div>
 		</div>
 	{:else}
 		<!-- Side/float panels scroll vertically when the stacked sections outgrow
