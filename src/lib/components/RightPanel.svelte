@@ -1,12 +1,12 @@
 <script lang="ts">
-	// Desktop right panel. Surfaces Tempo, Song Details, and Add/Remove content
-	// inline (no drawer wrapper) based on which store flag is set. Clicking a
-	// button in BottomBar sets the flag; the X button here clears it.
+	// A single desktop "detail" panel — Tempo, Song details, Track control, or
+	// Add/Remove — chosen by `which`. Each is independent (its own open flag and
+	// remembered dock), so several can be open and float side-by-side. The content
+	// is surfaced inline (no drawer wrapper); the header's close button clears just
+	// this panel's flag.
 
-	import { onDestroy } from 'svelte';
-	import { store } from '$lib/stores/score.svelte';
-	import { draggable } from '@neodrag/svelte';
-	import { panelDragOptions } from '$lib/floating-panel';
+	import { store, type PanelId } from '$lib/stores/score.svelte';
+	import { panelDrag } from '$lib/panel-drag';
 	import { cn } from '$lib/utils';
 	import TrackControlDrawer from './TrackControlDrawer.svelte';
 	import TrackControlForm from './TrackControlForm.svelte';
@@ -15,40 +15,27 @@
 	import AddRemoveActions from './AddRemoveActions.svelte';
 	import PanelHeader from './PanelHeader.svelte';
 
-	const popped = $derived(store.rightPanelPopped);
+	let {
+		which,
+		placement = 'right'
+	}: {
+		which: Exclude<PanelId, 'note' | 'keys'>;
+		placement?: 'left' | 'right' | 'bottom' | 'float';
+	} = $props();
 
-	// Always re-dock when the panel is closed, so it reopens in its docked spot.
-	onDestroy(() => (store.rightPanelPopped = false));
-
-	const mode = $derived(
-		store.trackControlOpen
-			? 'track-control'
-			: store.tempoOpen
-				? 'tempo'
-				: store.songModalOpen
-					? 'song'
-					: store.addRemoveOpen
-						? 'add-remove'
-						: null
-	);
+	const floating = $derived(placement === 'float');
+	const layout = $derived(store.panelLayout[which]);
 	const title = $derived(
-		mode === 'track-control'
+		which === 'track'
 			? 'Track control'
-			: mode === 'tempo'
+			: which === 'tempo'
 				? 'Tempo'
-				: mode === 'song'
+				: which === 'song'
 					? 'Song details'
 					: 'Add or remove'
 	);
 
-	function closePanel() {
-		store.tempoOpen = false;
-		store.songModalOpen = false;
-		store.addRemoveOpen = false;
-		store.trackControlOpen = false;
-	}
-
-	// Add / remove helpers
+	// Add / remove helpers (only used by the add-remove panel)
 	let trackEditOpen = $state(false);
 	let trackEditIndex = $state(-1);
 
@@ -63,38 +50,36 @@
 	}
 </script>
 
-{#if mode}
-	<!-- Keyed on `popped` so toggling remounts the card, clearing any drag
-	     transform left over from the floating window before it re-docks. -->
-	{#key popped}
-		<aside
-			use:draggable={panelDragOptions(popped)}
-			class={cn(
-				'pointer-events-auto flex flex-col overflow-hidden rounded-lg border border-border bg-background/70 shadow-[0_6px_24px_rgba(0,0,0,0.14)] backdrop-blur-md',
-				popped ? 'fixed top-4 right-4 z-50 w-80 max-h-[calc(100dvh-2rem)]' : 'h-full w-full'
-			)}
-		>
-			<PanelHeader
-				{title}
-				onClose={closePanel}
-				closeLabel="Close panel"
-				onPopOut={() => (store.rightPanelPopped = !store.rightPanelPopped)}
-				{popped}
-			/>
+<aside
+	use:panelDrag={{ id: which, floating }}
+	style={floating ? `translate: ${layout.x}px ${layout.y}px; z-index: ${store.panelZ(which)}` : ''}
+	class={cn(
+		'pointer-events-auto flex flex-col overflow-hidden bg-background/70 backdrop-blur-md',
+		floating
+			? 'fixed top-4 left-4 z-50 max-h-[calc(100dvh-2rem)] w-80 rounded-lg border border-border shadow-[0_6px_24px_rgba(0,0,0,0.14)]'
+			: 'h-full w-full rounded-lg border border-border shadow-[0_6px_24px_rgba(0,0,0,0.14)]'
+	)}
+>
+	<PanelHeader
+		{title}
+		panelId={which}
+		onClose={() => store.closePanel(which)}
+		closeLabel="Close panel"
+	/>
 
-			<div class="flex-1 overflow-y-auto pb-3">
-				{#if mode === 'track-control'}
-					<TrackControlForm index={store.trackControlIndex} onClose={closePanel} />
-				{:else if mode === 'tempo'}
-					<TempoControls variant="panel" />
-				{:else if mode === 'song'}
-					<SongDetailsFields sectioned compact />
-				{:else if mode === 'add-remove'}
-					<AddRemoveActions sectioned onAddTrack={addTrack} onEditTrack={editCurrentTrack} />
-				{/if}
-			</div>
-		</aside>
-	{/key}
+	<div class="flex-1 overflow-y-auto pb-3">
+		{#if which === 'track'}
+			<TrackControlForm index={store.trackControlIndex} onClose={() => store.closePanel('track')} />
+		{:else if which === 'tempo'}
+			<TempoControls variant="panel" />
+		{:else if which === 'song'}
+			<SongDetailsFields sectioned compact />
+		{:else if which === 'addRemove'}
+			<AddRemoveActions sectioned onAddTrack={addTrack} onEditTrack={editCurrentTrack} />
+		{/if}
+	</div>
+</aside>
+
+{#if which === 'addRemove'}
+	<TrackControlDrawer bind:open={trackEditOpen} index={trackEditIndex} />
 {/if}
-
-<TrackControlDrawer bind:open={trackEditOpen} index={trackEditIndex} />

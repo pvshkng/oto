@@ -25,9 +25,12 @@
 	const groupClass = $derived(
 		dense ? 'flex flex-wrap items-stretch gap-0' : 'inline-flex flex-none items-stretch'
 	);
-	const segEdges = $derived(
-		dense ? '' : 'first:border-l first:rounded-l-legacy-xs last:rounded-r-legacy-xs'
-	);
+	// The true first/last buttons carry their edge border+rounding via CSS `first:`/
+	// `last:` so they survive Svelte rewriting the class attr on every `sunk` toggle
+	// (which would otherwise wipe the `rowSegmented` JS classes and leave the
+	// leftmost button borderless — reading as if it were cropped). `rowSegmented`
+	// still handles the interior row edges when the dense row wraps.
+	const segEdges = 'first:border-l first:rounded-l-legacy-xs last:rounded-r-legacy-xs';
 	// The .gl (glyph) variant overrides the base .ctl padding to a tighter
 	// value so the fixed-width Bravura glyph box sits centered without extra
 	// side padding.

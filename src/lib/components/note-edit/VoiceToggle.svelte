@@ -10,9 +10,9 @@
 	const groupClass = $derived(
 		dense ? 'flex flex-wrap items-stretch gap-0' : 'inline-flex flex-none items-stretch'
 	);
-	const segEdges = $derived(
-		dense ? '' : 'first:border-l first:rounded-l-legacy-xs last:rounded-r-legacy-xs'
-	);
+	// Anchor edge border/rounding via CSS so it survives class-attr rewrites on
+	// toggle (see DurationPicker for the full rationale).
+	const segEdges = 'first:border-l first:rounded-l-legacy-xs last:rounded-r-legacy-xs';
 </script>
 
 <div class={groupClass} use:rowSegmented={dense}>

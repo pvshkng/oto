@@ -20,7 +20,7 @@
 {#if loading.active || forceActive}
 	<div class="overlay" role="status" aria-live="polite" transition:fade={{ duration: 200 }}>
 		<div class="panel">
-			<div class="mark">oto</div>
+			<div class="mark">音</div>
 			<div class="label">{determinate ? loading.label : 'Loading'}</div>
 			<div class="track">
 				<div
@@ -60,7 +60,7 @@
 	}
 	.mark {
 		font-family: var(--serif);
-		font-size: 30px;
+		font-size: 50px;
 		font-weight: 600;
 		letter-spacing: 0.04em;
 		color: var(--ink);

@@ -125,11 +125,8 @@
 	function addTrack() {
 		store.addTrack();
 		if (store.isDesktop) {
-			store.tempoOpen = false;
-			store.songModalOpen = false;
-			store.addRemoveOpen = false;
-			store.trackControlOpen = true;
 			store.trackControlIndex = store.cursor.track;
+			store.openPanel('track');
 		} else {
 			editIndex = store.cursor.track;
 			editOpen = true;
@@ -283,33 +280,6 @@
 							<List class="size-3.5" />
 						</button>
 					</div>
-					<!-- Timeline zoom (magnifiers), aligned right -->
-					<div class="ml-auto flex shrink-0 items-stretch">
-						<button
-							class={cn(
-								'flex size-6 items-center justify-center rounded-l-md rounded-r-none border [background-image:none!important]',
-								cell <= MIN_CELL ? 'sunk' : 'text-muted-foreground hover:text-foreground'
-							)}
-							title="Zoom out timeline"
-							aria-label="Zoom out timeline"
-							disabled={cell <= MIN_CELL}
-							onclick={() => zoom(-1)}
-						>
-							<MagnifyingGlassMinus class="size-3.5" />
-						</button>
-						<button
-							class={cn(
-								'flex size-6 items-center justify-center rounded-l-none rounded-r-md border border-l-0 [background-image:none!important]',
-								cell >= MAX_CELL ? 'sunk' : 'text-muted-foreground hover:text-foreground'
-							)}
-							title="Zoom in timeline"
-							aria-label="Zoom in timeline"
-							disabled={cell >= MAX_CELL}
-							onclick={() => zoom(1)}
-						>
-							<MagnifyingGlassPlus class="size-3.5" />
-						</button>
-					</div>
 				</div>
 				<div class="relative shrink-0" style="width:{timelineW}px">
 					<div class="flex h-full">
@@ -317,13 +287,49 @@
 							<div
 								class={cn(
 									'text-muted-foreground flex items-center justify-start py-1.5 pl-1 text-[10px] tabular-nums',
-									(mi + 1) % 4 === 0 ? 'border-r border-border' : ''
+									(mi + 1) % 4 === 0 ? '' : ''
 								)}
 								style="width:{cell}px"
 							>
 								{#if mi === 0 || mi % 4 === 0}{mi + 1}{/if}
 							</div>
 						{/each}
+					</div>
+				</div>
+				<!-- Timeline zoom (magnifiers): a zero-width anchor with the controls
+				     overlaid leftward from it. `ml-auto` pushes it to the end of the bar
+				     section when the timeline is narrower than the panel; `sticky right-0`
+				     keeps it pinned to the visible right edge once the timeline overflows
+				     and scrolls. Either way the magnifiers stay at the end, and being
+				     zero-width they never widen the timeline (track rows stay aligned). -->
+				<div class="sticky right-0 z-20 ml-auto w-0 shrink-0 self-stretch">
+					<div class="bg-background absolute top-0 right-0 flex h-full items-center pl-0 px-2">
+						<div class="flex shrink-0 items-stretch">
+							<button
+								class={cn(
+									'bg-background flex size-6 items-center justify-center rounded-l-md rounded-r-none border [background-image:none!important]',
+									cell <= MIN_CELL ? 'sunk' : 'text-muted-foreground hover:text-foreground'
+								)}
+								title="Zoom out timeline"
+								aria-label="Zoom out timeline"
+								disabled={cell <= MIN_CELL}
+								onclick={() => zoom(-1)}
+							>
+								<MagnifyingGlassMinus class="size-3.5" />
+							</button>
+							<button
+								class={cn(
+									'bg-background flex size-6 items-center justify-center rounded-l-none rounded-r-md border border-l-0 [background-image:none!important]',
+									cell >= MAX_CELL ? 'sunk' : 'text-muted-foreground hover:text-foreground'
+								)}
+								title="Zoom in timeline"
+								aria-label="Zoom in timeline"
+								disabled={cell >= MAX_CELL}
+								onclick={() => zoom(1)}
+							>
+								<MagnifyingGlassPlus class="size-3.5" />
+							</button>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -349,11 +355,8 @@
 									{track}
 									index={i}
 									onNameClick={() => {
-										store.tempoOpen = false;
-										store.songModalOpen = false;
-										store.addRemoveOpen = false;
-										store.trackControlOpen = true;
 										store.trackControlIndex = i;
+										store.openPanel('track');
 									}}
 								/>
 								<!-- Mixer controls: Vol · Pan · EQ (with gap between each) -->

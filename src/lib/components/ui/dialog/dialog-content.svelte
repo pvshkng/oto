@@ -29,7 +29,7 @@
 		bind:ref
 		data-slot="dialog-content"
 		class={cn(
-			'bg-background/85 supports-[backdrop-filter]:bg-background/70 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg backdrop-blur-md sm:max-w-lg',
+			'bg-background/85 supports-[backdrop-filter]:bg-background/70 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 backdrop-blur-md sm:max-w-lg shadow-[0px_4px_16px_rgba(17,17,26,0.1),_0px_8px_24px_rgba(17,17,26,0.2),_0px_16px_56px_rgba(17,17,26,0.2)]',
 			className
 		)}
 		{...restProps}

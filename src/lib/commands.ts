@@ -4,7 +4,7 @@
 // evaluated against the current selection/context.
 
 import type { Component } from 'svelte';
-import { store } from '$lib/stores/score.svelte';
+import { store, type PanelId, type Dock } from '$lib/stores/score.svelte';
 import { togglePlayback, stopPlayback } from '$lib/audio/playback';
 import { DURATION_ORDER } from '$lib/oto/duration';
 import {
@@ -26,7 +26,11 @@ import ArrowUUpLeft from 'phosphor-svelte/lib/ArrowUUpLeft';
 import ArrowUUpRight from 'phosphor-svelte/lib/ArrowUUpRight';
 import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
 import Trash from 'phosphor-svelte/lib/Trash';
+import X from 'phosphor-svelte/lib/X';
 import Rows from 'phosphor-svelte/lib/Rows';
+import SquareHalf from 'phosphor-svelte/lib/SquareHalf';
+import SquareHalfBottom from 'phosphor-svelte/lib/SquareHalfBottom';
+import ArrowSquareOut from 'phosphor-svelte/lib/ArrowSquareOut';
 import Copy from 'phosphor-svelte/lib/Copy';
 import Eraser from 'phosphor-svelte/lib/Eraser';
 import MusicNote from 'phosphor-svelte/lib/MusicNote';
@@ -223,6 +227,16 @@ export function fileCommands(): Cmd[] {
 			label: 'Open / Import',
 			icon: FolderOpen,
 			run: () => void import('$lib/io/files').then((m) => m.openFile())
+		},
+		{
+			id: 'file-close',
+			label: 'Close score',
+			icon: X,
+			keywords: 'close quit exit welcome empty',
+			disabled: !store.documentOpen,
+			run: () => {
+				if (confirm('Close this score? Unsaved changes will be lost.')) store.closeDocument();
+			}
 		}
 	];
 }
@@ -236,7 +250,7 @@ export function editCommands(): Cmd[] {
 			label: store.editMode ? 'Hide note editor' : 'Show note editor',
 			icon: PencilSimple,
 			active: store.editMode,
-			run: () => (store.editMode = !store.editMode)
+			run: () => store.togglePanel('note')
 		}
 	];
 }
@@ -267,6 +281,49 @@ export function transportCommands(): Cmd[] {
 	];
 }
 
+const PANEL_LABELS: Record<PanelId, string> = {
+	note: 'Note editor',
+	keys: 'Key pad',
+	song: 'Song details',
+	track: 'Track control',
+	tempo: 'Tempo',
+	addRemove: 'Add / remove'
+};
+const DOCK_LABELS: Record<Dock, string> = {
+	left: 'dock left',
+	right: 'dock right',
+	bottom: 'dock bottom',
+	float: 'float'
+};
+const DOCK_ICONS: Record<Dock, Component> = {
+	left: SquareHalf,
+	right: SquareHalf,
+	bottom: SquareHalfBottom,
+	float: ArrowSquareOut
+};
+
+/** Desktop-only panel-docking actions: for each open panel, move it to any of
+ *  its allowed docks (except where it already is). Mirrors the in-header dock
+ *  controls so the whole flow is reachable from the keyboard. */
+export function panelCommands(): Cmd[] {
+	if (!store.isDesktop) return [];
+	const cmds: Cmd[] = [];
+	for (const id of Object.keys(PANEL_LABELS) as PanelId[]) {
+		if (!store.isPanelOpen(id)) continue;
+		for (const dock of store.panelAllowed(id)) {
+			if (store.panelDock(id) === dock) continue;
+			cmds.push({
+				id: `dock-${id}-${dock}`,
+				label: `${PANEL_LABELS[id]}: ${DOCK_LABELS[dock]}`,
+				icon: DOCK_ICONS[dock],
+				keywords: 'dock undock move panel window',
+				run: () => store.setPanelDock(id, dock)
+			});
+		}
+	}
+	return cmds;
+}
+
 /** The full, context-aware command list for the omni palette. */
 export function allCommandGroups(): CmdGroup[] {
 	const hasNote = !!store.currentNote;
@@ -286,5 +343,7 @@ export function allCommandGroups(): CmdGroup[] {
 		heading: `Bar ${store.cursor.measure + 1}`,
 		items: [...barCommands(), ...timeSigCommands()]
 	});
+	const panels = panelCommands();
+	if (panels.length) groups.push({ heading: 'Panels', items: panels });
 	return groups;
 }

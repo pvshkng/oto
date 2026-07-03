@@ -11,7 +11,11 @@
 </script>
 
 <Dialog.Root bind:open={store.songModalOpen}>
-	<Dialog.Content overlayClass="bg-transparent" class="max-w-md gap-4 p-0">
+	<Dialog.Content
+		overlayClass="bg-transparent"
+		class="max-w-md gap-4 p-0"
+		onOpenAutoFocus={(e) => e.preventDefault()}
+	>
 		<Dialog.Header class="p-4 pb-0">
 			<Dialog.Title>Song details</Dialog.Title>
 			<Dialog.Description>Title, composer, tempo and starting time signature.</Dialog.Description>

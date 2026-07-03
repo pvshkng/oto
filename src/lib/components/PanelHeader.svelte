@@ -1,29 +1,28 @@
 <script lang="ts">
 	// Shared header for desktop side panels (RightPanel modes, NotePropertiesPanel):
-	// an uppercase title left, a pop-out + close button right. Kept tiny and
-	// prop-driven rather than reused via slots/snippets since every caller just
-	// needs a title string and a few handlers.
+	// an uppercase title on the left, the dock/undock controls + a close button on
+	// the right. Kept tiny and prop-driven rather than reused via slots/snippets
+	// since every caller just needs a title string, a panel id, and a close handler.
 	//
-	// When the panel is popped out into a floating window, this header doubles as
-	// the drag handle (`data-panel-handle`); the buttons opt out via
-	// `data-panel-cancel` so clicking them never starts a drag.
+	// The drag grip (`data-panel-grip`) on the left is the drag handle in every
+	// placement — drag a docked panel by it to tear it out into a floating window,
+	// or a floating one to move/redock it. Buttons opt out via `data-panel-cancel`.
 	import X from 'phosphor-svelte/lib/X';
-	import ArrowSquareOut from 'phosphor-svelte/lib/ArrowSquareOut';
-	import ArrowSquareIn from 'phosphor-svelte/lib/ArrowSquareIn';
+	import DotsSixVertical from 'phosphor-svelte/lib/DotsSixVertical';
+	import DockControls from './DockControls.svelte';
+	import type { PanelId } from '$lib/stores/score.svelte';
 
 	let {
 		title,
 		onClose,
 		closeLabel = 'Close',
-		onPopOut,
-		popped = false
+		panelId
 	}: {
 		title: string;
 		onClose: () => void;
 		closeLabel?: string;
-		/** When provided, shows a pop-out/dock toggle button. */
-		onPopOut?: () => void;
-		popped?: boolean;
+		/** When provided, shows the dock/undock controls for this panel. */
+		panelId?: PanelId;
 	} = $props();
 
 	const btnClass =
@@ -32,26 +31,17 @@
 
 <div
 	data-panel-handle
-	class="flex shrink-0 items-center justify-between border-b border-border px-3.5 py-2.5 {popped
-		? 'cursor-move'
-		: ''}"
+	class="flex shrink-0 cursor-grab items-center justify-between border-b border-border px-2 py-2.5 active:cursor-grabbing"
 >
-	<span class="text-[13px] font-bold tracking-[0.4px] text-ink uppercase">{title}</span>
+	<div class="flex min-w-0 items-center gap-1">
+		<span class="-ml-0.5 inline-flex items-center text-text-muted">
+			<DotsSixVertical class="size-4" weight="bold" />
+		</span>
+		<span class="truncate text-[13px] font-bold tracking-[0.4px] text-ink uppercase">{title}</span>
+	</div>
 	<div class="flex items-center gap-0.5">
-		{#if onPopOut}
-			<button
-				data-panel-cancel
-				class={btnClass}
-				title={popped ? 'Dock panel' : 'Pop out panel'}
-				aria-label={popped ? 'Dock panel' : 'Pop out panel'}
-				onclick={onPopOut}
-			>
-				{#if popped}
-					<ArrowSquareIn class="size-4" />
-				{:else}
-					<ArrowSquareOut class="size-4" />
-				{/if}
-			</button>
+		{#if panelId}
+			<DockControls id={panelId} />
 		{/if}
 		<button
 			data-panel-cancel

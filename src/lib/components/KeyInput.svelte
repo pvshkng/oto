@@ -1,55 +1,49 @@
 <script lang="ts">
-	// Standalone key-entry strip for desktop mode. Contains only the
-	// keypad/fretboard/piano tab selector and the active input tool.
-	// Note properties (duration, effects, etc.) live in NotePropertiesPanel.
+	// Standalone key-entry pad for desktop mode. Contains only the
+	// keypad/fretboard/piano selector and the active input tool. Note properties
+	// (duration, effects, etc.) live in NotePropertiesPanel.
+	//
+	// Freely dockable: `placement` (from +page) says where it currently lives.
+	// While docked to the bottom strip it sits flush inside the dock card; docked
+	// to a side or floated it renders as its own card/window. It shares the common
+	// PanelHeader so its title/dock controls/close match every other panel.
 
 	import { store } from '$lib/stores/score.svelte';
 	import { enterDigit } from '$lib/editing/entry';
-	import { draggable } from '@neodrag/svelte';
-	import { panelDragOptions } from '$lib/floating-panel';
+	import { panelDrag } from '$lib/panel-drag';
+	import { cn } from '$lib/utils';
 	import Fretboard from './Fretboard.svelte';
 	import Piano from './Piano.svelte';
-	import X from 'phosphor-svelte/lib/X';
-	import ArrowSquareOut from 'phosphor-svelte/lib/ArrowSquareOut';
-	import ArrowSquareIn from 'phosphor-svelte/lib/ArrowSquareIn';
+	import PanelHeader from './PanelHeader.svelte';
 
-	const popped = $derived(store.keyInputPopped);
+	let { placement = 'bottom' }: { placement?: 'left' | 'right' | 'bottom' | 'float' } = $props();
+
+	const floating = $derived(placement === 'float');
+	const bottom = $derived(placement === 'bottom');
+	const layout = $derived(store.panelLayout.keys);
+	const title = $derived(
+		store.editTool === 'keypad' ? 'Keypad' : store.editTool === 'fretboard' ? 'Fretboard' : 'Piano'
+	);
 </script>
 
-<div class="key-input {popped ? 'key-input--popped' : ''}" use:draggable={panelDragOptions(popped)}>
-	<div class="key-input-header" data-panel-handle class:handle={popped}>
-		<span class="tool-name">
-			{store.editTool === 'keypad'
-				? 'Keypad'
-				: store.editTool === 'fretboard'
-					? 'Fretboard'
-					: 'Piano'}
-		</span>
-		<div class="header-actions">
-			<button
-				class="hide-btn"
-				data-panel-cancel
-				onclick={() => (store.keyInputPopped = !store.keyInputPopped)}
-				title={popped ? 'Dock key input' : 'Pop out key input'}
-				aria-label={popped ? 'Dock key input' : 'Pop out key input'}
-			>
-				{#if popped}
-					<ArrowSquareIn class="size-4" />
-				{:else}
-					<ArrowSquareOut class="size-4" />
-				{/if}
-			</button>
-			<button
-				class="hide-btn"
-				data-panel-cancel
-				onclick={() => (store.keyInputOpen = false)}
-				title="Close key input"
-				aria-label="Close key input"
-			>
-				<X class="size-4" />
-			</button>
-		</div>
-	</div>
+<div
+	class={cn(
+		'key-input flex flex-col overflow-hidden',
+		floating && 'key-input--floating',
+		bottom && 'h-full w-full',
+		!bottom &&
+			!floating &&
+			'h-full w-full rounded-lg border border-border shadow-[0_6px_24px_rgba(0,0,0,0.14)]'
+	)}
+	style={floating ? `translate: ${layout.x}px ${layout.y}px; z-index: ${store.panelZ('keys')}` : ''}
+	use:panelDrag={{ id: 'keys', floating }}
+>
+	<PanelHeader
+		{title}
+		panelId="keys"
+		onClose={() => (store.keyInputOpen = false)}
+		closeLabel="Close key input"
+	/>
 
 	<div class="key-input-body">
 		{#if store.editTool === 'keypad'}
@@ -81,56 +75,23 @@
 		backdrop-filter: blur(12px);
 		-webkit-backdrop-filter: blur(12px);
 	}
-	/* Detached, free-floating window (draggable, constrained to the viewport). */
-	.key-input--popped {
+	/* Detached, free-floating window (draggable, constrained to the viewport).
+	   Anchored top-left like the other floating panels; the drag translate offsets
+	   it from there. */
+	.key-input--floating {
 		position: fixed;
 		left: 1rem;
-		bottom: 6rem;
+		top: 1rem;
 		z-index: 50;
 		width: min(640px, 92vw);
-		max-height: 70vh;
-		overflow: auto;
+		max-height: calc(100dvh - 2rem);
 		border: 1px solid var(--border);
 		border-radius: 12px;
 		box-shadow: 0 6px 24px rgba(0, 0, 0, 0.14);
 	}
-	.key-input-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 6px 10px;
-		border-bottom: 1px solid var(--border);
-	}
-	.key-input-header.handle {
-		cursor: move;
-	}
-	.header-actions {
-		display: flex;
-		align-items: center;
-		gap: 2px;
-	}
-	.tool-name {
-		font-size: 12px;
-		font-weight: 700;
-		color: var(--text-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.4px;
-	}
-	.hide-btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		border: none;
-		background: transparent;
-		width: 30px;
-		height: 30px;
-		color: var(--text-muted);
-		cursor: pointer;
-	}
-	.hide-btn:hover {
-		color: var(--ink);
-	}
 	.key-input-body {
+		flex: 1;
+		overflow: auto;
 		padding: 8px 10px;
 	}
 	.keypad {

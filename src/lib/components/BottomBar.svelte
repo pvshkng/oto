@@ -39,28 +39,17 @@
 			store.keyInputOpen = false;
 		} else {
 			store.editTool = tool;
-			store.keyInputOpen = true;
+			store.openPanel('keys');
 		}
 	}
 
-	// Desktop right-panel toggles — clicking an already-open panel closes it.
+	// Desktop detail-panel toggles — independent, so opening one leaves the others
+	// open; clicking an already-open panel closes it.
 	function toggleTempo() {
-		if (store.tempoOpen) {
-			store.tempoOpen = false;
-		} else {
-			store.songModalOpen = false;
-			store.addRemoveOpen = false;
-			store.tempoOpen = true;
-		}
+		store.togglePanel('tempo');
 	}
 	function toggleSong() {
-		if (store.songModalOpen) {
-			store.songModalOpen = false;
-		} else {
-			store.tempoOpen = false;
-			store.addRemoveOpen = false;
-			store.songModalOpen = true;
-		}
+		store.togglePanel('song');
 	}
 </script>
 
@@ -182,7 +171,7 @@
 				title="Note properties panel"
 				aria-label="Toggle note properties"
 				aria-pressed={store.editMode}
-				onclick={() => (store.editMode = !store.editMode)}
+				onclick={() => store.togglePanel('note')}
 			>
 				<PencilSimple class="size-4" />
 				<span class="hidden sm:inline">Note</span>
@@ -237,7 +226,7 @@
 			class={cn('h-9 shrink-0', store.editMode && 'sunk')}
 			title="Toggle note editor"
 			aria-pressed={store.editMode}
-			onclick={() => (store.editMode = !store.editMode)}
+			onclick={() => store.togglePanel('note')}
 		>
 			<PencilSimple class="size-4" />
 			<span class="hidden sm:inline">{store.editMode ? 'Editing' : 'Edit notes'}</span>
@@ -349,11 +338,13 @@
 		</Button>
 	</div>
 
-	<!-- Song settings: right panel on desktop, drawer on mobile -->
+	<!-- Song settings pushed to the far right, split off from the song-control
+	     buttons on the left (ml-auto opens the gap when there's room; the strip
+	     still scrolls when the viewport is too narrow to fit everything). -->
 	<Button
 		variant="ghost"
 		size="icon"
-		class={cn('size-9 shrink-0', store.isDesktop && store.songModalOpen && 'sunk')}
+		class={cn('ml-auto size-9 shrink-0', store.isDesktop && store.songModalOpen && 'sunk')}
 		title="Song settings"
 		aria-label="Song settings"
 		aria-pressed={store.isDesktop ? store.songModalOpen : undefined}

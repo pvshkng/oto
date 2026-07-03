@@ -14,6 +14,7 @@
 	<Dialog.Content
 		overlayClass="bg-transparent"
 		class="grid max-h-[85vh] max-w-md grid-rows-[auto_minmax(0,1fr)_auto] gap-0 p-0"
+		onOpenAutoFocus={(e) => e.preventDefault()}
 	>
 		<Dialog.Header class="p-4 pb-0">
 			<Dialog.Title>Track control</Dialog.Title>

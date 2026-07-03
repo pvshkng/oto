@@ -7,11 +7,11 @@
 	import { audio } from '$lib/audio/engine';
 	import { frettedMidi, midiToPitchClass } from '$lib/oto/pitch';
 
-	const FRETS = 16;
+	const FRETS = 24;
 	const track = $derived(store.track);
 	const beat = $derived(track.measures[store.cursor.measure]?.beats[store.cursor.beat] ?? null);
 
-	const INLAYS = [3, 5, 7, 9, 12, 15];
+	const INLAYS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
 
 	function noteAt(stringIndex: number, fret: number) {
 		return beat?.notes.find((n) => n.string === stringIndex && n.fret === fret) ?? null;
@@ -83,7 +83,9 @@
 	}
 	.neck {
 		display: grid;
-		min-width: 640px;
+		/* 24 frets need more room than 16 to keep each cell readable; the
+		   container scrolls horizontally when the panel is narrower. */
+		min-width: 900px;
 		gap: 0;
 	}
 	.corner,

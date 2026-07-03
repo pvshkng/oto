@@ -221,3 +221,14 @@ button:not(:disabled):active {
 	background-image: none !important;
 	background-color: var(--panel-2) !important;
 }
+/*
+ * Two adjacent sunk buttons in a joined/segmented group (metronome+count-in,
+ * a duration pair, view toggles, …). The joined right button drops its own
+ * left border, so the only pixel between the pair is the LEFT button's right
+ * border — a `border-strong` line sitting between two recessed surfaces, which
+ * reads as a hairline gap. Blend that divider into the recessed fill so a pair
+ * of pressed buttons looks like one continuous sunk block.
+ */
+.sunk:has(+ .sunk) {
+	border-right-color: var(--panel-2) !important;
+}
