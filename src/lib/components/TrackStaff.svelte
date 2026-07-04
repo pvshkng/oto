@@ -9,7 +9,8 @@
 		computeSharedSystems,
 		METRICS,
 		type LaidMeasure,
-		type SharedSystems
+		type SharedSystems,
+		type TrackLayout
 	} from '$lib/notation/layout';
 	import { GLYPH, restGlyph, timeSigGlyphs } from '$lib/notation/glyphs';
 	import { ContextMenu as ContextMenuPrimitive } from 'bits-ui';
@@ -23,7 +24,8 @@
 	let {
 		trackIndex,
 		onlySystemIndex,
-		sharedOverride
+		sharedOverride,
+		layoutOverride
 	}: {
 		trackIndex: number;
 		/** Multi-track (interleaved) view: render only this one system (row),
@@ -35,6 +37,11 @@
 		 *  instance agrees on the exact same breaks without recomputing it
 		 *  (and re-measuring width) independently per track. */
 		sharedOverride?: SharedSystems;
+		/** Pre-computed full layout for this track from ScoreArea. In the
+		 *  interleaved view this component is instantiated once per (system ×
+		 *  track); without this every instance would lay out the whole track
+		 *  again just to render its one row. */
+		layoutOverride?: TrackLayout;
 	} = $props();
 
 	const ctxNote = $derived(store.currentNote);
@@ -56,14 +63,18 @@
 				: undefined)
 	);
 
+	// `$derived` is lazy, so when a pre-computed layout is supplied the local
+	// layoutTrack() call (and the `shared`/`visibleTracks` deriveds above)
+	// never even run for this instance.
 	const layout = $derived(
-		layoutTrack(store.score, track, {
-			containerWidth: containerWidth,
-			showStandard: track.view.standard,
-			showTab: track.view.tab,
-			showRhythm: track.view.rhythm,
-			shared
-		})
+		layoutOverride ??
+			layoutTrack(store.score, track, {
+				containerWidth: containerWidth,
+				showStandard: track.view.standard,
+				showTab: track.view.tab,
+				showRhythm: track.view.rhythm,
+				shared
+			})
 	);
 
 	// When rendering just one system (interleaved multi-track view), only
@@ -233,8 +244,14 @@
 				onpointerdown={drag.onDragPointerDown}
 			>
 				{#each systemsToRender as system (system.y)}
+					<!-- content-visibility:auto lets the browser skip layout/paint for
+					     systems far off screen, which is most of a long score while
+					     scrolling or following playback. Each svg carries explicit
+					     width/height attributes, so skipping its contents never changes
+					     its box (no layout shift). Forced back to visible for print so
+					     every page renders. -->
 					<svg
-						class="system block"
+						class="system block [content-visibility:auto] print:[content-visibility:visible]"
 						data-first-measure={system.measures[0]?.index}
 						data-last-measure={system.measures[system.measures.length - 1]?.index}
 						width={Math.max(system.width, containerWidth)}

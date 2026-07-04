@@ -569,6 +569,17 @@ export class AudioEngine {
 	 *  can surface a UX warning instead of silently producing no sound. */
 	lastStartError: unknown = null;
 
+	/** Seconds between the AudioContext's scheduling clock and the moment a
+	 *  scheduled sound actually leaves the speaker (hardware buffering). UI
+	 *  callbacks are delayed by this so the playhead lands on a note exactly
+	 *  when it is *heard*, not when it enters the output buffer — with the
+	 *  "playback" latency hint this gap is easily 100–300ms on mobile, which
+	 *  otherwise reads as the cursor running ahead of the sound. */
+	private drawDelay(): number {
+		const raw = Tone.getContext().rawContext as AudioContext;
+		return (raw.outputLatency || 0) + (raw.baseLatency || 0);
+	}
+
 	private async ensureStarted() {
 		if (this.started) return;
 		try {
@@ -771,7 +782,13 @@ export class AudioEngine {
 		// resolves solo state across the whole score.
 		this.setMasterVolume(score.masterVolume ?? 0.85);
 		this.currentTracks = score.tracks;
-		for (const t of score.tracks) this.instrumentFor(t);
+		// Resolve each track's instrument once, up front. The note loop below runs
+		// once per scheduled note — looking the instrument up per note (and letting
+		// instrumentFor re-apply gain/pan/EQ each time) would issue thousands of
+		// redundant AudioParam writes right at Play, which is audible as a glitchy
+		// start on slower devices.
+		const instByTrack = new Map<string, Instrument>();
+		for (const t of score.tracks) instByTrack.set(t.id, this.instrumentFor(t));
 
 		const transport = Tone.getTransport();
 		const windowStart = opts.window ? opts.window.start : 0;
@@ -797,7 +814,8 @@ export class AudioEngine {
 		// instead of only on the next Play.
 		for (const ev of compiled.notes) {
 			if (ev.time < windowStart - 1e-6 || ev.time >= windowEnd - 1e-6) continue;
-			const instrument = this.instrumentFor(score.tracks.find((t) => t.id === ev.trackId)!);
+			const instrument = instByTrack.get(ev.trackId);
+			if (!instrument) continue;
 			const rel = ev.time - windowStart + lead;
 			const wantsBend = ev.bend !== undefined || ev.slideToFreq !== undefined || ev.vibrato;
 			transport.schedule((time) => {
@@ -831,7 +849,7 @@ export class AudioEngine {
 			if (m.time < windowStart - 1e-6 || m.time >= windowEnd - 1e-6) continue;
 			const rel = m.time - windowStart + lead;
 			transport.schedule((time) => {
-				Tone.getDraw().schedule(() => opts.onMarker(m.measure), time);
+				Tone.getDraw().schedule(() => opts.onMarker(m.measure), time + this.drawDelay());
 			}, rel);
 		}
 
@@ -840,7 +858,10 @@ export class AudioEngine {
 			if (m.time < windowStart - 1e-6 || m.time >= windowEnd - 1e-6) continue;
 			const rel = m.time - windowStart + lead;
 			transport.schedule((time) => {
-				Tone.getDraw().schedule(() => opts.onBeatMarker(m.measure, m.beat), time);
+				Tone.getDraw().schedule(
+					() => opts.onBeatMarker(m.measure, m.beat),
+					time + this.drawDelay()
+				);
 			}, rel);
 		}
 
@@ -860,7 +881,7 @@ export class AudioEngine {
 				Tone.getDraw().schedule(() => {
 					this.stop();
 					opts.onStop();
-				}, time);
+				}, time + this.drawDelay());
 			}, lead + windowDur);
 		}
 		transport.start();

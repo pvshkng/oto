@@ -178,6 +178,13 @@ export class ScoreStore {
 
 	/** Call once from onMount after browser APIs are available. */
 	initLayout() {
+		// Flush a pending debounced autosave before the page goes away —
+		// pagehide covers navigation/close, visibilitychange covers mobile
+		// backgrounding (where pagehide may never fire before the tab is killed).
+		window.addEventListener('pagehide', () => this.flushPersist());
+		document.addEventListener('visibilitychange', () => {
+			if (document.visibilityState === 'hidden') this.flushPersist();
+		});
 		const mq = window.matchMedia('(min-width: 1024px)');
 		this.isDesktop = mq.matches;
 		if (mq.matches) {
@@ -637,8 +644,32 @@ export class ScoreStore {
 		}
 	}
 
+	// Autosave is debounced: serializing the whole score is O(score) main-thread
+	// work, and persist() fires from continuous gestures (a fader drag calls it
+	// per pointer tick) and from every edit — doing it synchronously each time
+	// is jank exactly when smoothness matters most (e.g. mixing while a piece
+	// plays). One trailing write per burst is enough; flushPersist() runs on
+	// pagehide/hidden so nothing is lost when the tab goes away.
+	#persistTimer: ReturnType<typeof setTimeout> | null = null;
+
 	persist() {
 		if (!AUTOSAVE || typeof localStorage === 'undefined') return;
+		if (this.#persistTimer) return;
+		this.#persistTimer = setTimeout(() => {
+			this.#persistTimer = null;
+			this.#writeScore();
+		}, 300);
+	}
+
+	/** Write any pending autosave immediately (page is being hidden/unloaded). */
+	flushPersist() {
+		if (!this.#persistTimer) return;
+		clearTimeout(this.#persistTimer);
+		this.#persistTimer = null;
+		this.#writeScore();
+	}
+
+	#writeScore() {
 		try {
 			localStorage.setItem(STORAGE_KEY, serialize(this.score));
 		} catch {
@@ -749,6 +780,12 @@ export class ScoreStore {
 		this.selection = null;
 		this.#undoStack = [];
 		this.#redoStack = [];
+		// Drop any autosave still waiting in the debounce window — it belongs to
+		// the score being closed and would otherwise re-write the key just removed.
+		if (this.#persistTimer) {
+			clearTimeout(this.#persistTimer);
+			this.#persistTimer = null;
+		}
 		if (typeof localStorage !== 'undefined') {
 			try {
 				localStorage.removeItem(STORAGE_KEY);
