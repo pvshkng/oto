@@ -56,7 +56,6 @@
 
 <div
 	class="bg-background/70 relative z-[2] flex items-center gap-1.5 overflow-x-auto border-t px-2 py-1.5 backdrop-blur-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-	style="padding-bottom: calc(0.375rem + env(safe-area-inset-bottom))"
 >
 	<!-- Omni command palette trigger -->
 	<Button

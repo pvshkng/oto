@@ -3,6 +3,7 @@
 	import { store } from '$lib/stores/score.svelte';
 	import { stopPlayback } from '$lib/audio/playback';
 	import { handleGlobalKeydown } from '$lib/keyboard-shortcuts';
+	import { initLongPressTooltips } from '$lib/long-press-tooltip';
 	import Swap from 'phosphor-svelte/lib/Swap';
 	import ScoreArea from '$lib/components/ScoreArea.svelte';
 	import BottomBar from '$lib/components/BottomBar.svelte';
@@ -105,15 +106,20 @@
 		}
 	});
 
-	// Playback auto-scroll: keep the moving playhead in view. Only nudges the
-	// view once the current system (staff line) has fully left the visible
-	// area — not on every beat, and not while it's merely near an edge — so it
-	// reads as the score "keeping up" with playback rather than fighting a
-	// manual scroll. Re-checked once per measure (not per beat) since that's
-	// the coarsest grain a scroll could possibly be needed at.
+	// Playback auto-scroll: keep the system (staff line) under the playhead
+	// pinned to the top of the score view, so the bar being played is always
+	// the first thing on screen and upcoming bars fill the space below it.
+	// Re-checked once per measure (not per beat) since a system can only
+	// change on a measure boundary; while playback stays within the same
+	// system the scroll position is already right and nothing moves.
 	let followedMeasure = -1;
 	$effect(() => {
-		const measure = store.isPlaying ? store.playhead?.measure : undefined;
+		if (!store.isPlaying) {
+			// Reset so replaying from the same measure re-pins after a manual scroll.
+			followedMeasure = -1;
+			return;
+		}
+		const measure = store.playhead?.measure;
 		if (measure == null || !scoreAreaEl) return;
 		if (measure === followedMeasure) return;
 		followedMeasure = measure;
@@ -123,8 +129,13 @@
 		if (!target) return;
 		const view = scoreAreaEl.getBoundingClientRect();
 		const rect = target.getBoundingClientRect();
-		const outOfView = rect.bottom <= view.top || rect.top >= view.bottom;
-		if (outOfView) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		// Scroll the container directly (not scrollIntoView) so only the score
+		// area moves — never the page/visual viewport on mobile.
+		const desired = 12; // breathing room above the focused system
+		const delta = rect.top - view.top - desired;
+		if (Math.abs(delta) > 4) {
+			scoreAreaEl.scrollTo({ top: scoreAreaEl.scrollTop + delta, behavior: 'smooth' });
+		}
 	});
 
 	// The right-click track-staff context menu doesn't track the page under
@@ -138,11 +149,15 @@
 		store.loadFromStorage();
 		store.initLayout();
 		window.addEventListener('keydown', handleGlobalKeydown);
+		// Touch-only (guards on pointerType internally): long-press any titled
+		// button to see what it does, since touch has no hover for `title`.
+		const disposeLongPress = initLongPressTooltips();
 		audio.ensureSamples(store.score.tracks.map((t) => t.instrument)).finally(() => {
 			ready = true;
 		});
 		return () => {
 			window.removeEventListener('keydown', handleGlobalKeydown);
+			disposeLongPress();
 			stopPlayback();
 		};
 	});
@@ -361,9 +376,13 @@
 			</main>
 
 			<!-- Bottom dock floated off the edges so it reads as a card and leaves
-			     the score's vertical scrollbar visible on the right. -->
+			     the score's vertical scrollbar visible on the right. The safe-area
+			     inset is absorbed by the card's bottom OFFSET (not padding inside
+			     the bar), so when the browser chrome collapses and the inset
+			     appears, the whole card lifts — the bar itself never stretches. -->
 			<div
-				class="fixed inset-x-3 bottom-3 z-50 overflow-hidden rounded-lg border border-border shadow-[0_6px_24px_rgba(0,0,0,0.18)] print:hidden"
+				class="fixed inset-x-3 z-50 overflow-hidden rounded-lg border border-border shadow-[0_6px_24px_rgba(0,0,0,0.18)] print:hidden"
+				style="bottom: max(0.75rem, env(safe-area-inset-bottom, 0px))"
 			>
 				{#if dockPanel}
 					<div class="relative z-[1] shadow-[var(--shadow-3)]" bind:clientHeight={dockPanelHeight}>
