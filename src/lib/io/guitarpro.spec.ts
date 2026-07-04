@@ -127,6 +127,34 @@ describe('gpScoreToOto', () => {
 		const oto = gpScoreToOto(fromTex('\\ks d . 0.1'));
 		expect(oto.keySignature).toBe(2);
 	});
+
+	it('imports beat effects: slap, pop, tap, fade-in and tremolo picking', () => {
+		const oto = gpScoreToOto(fromTex('. 3.4{s} 3.4{p} 3.3{tt} 3.3{f} 3.3{tp 16}'));
+		const notes = oto.tracks[0].measures[0].beats.map((b) => b.notes[0]);
+		expect(notes[0].techniques).toContain('slap');
+		expect(notes[1].techniques).toContain('pop');
+		expect(notes[2].techniques).toContain('tap');
+		expect(notes[3].techniques).toContain('fade-in');
+		expect(notes[4].techniques).toContain('tremolo');
+	});
+
+	it('imports trills, heavy accents, tenuto and wide vibrato', () => {
+		const oto = gpScoreToOto(fromTex('. 3.3{tr 5 16} 3.3{hac} 3.3{ten} 3.3{vw}'));
+		const notes = oto.tracks[0].measures[0].beats.map((b) => b.notes[0]);
+		expect(notes[0].techniques).toContain('trill');
+		expect(notes[1].techniques).toContain('heavy-accent');
+		expect(notes[1].techniques).not.toContain('accent');
+		expect(notes[2].techniques).toContain('tenuto');
+		expect(notes[3].techniques).toContain('wide-vibrato');
+		expect(notes[3].techniques).not.toContain('vibrato');
+	});
+
+	it('marks grace beats as grace notes', () => {
+		const oto = gpScoreToOto(fromTex('. 3.3{gr} 5.3'));
+		const beats = oto.tracks[0].measures[0].beats;
+		expect(beats[0].notes[0].techniques).toContain('grace');
+		expect(beats[1].notes[0].techniques ?? []).not.toContain('grace');
+	});
 });
 
 describe('gpScoreToOto: drum tracks', () => {

@@ -52,44 +52,82 @@ export interface CmdGroup {
 	items: Cmd[];
 }
 
-export const EFFECT_LIST: Technique[] = [
-	'hammer',
-	'slide',
-	'bend',
-	'release',
-	'bend-release',
-	'vibrato',
-	'palm-mute',
-	'let-ring',
-	'harmonic',
-	'artificial-harmonic',
-	'dead',
-	'staccato',
-	'ghost',
-	'accent',
-	'grace'
-];
-
 export const TIME_SIGS = ['4/4', '3/4', '2/4', '6/8', '12/8', '5/4', '7/8'];
 
-/** Effect grid entries for EditPanel/NotePropertiesPanel: technique + short symbol. */
-export const EFFECT_UI: { tech: Technique; label: string; sym: string; alwaysOn?: boolean }[] = [
-	{ tech: 'hammer', label: 'Hammer / Pull', sym: 'H/P' },
-	{ tech: 'slide', label: 'Slide', sym: '/' },
-	{ tech: 'bend', label: 'Bend', sym: '⤴' },
-	{ tech: 'release', label: 'Release', sym: '⤵' },
-	{ tech: 'bend-release', label: 'Bend/Release', sym: '⤴⤵' },
-	{ tech: 'vibrato', label: 'Vibrato', sym: '∿' },
-	{ tech: 'palm-mute', label: 'Palm mute', sym: 'PM' },
-	{ tech: 'let-ring', label: 'Let ring', sym: 'LR' },
-	{ tech: 'harmonic', label: 'Nat. Harmonic', sym: '◇' },
-	{ tech: 'artificial-harmonic', label: 'Art. Harmonic', sym: 'AH' },
-	{ tech: 'dead', label: 'Dead', sym: '✕', alwaysOn: true },
-	{ tech: 'staccato', label: 'Staccato', sym: '·' },
-	{ tech: 'ghost', label: 'Ghost', sym: '()' },
-	{ tech: 'accent', label: 'Accent', sym: '>' },
-	{ tech: 'grace', label: 'Grace', sym: 'gr' }
+export interface EffectUi {
+	tech: Technique;
+	label: string;
+	sym: string;
+	alwaysOn?: boolean;
+}
+
+/**
+ * Technique effects grouped the way Guitar Pro organises its note-effect
+ * toolbar. EffectsGrid renders these as visually separated sections; the
+ * command palette and context menu flatten them via EFFECT_LIST/EFFECT_UI.
+ */
+export const EFFECT_SECTIONS: { title: string; items: EffectUi[] }[] = [
+	{
+		title: 'Legato',
+		items: [
+			{ tech: 'hammer', label: 'Hammer-on', sym: 'H' },
+			{ tech: 'pull', label: 'Pull-off', sym: 'P' },
+			{ tech: 'tap', label: 'Tap', sym: 'T' },
+			{ tech: 'trill', label: 'Trill', sym: 'tr' }
+		]
+	},
+	{
+		title: 'Bends & slides',
+		items: [
+			{ tech: 'bend', label: 'Bend', sym: '⤴' },
+			{ tech: 'release', label: 'Release', sym: '⤵' },
+			{ tech: 'bend-release', label: 'Bend/Release', sym: '⤴⤵' },
+			{ tech: 'slide', label: 'Slide', sym: '/' }
+		]
+	},
+	{
+		title: 'Vibrato & sustain',
+		items: [
+			{ tech: 'vibrato', label: 'Vibrato', sym: '∿' },
+			{ tech: 'wide-vibrato', label: 'Wide vibrato', sym: '≈' },
+			{ tech: 'let-ring', label: 'Let ring', sym: 'LR' },
+			{ tech: 'palm-mute', label: 'Palm mute', sym: 'PM' }
+		]
+	},
+	{
+		title: 'Harmonics',
+		items: [
+			{ tech: 'harmonic', label: 'Nat. Harmonic', sym: '◇' },
+			{ tech: 'artificial-harmonic', label: 'Art. Harmonic', sym: 'AH' }
+		]
+	},
+	{
+		title: 'Articulation',
+		items: [
+			{ tech: 'accent', label: 'Accent', sym: '>' },
+			{ tech: 'heavy-accent', label: 'Heavy accent', sym: '^' },
+			{ tech: 'tenuto', label: 'Tenuto', sym: '‒' },
+			{ tech: 'staccato', label: 'Staccato', sym: '·' },
+			{ tech: 'ghost', label: 'Ghost', sym: '()' },
+			{ tech: 'dead', label: 'Dead', sym: '✕', alwaysOn: true },
+			{ tech: 'grace', label: 'Grace', sym: 'gr' }
+		]
+	},
+	{
+		title: 'Picking & dynamics',
+		items: [
+			{ tech: 'tremolo', label: 'Tremolo picking', sym: '≡' },
+			{ tech: 'slap', label: 'Slap (bass)', sym: 'S' },
+			{ tech: 'pop', label: 'Pop (bass)', sym: 'Pop' },
+			{ tech: 'fade-in', label: 'Fade in', sym: '<' }
+		]
+	}
 ];
+
+/** Effect grid entries, flattened: technique + short symbol. */
+export const EFFECT_UI: EffectUi[] = EFFECT_SECTIONS.flatMap((s) => s.items);
+
+export const EFFECT_LIST: Technique[] = EFFECT_UI.map((e) => e.tech);
 
 // ---- shared action helpers (reused by palette and context menu) -----------
 

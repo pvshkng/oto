@@ -173,6 +173,30 @@
 					class="text-[13px] font-bold fill-[#18181b] [text-anchor:middle]">›</text
 				>
 			{/if}
+			{#if n.techniques.includes('heavy-accent')}
+				<text
+					x={n.x + n.headXOffset}
+					y={markY + 4}
+					class="text-[11px] font-bold fill-[#18181b] [text-anchor:middle]">^</text
+				>
+			{/if}
+			{#if n.techniques.includes('tenuto')}
+				<line
+					x1={n.x + n.headXOffset - 4}
+					y1={markY}
+					x2={n.x + n.headXOffset + 4}
+					y2={markY}
+					class="stroke-[#18181b] [stroke-width:1.6]"
+				/>
+			{/if}
+			{#if n.techniques.includes('trill')}
+				<text
+					x={n.x + n.headXOffset}
+					y={markY + 2}
+					class="[font:italic_600_9px_ui-sans-serif,sans-serif] fill-[#71717a] [text-anchor:middle]"
+					>tr</text
+				>
+			{/if}
 			{#if n.techniques.includes('artificial-harmonic')}
 				<text
 					x={n.x + n.headXOffset}

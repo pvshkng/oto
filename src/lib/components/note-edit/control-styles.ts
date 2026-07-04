@@ -21,7 +21,7 @@ export const fxStyle = tv({
 	base: `inline-flex items-center justify-center border border-border-strong ${GRADIENT} rounded-legacy-xs font-semibold text-ink cursor-pointer disabled:cursor-not-allowed disabled:opacity-40`,
 	variants: {
 		dense: {
-			true: 'h-[34px] text-[12px]',
+			true: 'h-[34px] min-w-[34px] px-1.5 text-[12px]',
 			false: 'h-9 min-w-[34px] flex-none px-[9px] text-sm max-[720px]:h-10 max-[720px]:min-w-[38px]'
 		}
 	}

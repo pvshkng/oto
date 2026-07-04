@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { makeScore, makeTrack, serialize, parse, OtoParseError, OTO_VERSION } from './format';
+import type { Technique } from './types';
 
 describe('.oto format', () => {
 	it('creates a valid default score', () => {
@@ -120,5 +121,61 @@ describe('.oto format', () => {
 		const s = parse(doc);
 		expect(s.tracks[0].measures[0].beats[0].duration).toBe(4);
 		expect(s.tracks[0].measures[0].beats[0].rest).toBe(true);
+	});
+
+	it('round-trips the full technique vocabulary', () => {
+		const techniques: Technique[] = [
+			'pull',
+			'tap',
+			'trill',
+			'tremolo',
+			'slap',
+			'pop',
+			'wide-vibrato',
+			'heavy-accent',
+			'tenuto',
+			'fade-in',
+			'grace'
+		];
+		const s = makeScore({
+			tracks: [
+				makeTrack({
+					measures: [
+						{
+							beats: techniques.map((t) => ({
+								duration: 8 as const,
+								notes: [{ string: 0, fret: 5, techniques: [t] }],
+								rest: false
+							}))
+						}
+					]
+				})
+			]
+		});
+		const back = parse(serialize(s));
+		const beats = back.tracks[0].measures[0].beats;
+		techniques.forEach((t, i) => expect(beats[i].notes[0].techniques).toEqual([t]));
+	});
+
+	it('drops unknown technique values on load', () => {
+		const doc = JSON.stringify({
+			format: 'oto',
+			tracks: [
+				{
+					measures: [
+						{
+							beats: [
+								{
+									duration: 4,
+									notes: [{ string: 0, fret: 3, techniques: ['slap', 'laser-beam'] }]
+								}
+							]
+						}
+					]
+				}
+			]
+		});
+		const s = parse(doc);
+		expect(s.tracks[0].measures[0].beats[0].notes[0].techniques).toEqual(['slap']);
 	});
 });

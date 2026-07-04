@@ -91,7 +91,7 @@
 			</div>
 			<div class={vSection}>
 				<span class={label}>Techniques</span>
-				<div class="grid grid-cols-5 gap-[3px]"><EffectsGrid dense /></div>
+				<div class="flex flex-col gap-2"><EffectsGrid dense sectioned /></div>
 			</div>
 		</div>
 	{/if}

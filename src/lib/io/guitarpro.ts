@@ -55,8 +55,9 @@ interface AtNote {
 	slideOutType?: number; // 0 = none
 	slideInType?: number; // 0 = none
 	slideTarget?: { fret: number } | null;
-	accentuated?: number; // 0 = none (AccentuationType)
+	accentuated?: number; // AccentuationType: 0 none, 1 normal, 2 heavy, 3 tenuto
 	isLeftHandTapped?: boolean;
+	trillValue?: number; // -1 = no trill; >= 0 = trill fret as MIDI value
 	isPercussion?: boolean;
 	percussionArticulation?: number;
 }
@@ -66,7 +67,13 @@ interface AtBeat {
 	isRest?: boolean;
 	isPalmMute?: boolean;
 	isLetRing?: boolean;
-	vibrato?: number;
+	vibrato?: number; // VibratoType: 0 none, 1 slight, 2 wide
+	slap?: boolean;
+	pop?: boolean;
+	tap?: boolean;
+	fade?: number; // FadeType: 0 none, 1 fade-in, 2 fade-out, 3 volume swell
+	graceType?: number; // GraceType: 0 = none
+	tremoloSpeed?: number | null; // tremolo picking speed (Duration); null = none
 	notes: AtNote[];
 }
 interface AtVoice {
@@ -145,7 +152,11 @@ function noteTechniques(note: AtNote, beat: AtBeat): Technique[] {
 	const t: Technique[] = [];
 	if (note.isPalmMute || beat.isPalmMute) t.push('palm-mute');
 	if (note.isLetRing || beat.isLetRing) t.push('let-ring');
-	if ((note.vibrato ?? 0) > 0 || (beat.vibrato ?? 0) > 0) t.push('vibrato');
+	// VibratoType distinguishes slight (1) from wide (2), on either note or beat.
+	const vibrato = Math.max(note.vibrato ?? 0, beat.vibrato ?? 0);
+	if (vibrato === 1) t.push('vibrato');
+	else if (vibrato >= 2) t.push('wide-vibrato');
+	if ((note.trillValue ?? -1) >= 0) t.push('trill');
 	if (note.isHammerPullOrigin) {
 		// Same alphaTab flag covers both directions; the destination fret tells
 		// them apart (higher fret = hammer-on, lower/equal = pull-off).
@@ -161,8 +172,18 @@ function noteTechniques(note: AtNote, beat: AtBeat): Technique[] {
 	if (note.hasBend || (note.bendType ?? 0) > 0) t.push('bend');
 	if ((note.slideOutType ?? 0) > 0 || (note.slideInType ?? 0) > 0 || note.slideTarget)
 		t.push('slide');
-	if ((note.accentuated ?? 0) > 0) t.push('accent');
-	if (note.isLeftHandTapped) t.push('tap');
+	// AccentuationType: 1 = normal accent, 2 = heavy accent, 3 = tenuto.
+	const accent = note.accentuated ?? 0;
+	if (accent === 1) t.push('accent');
+	else if (accent === 2) t.push('heavy-accent');
+	else if (accent === 3) t.push('tenuto');
+	if (note.isLeftHandTapped || beat.tap) t.push('tap');
+	if (beat.slap) t.push('slap');
+	if (beat.pop) t.push('pop');
+	// FadeType fade-in (1) and volume swell (3) both start from silence.
+	if (beat.fade === 1 || beat.fade === 3) t.push('fade-in');
+	if (beat.tremoloSpeed !== null && beat.tremoloSpeed !== undefined) t.push('tremolo');
+	if ((beat.graceType ?? 0) > 0) t.push('grace');
 	return t;
 }
 
