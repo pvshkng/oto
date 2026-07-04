@@ -1,0 +1,337 @@
+{
+  "format": "oto",
+  "version": 4,
+  "title": "Test: Octaves, Fermata, Tremolo & Strums",
+  "artist": "oto fixtures",
+  "tempo": 104,
+  "timeSignature": [
+    4,
+    4
+  ],
+  "keySignature": 0,
+  "masterVolume": 0.85,
+  "tracks": [
+    {
+      "id": "trk-mr6gu1uc-a",
+      "name": "Marks",
+      "kind": "guitar",
+      "tuning": [
+        "E4",
+        "B3",
+        "G3",
+        "D3",
+        "A2",
+        "E2"
+      ],
+      "capo": 0,
+      "transpose": 0,
+      "instrument": "acoustic",
+      "volume": 0.8,
+      "pan": 0,
+      "eq": {
+        "low": 0,
+        "mid": 0,
+        "high": 0
+      },
+      "muted": false,
+      "soloed": false,
+      "view": {
+        "standard": true,
+        "tab": true,
+        "rhythm": false
+      },
+      "measures": [
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 0,
+                  "fret": 12
+                }
+              ],
+              "rest": false,
+              "ottava": "8va"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 0,
+                  "fret": 14
+                }
+              ],
+              "rest": false,
+              "ottava": "8va"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 0,
+                  "fret": 15
+                }
+              ],
+              "rest": false,
+              "ottava": "15ma"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 0,
+                  "fret": 17
+                }
+              ],
+              "rest": false,
+              "ottava": "15ma"
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 0
+                }
+              ],
+              "rest": false,
+              "ottava": "8vb"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 2
+                }
+              ],
+              "rest": false,
+              "ottava": "8vb"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 0
+                }
+              ],
+              "rest": false,
+              "ottava": "15mb"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 3
+                }
+              ],
+              "rest": false,
+              "ottava": "15mb"
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 1,
+                  "fret": 7,
+                  "techniques": [
+                    "tremolo"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 1,
+                  "fret": 8,
+                  "techniques": [
+                    "tremolo"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "ghost"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 7
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "ghost"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 7
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 3
+                },
+                {
+                  "string": 4,
+                  "fret": 2
+                },
+                {
+                  "string": 3,
+                  "fret": 0
+                },
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 1,
+                  "fret": 3
+                },
+                {
+                  "string": 0,
+                  "fret": 3
+                }
+              ],
+              "rest": false,
+              "strum": "down"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 3
+                },
+                {
+                  "string": 4,
+                  "fret": 2
+                },
+                {
+                  "string": 3,
+                  "fret": 0
+                },
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 1,
+                  "fret": 3
+                },
+                {
+                  "string": 0,
+                  "fret": 3
+                }
+              ],
+              "rest": false,
+              "strum": "up"
+            },
+            {
+              "duration": 2,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 3
+                },
+                {
+                  "string": 4,
+                  "fret": 2
+                },
+                {
+                  "string": 3,
+                  "fret": 0
+                },
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 1,
+                  "fret": 3
+                },
+                {
+                  "string": 0,
+                  "fret": 3
+                }
+              ],
+              "rest": false,
+              "strum": "down",
+              "fermata": true
+            }
+          ]
+        }
+      ],
+      "color": "#d1fae5"
+    }
+  ],
+  "sections": [
+    {
+      "id": "sec-om-1",
+      "measure": 0,
+      "label": "Octave signs"
+    },
+    {
+      "id": "sec-om-2",
+      "measure": 2,
+      "label": "Tremolo & ghosts"
+    },
+    {
+      "id": "sec-om-3",
+      "measure": 3,
+      "label": "Strums"
+    }
+  ],
+  "createdAt": "2026-07-04T14:36:46.164Z",
+  "updatedAt": "2026-07-04T14:36:46.164Z"
+}

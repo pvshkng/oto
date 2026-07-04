@@ -32,6 +32,38 @@ export function letRingSpans(beats: LaidBeat[]): { x1: number; x2: number }[] {
 	return spans;
 }
 
+// Runs of consecutive beats sharing the same tuplet size → one bracket + number.
+export function tupletSpans(beats: LaidBeat[]): { x1: number; x2: number; n: number }[] {
+	const spans: { x1: number; x2: number; n: number }[] = [];
+	let start = -1;
+	for (let i = 0; i <= beats.length; i++) {
+		const n = i < beats.length ? beats[i].tuplet : null;
+		if (start >= 0 && (n === null || n !== beats[start].tuplet)) {
+			spans.push({ x1: beats[start].x, x2: beats[i - 1].x, n: beats[start].tuplet! });
+			start = -1;
+		}
+		if (n !== null && start < 0) start = i;
+	}
+	return spans;
+}
+
+// Runs of consecutive beats sharing the same octave sign → one dashed span.
+export function ottavaSpans(
+	beats: LaidBeat[]
+): { x1: number; x2: number; ottava: NonNullable<LaidBeat['ottava']> }[] {
+	const spans: { x1: number; x2: number; ottava: NonNullable<LaidBeat['ottava']> }[] = [];
+	let start = -1;
+	for (let i = 0; i <= beats.length; i++) {
+		const o = i < beats.length ? beats[i].ottava : null;
+		if (start >= 0 && (o === null || o !== beats[start].ottava)) {
+			spans.push({ x1: beats[start].x, x2: beats[i - 1].x, ottava: beats[start].ottava! });
+			start = -1;
+		}
+		if (o !== null && start < 0) start = i;
+	}
+	return spans;
+}
+
 export function beamGroups(beats: LaidBeat[]): number[] {
 	const groups: number[] = [];
 	for (const b of beats)

@@ -4,13 +4,57 @@ import {
 	beatsCutoff,
 	measureCapacity,
 	overflowCutoff,
-	beatFraction
+	beatFraction,
+	tupletFactor
 } from './duration';
-import type { DurationValue, OtoBeat, OtoMeasure } from './types';
+import type { DurationValue, OtoBeat, OtoMeasure, TupletValue } from './types';
 
 function beat(duration: DurationValue, dotted = false): OtoBeat {
 	return { duration, dotted, notes: [{ string: 0, fret: 0 }] };
 }
+
+function tupletBeat(duration: DurationValue, tuplet: TupletValue): OtoBeat {
+	return { duration, tuplet, notes: [{ string: 0, fret: 0 }] };
+}
+
+describe('tuplet math', () => {
+	it('maps each tuplet size to N-in-the-time-of-M', () => {
+		expect(tupletFactor(3)).toBeCloseTo(2 / 3, 12); // triplet: 3 in the time of 2
+		expect(tupletFactor(5)).toBeCloseTo(4 / 5, 12);
+		expect(tupletFactor(6)).toBeCloseTo(4 / 6, 12);
+		expect(tupletFactor(7)).toBeCloseTo(4 / 7, 12);
+		expect(tupletFactor(9)).toBeCloseTo(8 / 9, 12);
+	});
+
+	it('three triplet eighths occupy exactly one quarter note', () => {
+		const total = [1, 2, 3].reduce((s) => s + beatFraction(tupletBeat(8, 3)), 0);
+		expect(total).toBeCloseTo(1 / 4, 12);
+	});
+
+	it('twelve triplet eighths exactly fill a 4/4 bar (no overflow, not underfilled)', () => {
+		const measure: OtoMeasure = {
+			beats: Array.from({ length: 12 }, () => tupletBeat(8, 3))
+		};
+		const fill = analyzeMeasure(measure, [4, 4]);
+		expect(fill.overflow).toBe(false);
+		expect(fill.underfilled).toBe(false);
+	});
+
+	it('a quintuplet of sixteenths occupies one quarter note', () => {
+		const total = Array.from({ length: 5 }).reduce<number>(
+			(s) => s + beatFraction(tupletBeat(16, 5)),
+			0
+		);
+		expect(total).toBeCloseTo(1 / 4, 12);
+	});
+
+	it('dotting composes with the tuplet ratio', () => {
+		expect(beatFraction({ duration: 8, dotted: true, tuplet: 3, notes: [] })).toBeCloseTo(
+			(1 / 8) * 1.5 * (2 / 3),
+			12
+		);
+	});
+});
 
 const TS: [number, number] = [4, 4];
 

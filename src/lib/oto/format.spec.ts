@@ -157,6 +157,102 @@ describe('.oto format', () => {
 		techniques.forEach((t, i) => expect(beats[i].notes[0].techniques).toEqual([t]));
 	});
 
+	it('round-trips beat-level notation marks (tuplet/dynamic/strum/fermata/ottava)', () => {
+		const s = makeScore({
+			tracks: [
+				makeTrack({
+					measures: [
+						{
+							beats: [
+								{
+									duration: 8,
+									tuplet: 3,
+									dynamic: 'sffz',
+									strum: 'down',
+									fermata: true,
+									ottava: '15mb',
+									notes: [{ string: 0, fret: 5 }],
+									rest: false
+								}
+							]
+						}
+					]
+				})
+			]
+		});
+		const b = parse(serialize(s)).tracks[0].measures[0].beats[0];
+		expect(b.tuplet).toBe(3);
+		expect(b.dynamic).toBe('sffz');
+		expect(b.strum).toBe('down');
+		expect(b.fermata).toBe(true);
+		expect(b.ottava).toBe('15mb');
+	});
+
+	it('round-trips measure-level structure marks', () => {
+		const s = makeScore({
+			tracks: [
+				makeTrack({
+					measures: [
+						{ repeatStart: true, segno: true, beats: [{ duration: 4, notes: [], rest: true }] },
+						{ volta: 1, simile: true, beats: [{ duration: 4, notes: [], rest: true }] },
+						{
+							volta: 2,
+							repeatEnd: true,
+							repeatCount: 3,
+							beats: [{ duration: 4, notes: [], rest: true }]
+						},
+						{
+							barline: 'double',
+							coda: true,
+							beats: [{ duration: 4, notes: [], rest: true }]
+						}
+					]
+				})
+			]
+		});
+		const ms = parse(serialize(s)).tracks[0].measures;
+		expect(ms[0]).toMatchObject({ repeatStart: true, segno: true });
+		expect(ms[1]).toMatchObject({ volta: 1, simile: true });
+		expect(ms[2]).toMatchObject({ volta: 2, repeatEnd: true, repeatCount: 3 });
+		expect(ms[3]).toMatchObject({ barline: 'double', coda: true });
+	});
+
+	it('drops invalid notation-mark values on load', () => {
+		const doc = JSON.stringify({
+			format: 'oto',
+			tracks: [
+				{
+					measures: [
+						{
+							barline: 'wavy',
+							volta: -2,
+							repeatCount: 5, // without repeatEnd → dropped
+							beats: [
+								{
+									duration: 4,
+									tuplet: 4,
+									dynamic: 'fffff',
+									strum: 'sideways',
+									ottava: '32va',
+									notes: [{ string: 0, fret: 3 }]
+								}
+							]
+						}
+					]
+				}
+			]
+		});
+		const m = parse(doc).tracks[0].measures[0];
+		expect(m.barline).toBeUndefined();
+		expect(m.volta).toBeUndefined();
+		expect(m.repeatCount).toBeUndefined();
+		const b = m.beats[0];
+		expect(b.tuplet).toBeUndefined();
+		expect(b.dynamic).toBeUndefined();
+		expect(b.strum).toBeUndefined();
+		expect(b.ottava).toBeUndefined();
+	});
+
 	it('drops unknown technique values on load', () => {
 		const doc = JSON.stringify({
 			format: 'oto',

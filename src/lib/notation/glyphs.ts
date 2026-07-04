@@ -5,7 +5,7 @@
 // Glyphs are built from explicit SMuFL code points (Private Use Area) via
 // String.fromCodePoint so this source stays ASCII-readable and diffable.
 
-import type { DurationValue } from '$lib/oto/types';
+import type { Dynamic, DurationValue } from '$lib/oto/types';
 
 const cp = (n: number) => String.fromCodePoint(n);
 
@@ -28,8 +28,48 @@ export const GLYPH = {
 	accidentalFlat: cp(0xe260),
 	accidentalNatural: cp(0xe261),
 	// Small quarter note designed for tempo markings (e.g. "♩ = 120").
-	metNoteQuarterUp: cp(0xeca5)
+	metNoteQuarterUp: cp(0xeca5),
+	// Navigation / structure marks.
+	segno: cp(0xe047),
+	coda: cp(0xe048),
+	fermataAbove: cp(0xe4c0),
+	/** Simile: repeat the previous bar (%). */
+	repeat1Bar: cp(0xe500)
 } as const;
+
+// SMuFL tuplet digits live at U+E880–U+E889 (tuplet0 … tuplet9).
+const TUPLET_DIGITS = Array.from({ length: 10 }, (_, d) => cp(0xe880 + d));
+
+/** Render a tuplet number as Bravura tuplet digits. */
+export function tupletGlyphs(n: number): string {
+	return String(n)
+		.split('')
+		.map((d) => TUPLET_DIGITS[+d] ?? '')
+		.join('');
+}
+
+// Bravura dynamics glyphs (single pre-composed glyphs, U+E520 block), so the
+// marks render with the engraved italic look instead of a faux-italic web font.
+const DYNAMIC_GLYPHS: Record<Dynamic, string> = {
+	ppp: cp(0xe52a), // dynamicPPP
+	pp: cp(0xe52b), // dynamicPP
+	p: cp(0xe520), // dynamicPiano
+	mp: cp(0xe52c), // dynamicMP
+	mf: cp(0xe52d), // dynamicMF
+	f: cp(0xe522), // dynamicForte
+	ff: cp(0xe52f), // dynamicFF
+	fff: cp(0xe530), // dynamicFFF
+	fp: cp(0xe534), // dynamicFortePiano
+	fz: cp(0xe535), // dynamicForzando
+	sf: cp(0xe536), // dynamicSforzando1
+	sfz: cp(0xe539), // dynamicSforzato
+	sffz: cp(0xe53b) // dynamicSforzatoFF
+};
+
+/** Bravura glyph for a dynamic marking. */
+export function dynamicGlyph(d: Dynamic): string {
+	return DYNAMIC_GLYPHS[d] ?? '';
+}
 
 // SMuFL time-signature digits live at U+E080–U+E089 (timeSig0 … timeSig9). The
 // plain ASCII digits don't carry the staff-specific design, so the time

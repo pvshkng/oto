@@ -2,9 +2,23 @@
 	// One voice of the standard staff: beams, then per-beat rests/noteheads/stems.
 	import type { LaidBeat } from '$lib/notation/layout';
 	import { METRICS } from '$lib/notation/layout';
-	import { GLYPH, restGlyph, accidentalGlyph } from '$lib/notation/glyphs';
+	import {
+		GLYPH,
+		restGlyph,
+		accidentalGlyph,
+		dynamicGlyph,
+		tupletGlyphs
+	} from '$lib/notation/glyphs';
 	import { midiToNote } from '$lib/oto/pitch';
-	import { beamGroups, beamLine, beamYAt, stemX, SEC_BEAM_GAP } from './beam-geometry';
+	import {
+		beamGroups,
+		beamLine,
+		beamYAt,
+		ottavaSpans,
+		stemX,
+		tupletSpans,
+		SEC_BEAM_GAP
+	} from './beam-geometry';
 	import { isCursorBeat, inSelection, isPlayingBeat } from './predicates';
 	import { noteheadStyle, deadHeadStyle } from './note-styles';
 
@@ -28,7 +42,45 @@
 	const BG_CURSOR = 'fill-[rgba(24,24,27,0.16)] [rx:3]';
 	const BG_SEL = 'fill-[rgba(24,24,27,0.07)] [rx:3]';
 	const BG_PLAY = 'fill-[rgba(24,24,27,0.28)] [rx:3]';
+	const MARK_LINE = 'stroke-[#52525b] [stroke-width:1.1] fill-none';
+
+	// Below-staff line for dynamics; above-staff strip for fermata/tuplets/8va.
+	const staffBottom = METRICS.stdTopPad + 5 * METRICS.staffLineGap;
 </script>
+
+<!-- Tuplet brackets: one per run of same-size tuplet beats, above the staff. -->
+{#each tupletSpans(beats) as span (span.x1)}
+	{@const y = 10}
+	<path d="M {span.x1 - 5} {y + 4} V {y} H {span.x2 + 5} V {y + 4}" class={MARK_LINE} />
+	<rect x={(span.x1 + span.x2) / 2 - 5} y={y - 5} width="10" height="9" class="fill-paper" />
+	<text x={(span.x1 + span.x2) / 2} y={y + 4} class="{BRAVURA} text-[13px] [text-anchor:middle]"
+		>{tupletGlyphs(span.n)}</text
+	>
+{/each}
+<!-- Octave signs: italic label + dashed extent over (8va/15ma) or under (8vb/15mb). -->
+{#each ottavaSpans(beats) as span (span.x1)}
+	{@const above = span.ottava === '8va' || span.ottava === '15ma'}
+	{@const y = above ? 5 : bandHeight - 6}
+	<text
+		x={span.x1 - 8}
+		y={y + 3}
+		class="[font:italic_700_9px_ui-sans-serif,sans-serif] fill-[#52525b]">{span.ottava}</text
+	>
+	<line
+		x1={span.x1 + 14}
+		y1={y}
+		x2={span.x2 + 8}
+		y2={y}
+		class="stroke-[#52525b] [stroke-width:1] [stroke-dasharray:3_2]"
+	/>
+	<line
+		x1={span.x2 + 8}
+		y1={y}
+		x2={span.x2 + 8}
+		y2={above ? y + 5 : y - 5}
+		class="stroke-[#52525b] [stroke-width:1]"
+	/>
+{/each}
 
 {#each beamGroups(beats) as group (group)}
 	{@const members = beats.filter((b) => b.beamGroup === group)}
@@ -85,6 +137,14 @@
 	{:else if vIdx === 0 && inSelection(measureIndex, beat.index, trackIndex)}
 		<rect x={beat.x - 9} y="2" width="18" height={bandHeight - 4} class={BG_SEL} />
 	{/if}
+	{#if beat.fermata}
+		<text x={beat.x - 6} y={13} class="{BRAVURA} text-[20px]">{GLYPH.fermataAbove}</text>
+	{/if}
+	{#if beat.dynamic}
+		<text x={beat.x} y={staffBottom + 22} class="{BRAVURA} text-[18px] [text-anchor:middle]"
+			>{dynamicGlyph(beat.dynamic)}</text
+		>
+	{/if}
 	{#if beat.rest}
 		<text
 			x={beat.x - 4}
@@ -111,6 +171,20 @@
 				/>
 			{/each}
 		{/each}
+		{#if beat.notes.some((n) => n.techniques.includes('tremolo'))}
+			<!-- Tremolo picking: three slashes across the stem (or above a whole note). -->
+			{@const tx = beat.duration === 1 ? beat.x + 12 : stemX(beat)}
+			{@const ty = beat.stemDir === 1 ? beat.stdStemTop + 7 : beat.stdStemBottom - 15}
+			{#each [0, 4, 8] as dy (dy)}
+				<line
+					x1={tx - 4}
+					y1={ty + dy + 2}
+					x2={tx + 4}
+					y2={ty + dy - 2}
+					class="stroke-[#18181b] [stroke-width:1.6]"
+				/>
+			{/each}
+		{/if}
 		{#if beat.duration !== 1 && beat.beamGroup === -1}
 			<line
 				x1={stemX(beat)}

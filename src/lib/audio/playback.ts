@@ -3,6 +3,7 @@
 // the playhead position back into the store.
 
 import { audio, compileScore, type CompiledScore } from './engine';
+import { beatFraction } from '$lib/oto/duration';
 import { store } from '$lib/stores/score.svelte';
 
 // Compiling builds the full note/marker schedule for the whole score, which is
@@ -32,9 +33,8 @@ function timeAt(compiled: CompiledScore, measure: number, beat: number): number 
 		const tempo = m.tempo ?? store.score.tempo;
 		const q = 60 / tempo;
 		for (let i = 0; i < beat && i < m.beats.length; i++) {
-			const b = m.beats[i];
-			const frac = b.dotted ? (1 / b.duration) * 1.5 : 1 / b.duration;
-			t += frac * 4 * q;
+			// beatFraction accounts for dots AND tuplets, matching compileScore.
+			t += beatFraction(m.beats[i]) * 4 * q;
 		}
 	}
 	return t;

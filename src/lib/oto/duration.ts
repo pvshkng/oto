@@ -4,12 +4,31 @@
 // 4 quarter notes = 1 whole note of capacity. A 3/4 bar holds 3/4. We use this
 // to detect bars that overflow (too many notes) and to schedule playback.
 
-import { measureVoices, type DurationValue, type OtoBeat, type OtoMeasure } from './types';
+import {
+	measureVoices,
+	type DurationValue,
+	type OtoBeat,
+	type OtoMeasure,
+	type TupletValue
+} from './types';
 
-/** Fraction of a whole note that a beat occupies (accounts for dotting). */
+/**
+ * Time-scaling factor for a tuplet: N notes in the time of M, where M is the
+ * next-lower power of two (3:2, 5:4, 6:4, 7:4, 9:8). Each member's nominal
+ * duration is multiplied by M/N, so e.g. three triplet eighths fill exactly
+ * one quarter note.
+ */
+export function tupletFactor(n: TupletValue): number {
+	const m = Math.pow(2, Math.floor(Math.log2(n)));
+	return m / n;
+}
+
+/** Fraction of a whole note that a beat occupies (accounts for dotting + tuplets). */
 export function beatFraction(beat: OtoBeat): number {
-	const base = 1 / beat.duration;
-	return beat.dotted ? base * 1.5 : base;
+	let frac = 1 / beat.duration;
+	if (beat.dotted) frac *= 1.5;
+	if (beat.tuplet) frac *= tupletFactor(beat.tuplet);
+	return frac;
 }
 
 /** Capacity of a measure as a fraction of a whole note. */

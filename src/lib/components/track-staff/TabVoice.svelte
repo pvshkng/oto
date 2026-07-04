@@ -3,7 +3,8 @@
 	import type { LaidBeat } from '$lib/notation/layout';
 	import { METRICS } from '$lib/notation/layout';
 	import { store } from '$lib/stores/score.svelte';
-	import { letRingSpans } from './beam-geometry';
+	import { dynamicGlyph, GLYPH, tupletGlyphs } from '$lib/notation/glyphs';
+	import { letRingSpans, tupletSpans } from './beam-geometry';
 	import { isCursorBeat, inSelection, isPlayingBeat } from './predicates';
 	import { fretStyle } from './note-styles';
 
@@ -13,7 +14,8 @@
 		vIdx,
 		bandHeight,
 		isActiveTrack,
-		trackIndex
+		trackIndex,
+		showMarks = false
 	}: {
 		beats: LaidBeat[];
 		measureIndex: number;
@@ -21,6 +23,9 @@
 		bandHeight: number;
 		isActiveTrack: boolean;
 		trackIndex: number;
+		/** Draw fermata/dynamics/tuplet marks here — only when the standard band
+		 *  (their usual home) is hidden, so they aren't drawn twice. */
+		showMarks?: boolean;
 	} = $props();
 
 	const FX = '[font:600_8px_ui-sans-serif,sans-serif] fill-[#71717a] [text-anchor:middle]';
@@ -28,7 +33,22 @@
 	const BG_CURSOR = 'fill-[rgba(24,24,27,0.16)] [rx:3]';
 	const BG_SEL = 'fill-[rgba(24,24,27,0.07)] [rx:3]';
 	const BG_PLAY = 'fill-[rgba(24,24,27,0.28)] [rx:3]';
+	const BRAVURA = "[font-family:'Bravura',serif] fill-[#18181b]";
+	const MARK_LINE = 'stroke-[#52525b] [stroke-width:1.1] fill-none';
+	const STRUM = 'stroke-[#3f3f46] [stroke-width:1.5] fill-none';
 </script>
+
+{#if showMarks}
+	<!-- Tuplet brackets over the tab (only when the standard staff is hidden). -->
+	{#each tupletSpans(beats) as span (span.x1)}
+		{@const y = 6}
+		<path d="M {span.x1 - 5} {y + 4} V {y} H {span.x2 + 5} V {y + 4}" class={MARK_LINE} />
+		<rect x={(span.x1 + span.x2) / 2 - 5} y={y - 5} width="10" height="9" class="fill-paper" />
+		<text x={(span.x1 + span.x2) / 2} y={y + 4} class="{BRAVURA} text-[13px] [text-anchor:middle]"
+			>{tupletGlyphs(span.n)}</text
+		>
+	{/each}
+{/if}
 
 {#each letRingSpans(beats) as span (span.x1)}
 	<text x={span.x1 - 7} y={9} class="[font:italic_600_8px_ui-sans-serif,sans-serif] fill-[#71717a]"
@@ -65,6 +85,29 @@
 		{/if}
 	{:else if vIdx === 0 && inSelection(measureIndex, beat.index, trackIndex)}
 		<rect x={beat.x - 9} y="6" width="18" height={bandHeight - 12} class={BG_SEL} />
+	{/if}
+	{#if beat.strum && beat.notes.length}
+		<!-- Strum/brush arrow beside the chord. A down-strum travels from the
+		     low-pitched strings (bottom of the tab) to the high ones (top), so
+		     its arrowhead points up; an up-strum is the mirror image. -->
+		{@const ys = beat.notes.map((n) => n.tabY)}
+		{@const yTop = Math.min(...ys) - 5}
+		{@const yBot = Math.max(...ys, Math.min(...ys) + METRICS.tabLineGap) + 5}
+		{@const sx = beat.x - 13}
+		<line x1={sx} y1={yTop} x2={sx} y2={yBot} class={STRUM} />
+		{#if beat.strum === 'down'}
+			<path d="M {sx - 3} {yTop + 5} L {sx} {yTop} L {sx + 3} {yTop + 5}" class={STRUM} />
+		{:else}
+			<path d="M {sx - 3} {yBot - 5} L {sx} {yBot} L {sx + 3} {yBot - 5}" class={STRUM} />
+		{/if}
+	{/if}
+	{#if showMarks && beat.fermata}
+		<text x={beat.x - 6} y={10} class="{BRAVURA} text-[18px]">{GLYPH.fermataAbove}</text>
+	{/if}
+	{#if showMarks && beat.dynamic}
+		<text x={beat.x} y={bandHeight - 2} class="{BRAVURA} text-[16px] [text-anchor:middle]"
+			>{dynamicGlyph(beat.dynamic)}</text
+		>
 	{/if}
 	{#each beat.notes as n (n.string)}
 		{@const isDead = n.techniques.includes('dead')}

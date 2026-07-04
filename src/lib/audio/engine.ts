@@ -10,7 +10,7 @@
 import * as Tone from 'tone';
 import { frettedFreq } from '$lib/oto/pitch';
 import { beatFraction, beatsCutoff } from '$lib/oto/duration';
-import { measureVoices, type OtoScore, type OtoTrack } from '$lib/oto/types';
+import { DYNAMIC_VELOCITY, measureVoices, type OtoScore, type OtoTrack } from '$lib/oto/types';
 import {
 	createSampler,
 	getDrumBuffer,
@@ -122,8 +122,19 @@ export function compileScore(score: OtoScore): CompiledScore {
 					if (isPrimaryVoice) beatMarkers.push({ time: startT, measure: mi, beat: bi });
 					if (!beat.rest) {
 						const palm = beat.notes.some((n) => n.techniques?.includes('palm-mute'));
+						// Dynamic marking scales the whole beat's attack strength.
+						const dynVel = beat.dynamic ? DYNAMIC_VELOCITY[beat.dynamic] : 1;
+						// Strum: stagger the chord's notes slightly. A down-strum hits the
+						// low-pitched strings first (largest string index — index 0 is the
+						// highest string); an up-strum is the reverse.
+						const strumOrder = beat.strum
+							? [...beat.notes].sort((a, b) =>
+									beat.strum === 'down' ? b.string - a.string : a.string - b.string
+								)
+							: null;
 						for (const note of beat.notes) {
 							if (note.techniques?.includes('dead')) continue;
+							const strumDelay = strumOrder ? strumOrder.indexOf(note) * 0.014 : 0;
 							const freq = frettedFreq(track.tuning, note.string, note.fret, {
 								capo: track.capo,
 								transpose: track.transpose
@@ -136,17 +147,19 @@ export function compileScore(score: OtoScore): CompiledScore {
 										})
 									: undefined;
 							notes.push({
-								time: startT,
+								time: startT + strumDelay,
 								duration: durSec * (note.techniques?.includes('staccato') ? 0.4 : 0.95),
 								freq,
 								// Per-track volume is applied live by the voice's gain node (see
 								// TrackVoice.gain), so it is intentionally *not* baked into velocity —
 								// that keeps the fader audible mid-playback.
-								velocity: note.techniques?.includes('ghost')
-									? 0.4
-									: note.techniques?.includes('fade-in')
-										? 0.5
-										: 1,
+								velocity:
+									dynVel *
+									(note.techniques?.includes('ghost')
+										? 0.4
+										: note.techniques?.includes('fade-in')
+											? 0.5
+											: 1),
 								trackId: track.id,
 								bend: note.techniques?.includes('bend') ? (note.bend ?? 1) : undefined,
 								slideToFreq,
