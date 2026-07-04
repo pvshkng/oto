@@ -105,4 +105,73 @@ describe('gpScoreToOto', () => {
 		const frets = oto.tracks[0].measures[0].beats.map((b) => b.notes[0]?.fret);
 		expect(frets).toEqual([3, 5, 7, 8]);
 	});
+
+	it('distinguishes an ascending slur (hammer-on) from a descending one (pull-off)', () => {
+		const hammerOn = gpScoreToOto(fromTex('. 3.3{h} 5.3'));
+		expect(hammerOn.tracks[0].measures[0].beats[0].notes[0].techniques).toContain('hammer');
+
+		const pullOff = gpScoreToOto(fromTex('. 5.3{h} 3.3'));
+		expect(pullOff.tracks[0].measures[0].beats[0].notes[0].techniques).toContain('pull');
+	});
+
+	it('imports accents, taps and artificial harmonics', () => {
+		const oto = gpScoreToOto(fromTex('. 3.3{ac} 3.3{lht} 3.3{ah}'));
+		const notes = oto.tracks[0].measures[0].beats.map((b) => b.notes[0]);
+		expect(notes[0].techniques).toContain('accent');
+		expect(notes[1].techniques).toContain('tap');
+		expect(notes[2].techniques).toContain('artificial-harmonic');
+		expect(notes[2].techniques).not.toContain('harmonic');
+	});
+
+	it('captures the key signature', () => {
+		const oto = gpScoreToOto(fromTex('\\ks d . 0.1'));
+		expect(oto.keySignature).toBe(2);
+	});
+});
+
+describe('gpScoreToOto: drum tracks', () => {
+	it('imports a percussion staff as a drum-kit track instead of dropping it', () => {
+		const oto = gpScoreToOto(fromTex('\\track "Drums" . 36 38 42'));
+		expect(oto.tracks.length).toBe(1);
+		const track = oto.tracks[0];
+		expect(track.kind).toBe('custom');
+		expect(track.instrument).toBe('drums');
+		expect(track.view.standard).toBe(false);
+		expect(track.view.tab).toBe(true);
+	});
+
+	it('gives every distinct GM drum piece its own line, highest pitch first, fret 0', () => {
+		const oto = gpScoreToOto(fromTex('\\track "Drums" . 36 38 42'));
+		const track = oto.tracks[0];
+		// 42 = Hi-Hat closed, 38 = Snare, 36 = Kick — highest pitch first.
+		expect(track.tuning).toEqual(['F#2', 'D2', 'C2']);
+		const beats = track.measures[0].beats;
+		// Input order is kick(36), snare(38), hi-hat(42); lines run high→low.
+		expect(beats[0].notes).toEqual([{ string: 2, fret: 0 }]); // kick
+		expect(beats[1].notes).toEqual([{ string: 1, fret: 0 }]); // snare
+		expect(beats[2].notes).toEqual([{ string: 0, fret: 0 }]); // hi-hat
+	});
+
+	it('keeps simultaneous drum hits together as a chord on one beat', () => {
+		const oto = gpScoreToOto(fromTex('\\track "Drums" . (36 42)'));
+		const strings = oto.tracks[0].measures[0].beats[0].notes.map((n) => n.string).sort();
+		expect(strings).toEqual([0, 1]);
+	});
+
+	it('imports a mix of stringed and drum tracks in the same file', () => {
+		const oto = gpScoreToOto(fromTex('\\track "Guitar" . 0.1 1.1 | \\track "Drums" . 36 38'));
+		expect(oto.tracks.length).toBe(2);
+		expect(oto.tracks[0].kind).toBe('guitar');
+		expect(oto.tracks[1].instrument).toBe('drums');
+	});
+
+	it('round-trips a drum track through real Guitar Pro (.gp) binary bytes', () => {
+		const score = ScoreLoader.loadAlphaTex('\\track "Drums" . 36 38 42');
+		const bytes = new exporter.Gp7Exporter().export(score, new Settings());
+		const reloaded = ScoreLoader.loadScoreFromBytes(new Uint8Array(bytes), new Settings());
+		const oto = gpScoreToOto(reloaded as unknown as AtScore);
+		expect(oto.tracks.length).toBe(1);
+		expect(oto.tracks[0].instrument).toBe('drums');
+		expect(oto.tracks[0].tuning.length).toBe(3);
+	});
 });
