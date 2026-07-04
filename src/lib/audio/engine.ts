@@ -142,11 +142,19 @@ export function compileScore(score: OtoScore): CompiledScore {
 								// Per-track volume is applied live by the voice's gain node (see
 								// TrackVoice.gain), so it is intentionally *not* baked into velocity —
 								// that keeps the fader audible mid-playback.
-								velocity: note.techniques?.includes('ghost') ? 0.4 : 1,
+								velocity: note.techniques?.includes('ghost')
+									? 0.4
+									: note.techniques?.includes('fade-in')
+										? 0.5
+										: 1,
 								trackId: track.id,
 								bend: note.techniques?.includes('bend') ? (note.bend ?? 1) : undefined,
 								slideToFreq,
-								vibrato: note.techniques?.includes('vibrato') || undefined,
+								vibrato:
+									note.techniques?.includes('vibrato') ||
+									note.techniques?.includes('wide-vibrato') ||
+									note.techniques?.includes('trill') ||
+									undefined,
 								palmMute: palm
 							});
 						}

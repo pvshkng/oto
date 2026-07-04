@@ -11,6 +11,7 @@
 //            for older documents.
 
 import { TUNINGS } from './pitch';
+import { isTechnique } from './types';
 import type {
 	DurationValue,
 	OtoBeat,
@@ -229,10 +230,15 @@ function normaliseBeat(b: unknown): OtoBeat {
 	const notes = Array.isArray(o.notes)
 		? (o.notes as unknown[]).map((n) => {
 				const no = (n ?? {}) as Record<string, unknown>;
+				// Keep only techniques this build knows about, so documents written
+				// by newer/older versions (or by hand) never carry junk into the UI.
+				const techniques = Array.isArray(no.techniques)
+					? no.techniques.filter(isTechnique)
+					: undefined;
 				return {
 					string: typeof no.string === 'number' ? no.string : 0,
 					fret: typeof no.fret === 'number' ? no.fret : 0,
-					techniques: Array.isArray(no.techniques) ? (no.techniques as never[]) : undefined,
+					techniques: techniques && techniques.length ? techniques : undefined,
 					bend: typeof no.bend === 'number' ? no.bend : undefined,
 					slideTo: typeof no.slideTo === 'number' ? no.slideTo : undefined,
 					tied: typeof no.tied === 'boolean' ? no.tied : undefined

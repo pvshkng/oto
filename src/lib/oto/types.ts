@@ -34,15 +34,23 @@ export type Technique =
 	| 'release'
 	| 'bend-release' // bend then release back
 	| 'vibrato'
+	| 'wide-vibrato' // wide/slow vibrato (Guitar Pro "wide")
+	| 'trill' // trill (tr)
+	| 'tremolo' // tremolo picking
 	| 'palm-mute'
 	| 'let-ring'
 	| 'tap'
+	| 'slap' // bass slap (S)
+	| 'pop' // bass pop (P)
 	| 'harmonic' // natural harmonic
 	| 'artificial-harmonic' // artificial harmonic (A.H.)
 	| 'dead' // dead/muted note (x)
 	| 'staccato'
+	| 'tenuto' // tenuto (–)
 	| 'ghost' // ghost note (parentheses)
 	| 'accent' // accent (>)
+	| 'heavy-accent' // heavy accent / marcato (^)
+	| 'fade-in' // fade in / volume swell
 	| 'grace'; // grace note
 
 export const TECHNIQUE_LABELS: Record<Technique, string> = {
@@ -53,17 +61,32 @@ export const TECHNIQUE_LABELS: Record<Technique, string> = {
 	release: 'Release',
 	'bend-release': 'Bend/Release',
 	vibrato: 'Vibrato',
+	'wide-vibrato': 'Wide Vibrato',
+	trill: 'Trill',
+	tremolo: 'Tremolo Picking',
 	'palm-mute': 'Palm Mute',
 	'let-ring': 'Let Ring',
 	tap: 'Tap',
+	slap: 'Slap',
+	pop: 'Pop',
 	harmonic: 'Nat. Harmonic',
 	'artificial-harmonic': 'Art. Harmonic',
 	dead: 'Dead Note',
 	staccato: 'Staccato',
+	tenuto: 'Tenuto',
 	ghost: 'Ghost Note',
 	accent: 'Accent',
+	'heavy-accent': 'Heavy Accent',
+	'fade-in': 'Fade In',
 	grace: 'Grace Note'
 };
+
+/** All valid technique values — used to sanitise techniques read from disk. */
+export const TECHNIQUES = Object.keys(TECHNIQUE_LABELS) as Technique[];
+
+export function isTechnique(v: unknown): v is Technique {
+	return typeof v === 'string' && (TECHNIQUES as string[]).includes(v);
+}
 
 /** Circle-of-fifths lookup: fifths offset -> major/relative-minor key names. */
 export const KEY_SIGS: { fifths: number; major: string; minor: string }[] = [

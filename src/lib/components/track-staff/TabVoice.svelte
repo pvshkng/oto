@@ -115,6 +115,59 @@
 				>›</text
 			>
 		{/if}
+		{#if n.techniques.includes('heavy-accent')}
+			<text
+				x={n.x}
+				y={n.tabY - 9}
+				class="[font-family:ui-sans-serif,sans-serif] text-[11px] font-bold fill-[#71717a] [text-anchor:middle]"
+				>^</text
+			>
+		{/if}
+		{#if n.techniques.includes('tenuto')}
+			<line
+				x1={n.x - 4}
+				y1={n.tabY - 11}
+				x2={n.x + 4}
+				y2={n.tabY - 11}
+				class="stroke-[#18181b] [stroke-width:1.6]"
+			/>
+		{/if}
+		{#if n.techniques.includes('tap')}
+			<text x={n.x} y={n.tabY - 9} class={FX}>T</text>
+		{/if}
+		{#if n.techniques.includes('slap')}
+			<text x={n.x} y={n.tabY - 9} class={FX}>S</text>
+		{/if}
+		{#if n.techniques.includes('pop')}
+			<text x={n.x} y={n.tabY - 9} class={FX}>P</text>
+		{/if}
+		{#if n.techniques.includes('trill')}
+			<text
+				x={n.x + 10}
+				y={n.tabY - 9}
+				class="[font:italic_600_9px_ui-sans-serif,sans-serif] fill-[#71717a] [text-anchor:middle]"
+				>tr</text
+			>
+		{/if}
+		{#if n.techniques.includes('tremolo')}
+			<!-- Tremolo picking: three short slashes beside the fret number. -->
+			{#each [0, 3, 6] as dy (dy)}
+				<line
+					x1={n.x + 9}
+					y1={n.tabY - 6 + dy}
+					x2={n.x + 15}
+					y2={n.tabY - 9 + dy}
+					class="stroke-[#52525b] [stroke-width:1.3]"
+				/>
+			{/each}
+		{/if}
+		{#if n.techniques.includes('fade-in')}
+			<!-- Fade in: small crescendo hairpin under the fret number. -->
+			<path
+				d="M {n.x + 16} {n.tabY + 9} L {n.x + 6} {n.tabY + 6} L {n.x + 16} {n.tabY + 3}"
+				class="fill-none stroke-[#52525b] [stroke-width:1.1]"
+			/>
+		{/if}
 		{#if n.techniques.includes('grace')}
 			<text
 				x={n.x - 9}
@@ -125,6 +178,9 @@
 		{/if}
 		{#if n.techniques.includes('vibrato')}
 			<text x={n.x + 10} y={n.tabY + 4} class="text-[12px] fill-[#71717a]">∿</text>
+		{/if}
+		{#if n.techniques.includes('wide-vibrato')}
+			<text x={n.x + 10} y={n.tabY + 4} class="text-[12px] font-bold fill-[#71717a]">∿∿</text>
 		{/if}
 		{#if n.techniques.includes('bend')}
 			<path d="M {n.x + 8} {n.tabY} q 10 -2 12 -14" class={BEND_ARROW} />
