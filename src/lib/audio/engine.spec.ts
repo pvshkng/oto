@@ -1,16 +1,41 @@
 import { describe, it, expect } from 'vitest';
 import { AudioEngine } from './engine';
+import { METRONOME_CHANNEL } from './midi';
 import { makeTrack } from '$lib/oto/format';
 
-/** Minimal stand-in for the Tone nodes a TrackVoice wraps — enough for
- *  applyTrackSettings()/syncAllTracks() to write through to, same trick
- *  engine.spec.ts already uses for metroGain above. */
-function fakeVoice() {
+/** Minimal stand-in for the alphaSynth worker API — records the channel mix
+ *  calls the engine writes through to it. TS `private` is erased at runtime,
+ *  so tests inject it straight into the engine's `synth` field. */
+function fakeSynth() {
 	return {
-		gain: { gain: { value: 1 } },
-		panner: { pan: { value: 0 } },
-		eq: { low: { value: 0 }, mid: { value: 0 }, high: { value: 0 } }
+		volumes: new Map<number, number>(),
+		mutes: new Map<number, boolean>(),
+		solos: new Map<number, boolean>(),
+		setChannelVolume(channel: number, volume: number) {
+			this.volumes.set(channel, volume);
+		},
+		setChannelMute(channel: number, mute: boolean) {
+			this.mutes.set(channel, mute);
+		},
+		setChannelSolo(channel: number, solo: boolean) {
+			this.solos.set(channel, solo);
+		}
 	};
+}
+
+type EngineInternals = {
+	synth: ReturnType<typeof fakeSynth>;
+	channels: Map<string, number>;
+	metroEnabled: boolean;
+};
+
+function engineWithFakeSynth(channelByTrack: Record<string, number>) {
+	const engine = new AudioEngine();
+	const synth = fakeSynth();
+	const internals = engine as unknown as EngineInternals;
+	internals.synth = synth;
+	internals.channels = new Map(Object.entries(channelByTrack));
+	return { engine, synth };
 }
 
 describe('AudioEngine.setMetronomeVolume', () => {
@@ -26,80 +51,67 @@ describe('AudioEngine.setMetronomeVolume', () => {
 		expect(engine.metronomeVolume).toBe(0);
 	});
 
-	it('updates the gain node when one is attached, also clamped', () => {
-		const engine = new AudioEngine();
-		// Stand in for the Tone.Gain the engine builds on start. TS `private` is
-		// erased at runtime, so the engine writes straight through to it.
-		const gain = { gain: { value: 0 } };
-		(engine as unknown as { metroGain: typeof gain }).metroGain = gain;
-
+	it('writes the clamped level to the metronome channel when the synth is up', () => {
+		const { engine, synth } = engineWithFakeSynth({});
 		engine.setMetronomeVolume(0.3);
-		expect(gain.gain.value).toBeCloseTo(0.3, 5);
+		expect(synth.volumes.get(METRONOME_CHANNEL)).toBeCloseTo(0.3, 5);
 
 		engine.setMetronomeVolume(2);
-		expect(gain.gain.value).toBe(1);
-
-		engine.setMetronomeVolume(-1);
-		expect(gain.gain.value).toBe(0);
+		expect(synth.volumes.get(METRONOME_CHANNEL)).toBe(1);
 	});
 });
 
 describe('AudioEngine.setMetronomeEnabled', () => {
-	it('flips the live on/off flag checked by the click scheduler', () => {
-		const engine = new AudioEngine();
-		expect((engine as unknown as { metroEnabled: boolean }).metroEnabled).toBe(false);
+	it('mutes/unmutes the metronome channel live', () => {
+		const { engine, synth } = engineWithFakeSynth({});
 		engine.setMetronomeEnabled(true);
-		expect((engine as unknown as { metroEnabled: boolean }).metroEnabled).toBe(true);
+		expect(synth.mutes.get(METRONOME_CHANNEL)).toBe(false);
 		engine.setMetronomeEnabled(false);
-		expect((engine as unknown as { metroEnabled: boolean }).metroEnabled).toBe(false);
+		expect(synth.mutes.get(METRONOME_CHANNEL)).toBe(true);
 	});
 });
 
-describe('AudioEngine mute/solo (applied live via each track gain node)', () => {
-	it('silences a muted track and restores it on unmute', () => {
-		const engine = new AudioEngine();
-		const voice = fakeVoice();
-		(engine as unknown as { voices: Map<string, typeof voice> }).voices.set('t1', voice);
+describe('AudioEngine mute/solo (applied live via synth channel state)', () => {
+	it('passes a muted track through and restores it on unmute', () => {
+		const { engine, synth } = engineWithFakeSynth({ t1: 0 });
 		const track = makeTrack({ id: 't1', volume: 0.7 });
 
 		engine.syncAllTracks([track]);
-		expect(voice.gain.gain.value).toBeCloseTo(0.7, 5);
+		expect(synth.volumes.get(0)).toBeCloseTo(0.7, 5);
+		expect(synth.mutes.get(0)).toBe(false);
 
 		track.muted = true;
 		engine.syncAllTracks([track]);
-		expect(voice.gain.gain.value).toBe(0);
+		expect(synth.mutes.get(0)).toBe(true);
 
 		track.muted = false;
 		engine.syncAllTracks([track]);
-		expect(voice.gain.gain.value).toBeCloseTo(0.7, 5);
+		expect(synth.mutes.get(0)).toBe(false);
 	});
 
-	it('solo silences every other track live, and clears when un-soloed', () => {
-		const engine = new AudioEngine();
-		const voiceA = fakeVoice();
-		const voiceB = fakeVoice();
-		const engineInternals = engine as unknown as {
-			voices: Map<string, ReturnType<typeof fakeVoice>>;
-		};
-		engineInternals.voices.set('a', voiceA);
-		engineInternals.voices.set('b', voiceB);
+	it('marks soloed channels and keeps the metronome exempt from solo muting', () => {
+		const { engine, synth } = engineWithFakeSynth({ a: 0, b: 1 });
 		const a = makeTrack({ id: 'a', volume: 1 });
 		const b = makeTrack({ id: 'b', volume: 1 });
 
-		// No solo yet — both audible.
+		// No solo yet — nothing marked solo, metronome not solo either.
 		engine.syncAllTracks([a, b]);
-		expect(voiceA.gain.gain.value).toBe(1);
-		expect(voiceB.gain.gain.value).toBe(1);
+		expect(synth.solos.get(0)).toBe(false);
+		expect(synth.solos.get(1)).toBe(false);
+		expect(synth.solos.get(METRONOME_CHANNEL)).toBe(false);
 
-		// Solo b — a goes silent even though it isn't muted itself.
+		// Solo b — only b's channel is solo; the metronome channel is marked
+		// solo too so clicks aren't silenced by the synth's solo logic.
 		b.soloed = true;
 		engine.syncAllTracks([a, b]);
-		expect(voiceA.gain.gain.value).toBe(0);
-		expect(voiceB.gain.gain.value).toBe(1);
+		expect(synth.solos.get(0)).toBe(false);
+		expect(synth.solos.get(1)).toBe(true);
+		expect(synth.solos.get(METRONOME_CHANNEL)).toBe(true);
 
-		// Un-solo — a is audible again.
+		// Un-solo — everything clears.
 		b.soloed = false;
 		engine.syncAllTracks([a, b]);
-		expect(voiceA.gain.gain.value).toBe(1);
+		expect(synth.solos.get(1)).toBe(false);
+		expect(synth.solos.get(METRONOME_CHANNEL)).toBe(false);
 	});
 });

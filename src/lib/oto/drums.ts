@@ -2,14 +2,13 @@
 //
 // Mirrors the drum panel in the reference chart: every kit piece is keyed by its
 // GM percussion MIDI note and carries the label, the notehead used in drum
-// notation, a synthesis `voice` (how the built-in kit approximates it until real
-// audio is dropped in), and the sample file it plays. Real one-shot samples go in
-// `static/samples/drums/<sample>`; while a file is missing the audio engine falls
-// back to the synthesised `voice`.
+// notation and a broad `voice` category. Playback sends the MIDI note straight
+// to the SoundFont's GM drum kit (channel 10), so the `midi` value is the one
+// thing that decides how a piece sounds.
 
 export type DrumNotehead = 'normal' | 'x' | 'circle-x' | 'diamond' | 'triangle';
 
-/** Synthesised approximation category, used when a piece's sample isn't present. */
+/** Broad kit-piece category (kept for grouping/labelling in the UI). */
 export type DrumVoice =
 	| 'kick'
 	| 'snare'
@@ -25,8 +24,6 @@ export interface DrumPiece {
 	label: string;
 	voice: DrumVoice;
 	notehead: DrumNotehead;
-	/** File under static/samples/drums/ (convention: `<midi>.mp3`). */
-	sample: string;
 }
 
 function piece(
@@ -35,7 +32,7 @@ function piece(
 	voice: DrumVoice,
 	notehead: DrumNotehead = 'normal'
 ): DrumPiece {
-	return { midi, label, voice, notehead, sample: `${midi}.mp3` };
+	return { midi, label, voice, notehead };
 }
 
 /** Every kit piece from the reference chart, ordered by MIDI. */
