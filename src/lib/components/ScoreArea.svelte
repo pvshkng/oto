@@ -4,7 +4,7 @@
 	// between the two hosts except what happens when the header is clicked
 	// (desktop closes the other right-panel modes first; mobile doesn't).
 	import { store } from '$lib/stores/score.svelte';
-	import { computeSharedSystems } from '$lib/notation/layout';
+	import { computeSharedSystems, layoutTrack, type TrackLayout } from '$lib/notation/layout';
 	import { GLYPH } from '$lib/notation/glyphs';
 	import TrackStaff from './TrackStaff.svelte';
 
@@ -42,6 +42,26 @@
 			? computeSharedSystems(store.score, visibleTracks, tracksWidth)
 			: undefined
 	);
+
+	// In the interleaved view each track appears once per shared system, i.e.
+	// systems × tracks TrackStaff instances. Left to itself, every instance
+	// would run layoutTrack() over its whole track just to draw one row, making
+	// layout cost O(systems × tracks × measures). Compute each visible track's
+	// full layout exactly once here and hand it to every row instance instead.
+	const sharedLayouts = $derived.by(() => {
+		if (!shared) return null;
+		const layouts: Record<string, TrackLayout> = {};
+		for (const t of visibleTracks) {
+			layouts[t.id] = layoutTrack(store.score, t, {
+				containerWidth: tracksWidth,
+				showStandard: t.view.standard,
+				showTab: t.view.tab,
+				showRhythm: t.view.rhythm,
+				shared
+			});
+		}
+		return layouts;
+	});
 </script>
 
 <div
@@ -85,7 +105,12 @@
 				{#each store.score.tracks as track, i (track.id)}
 					{#if store.isTrackVisible(track.id)}
 						<section class="mb-1" data-track-id={track.id}>
-							<TrackStaff trackIndex={i} onlySystemIndex={si} sharedOverride={shared} />
+							<TrackStaff
+								trackIndex={i}
+								onlySystemIndex={si}
+								sharedOverride={shared}
+								layoutOverride={sharedLayouts?.[track.id]}
+							/>
 						</section>
 					{/if}
 				{/each}

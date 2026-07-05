@@ -112,7 +112,18 @@ async function startPlaybackFrom(
 			countIn,
 			onMarker: () => {},
 			onBeatMarker: (measure, beat) => {
-				store.playhead = { measure, beat };
+				// Mutate in place rather than replacing the object: Svelte 5's deep
+				// state only notifies subscribers of a property that actually changed,
+				// so a beat tick inside the same measure re-runs only the beat-level
+				// checks of that measure, instead of invalidating every rendered
+				// beat's playhead check across every visible track on every tick.
+				const p = store.playhead;
+				if (p) {
+					p.measure = measure;
+					p.beat = beat;
+				} else {
+					store.playhead = { measure, beat };
+				}
 			},
 			onBeat: () => {},
 			onStop: () => stopPlayback()

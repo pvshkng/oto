@@ -26,5 +26,12 @@ export function inSelection(measureIndex: number, beatIndex: number, trackIndex:
 }
 
 export function isPlayingBeat(measureIndex: number, beatIndex: number): boolean {
-	return store.playhead?.measure === measureIndex && store.playhead?.beat === beatIndex;
+	// Check the measure first and only touch `beat` when it matches: reads are
+	// what subscribe the calling template block, so beats outside the playing
+	// measure never subscribe to the per-beat signal and stay untouched by the
+	// high-frequency beat ticks (the playhead object is mutated in place — see
+	// playback.ts — so per-property granularity holds across ticks).
+	const p = store.playhead;
+	if (!p || p.measure !== measureIndex) return false;
+	return p.beat === beatIndex;
 }
