@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Minimal, monochromatic loading overlay shown while instrument samples (and
+	// Minimal, monochromatic loading overlay shown while instrument sounds (and
 	// imported files) load. Matches the app's neutral palette — no colour, just
 	// ink-on-paper and a thin determinate progress bar — so it reads as part of
 	// the same surface rather than a separate splash.

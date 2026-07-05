@@ -1,54 +1,41 @@
-// Bridges the reactive store and the Tone.js engine: compiles the score, maps a
-// beat-based loop selection to a time window, starts/stops playback and pushes
-// the playhead position back into the store.
+// Bridges the reactive store and the alphaSynth engine: compiles the score to
+// MIDI, maps a beat-based loop selection to a tick window, starts/stops
+// playback and pushes the playhead position back into the store.
 
-import { audio, compileScore, type CompiledScore } from './engine';
-import { beatFraction } from '$lib/oto/duration';
+import { audio, type CompiledSong, type MetronomeSound } from './engine';
+import { compileSong } from './midi';
 import { store } from '$lib/stores/score.svelte';
 
-// Compiling builds the full note/marker schedule for the whole score, which is
-// wasted work on a resume (or repeated Play presses without an edit in between).
-// Cache the result and only recompile when the store's scoreVersion has moved.
-let cachedCompiled: CompiledScore | null = null;
+// Compiling builds the full MIDI file + tick tables for the whole score, which
+// is wasted work on a resume (or repeated Play presses without an edit in
+// between). Cache the result and only recompile when the store's scoreVersion
+// has moved or the metronome click sound changed (it's baked into the MIDI).
+let cachedCompiled: CompiledSong | null = null;
 let cachedVersion = -1;
+let cachedSound: MetronomeSound | null = null;
 
-function getCompiledScore(): CompiledScore {
-	if (!cachedCompiled || cachedVersion !== store.scoreVersion) {
-		cachedCompiled = compileScore(store.score);
+async function getCompiledSong(): Promise<CompiledSong> {
+	if (
+		!cachedCompiled ||
+		cachedVersion !== store.scoreVersion ||
+		cachedSound !== store.metronomeSound
+	) {
+		cachedCompiled = await compileSong(store.score, store.metronomeSound);
 		cachedVersion = store.scoreVersion;
+		cachedSound = store.metronomeSound;
 	}
 	return cachedCompiled;
 }
 
-/** Seconds offset of the start of a (measure, beat) in the compiled timeline.
- *  Takes an already-compiled score so a single play cycle compiles once rather
- *  than re-compiling the whole score on every timing lookup. */
-function timeAt(compiled: CompiledScore, measure: number, beat: number): number {
-	// Find the marker for the measure, then add up beat durations of track 0.
-	const marker = compiled.markers.find((m) => m.measure === measure);
-	let t = marker?.time ?? 0;
-	const track = store.score.tracks[0];
-	const m = track.measures[measure];
-	if (m) {
-		const tempo = m.tempo ?? store.score.tempo;
-		const q = 60 / tempo;
-		for (let i = 0; i < beat && i < m.beats.length; i++) {
-			// beatFraction accounts for dots AND tuplets, matching compileScore.
-			t += beatFraction(m.beats[i]) * 4 * q;
-		}
-	}
-	return t;
-}
-
-/** Count-in spec for a starting measure: one click per beat of that bar's metre,
- *  spaced by the bar's beat length in seconds at the measure's tempo. */
-function countInFor(measure: number): { beats: number; interval: number } {
-	const ts = store.timeSignatureAt(measure);
-	const m = store.score.tracks[0]?.measures[measure];
-	const tempo = m?.tempo ?? store.score.tempo;
-	// Seconds per notated beat = (4/den) quarter notes × (60/tempo) per quarter.
-	const interval = (4 / ts[1]) * (60 / tempo);
-	return { beats: ts[0], interval };
+/** MIDI tick of the start of a (measure, beat) in the compiled timeline.
+ *  A beat index past the end of a measure resolves to the next measure's
+ *  start (or the end of the piece), which is exactly what loop-end lookups
+ *  need. */
+function tickAt(compiled: CompiledSong, measure: number, beat: number): number {
+	const beats = compiled.measureBeatTicks[measure];
+	if (!beats) return compiled.totalTicks;
+	if (beat < beats.length) return beats[beat];
+	return compiled.measureTicks[measure + 1] ?? compiled.totalTicks;
 }
 
 /** Shared by `play()` and the live tempo-change reschedule: compute the
@@ -60,57 +47,45 @@ async function startPlaybackFrom(
 	startBeat: number,
 	opts: { countIn: boolean }
 ) {
-	const compiled = getCompiledScore();
-
-	let window: { start: number; end: number } | null = null;
-	let repeat = false;
-	let loopPoint: number | undefined;
-	const bounds = store.loopEnabled ? store.loopBounds : null;
-
-	if (bounds) {
-		const loopStart = timeAt(compiled, bounds.startMeasure, bounds.startBeat);
-		const endTrack = store.score.tracks[0];
-		const endMeasure = endTrack.measures[bounds.endMeasure];
-		const endBeatCount = endMeasure?.beats.length ?? 0;
-		const loopEnd =
-			bounds.endBeat + 1 < endBeatCount
-				? timeAt(compiled, bounds.endMeasure, bounds.endBeat + 1)
-				: timeAt(compiled, bounds.endMeasure + 1, 0) || compiled.totalTime;
-
-		const cursorTime = timeAt(compiled, startMeasure, startBeat);
-		if (cursorTime < loopStart - 1e-6) {
-			// Cursor is before the loop region: play from cursor, then loop within
-			// the selection after reaching its start for the first time.
-			window = { start: cursorTime, end: loopEnd };
-			loopPoint = loopStart - cursorTime;
-		} else {
-			// Cursor is inside or after the loop region: just loop the selection.
-			window = { start: loopStart, end: loopEnd };
-			loopPoint = 0;
-		}
-		repeat = true;
-	} else if (startMeasure > 0 || startBeat > 0) {
-		// No loop — one-shot playback from the start position.
-		const start = timeAt(compiled, startMeasure, startBeat);
-		if (start > 0.01) window = { start, end: compiled.totalTime };
-	}
-
-	const countIn = opts.countIn ? countInFor(startMeasure) : null;
-
 	store.isPlaying = true;
 	store.isPaused = false;
 	store.playhead = { measure: startMeasure, beat: startBeat };
 
 	try {
-		await audio.play(store.score, compiled, {
+		const compiled = await getCompiledSong();
+
+		let startTick = tickAt(compiled, startMeasure, startBeat);
+		let loopStartTick = startTick;
+		let endTick = compiled.totalTicks;
+		let repeat = false;
+		const bounds = store.loopEnabled ? store.loopBounds : null;
+
+		if (bounds) {
+			const selStart = tickAt(compiled, bounds.startMeasure, bounds.startBeat);
+			const selEnd = tickAt(compiled, bounds.endMeasure, bounds.endBeat + 1) || compiled.totalTicks;
+			if (startTick < selStart) {
+				// Cursor is before the loop region: play from cursor, then loop within
+				// the selection after reaching its end for the first time.
+				loopStartTick = selStart;
+			} else {
+				// Cursor is inside or after the loop region: just loop the selection.
+				startTick = selStart;
+				loopStartTick = selStart;
+			}
+			endTick = selEnd;
+			repeat = true;
+		}
+
+		await audio.play(compiled, {
+			tracks: store.score.tracks,
+			masterVolume: store.score.masterVolume ?? 0.85,
 			metronome: store.metronomeOn,
-			metronomeSound: store.metronomeSound,
 			metronomeVolume: store.metronomeVolume,
-			window,
+			countIn: opts.countIn,
+			startTick,
+			endTick,
+			loopStartTick,
 			repeat,
-			loopPoint,
-			countIn,
-			onMarker: () => {},
 			onBeatMarker: (measure, beat) => {
 				// Mutate in place rather than replacing the object: Svelte 5's deep
 				// state only notifies subscribers of a property that actually changed,
@@ -125,13 +100,12 @@ async function startPlaybackFrom(
 					store.playhead = { measure, beat };
 				}
 			},
-			onBeat: () => {},
 			onStop: () => stopPlayback()
 		});
 		store.audioError = null;
 	} catch {
-		// Most commonly a blocked autoplay policy (the click didn't count as a
-		// direct user gesture in this browser) — revert to a clean stopped state
+		// Most commonly a failed engine start (soundfont couldn't load, or the
+		// browser refused the AudioContext) — revert to a clean stopped state
 		// and let the user know, instead of silently producing no sound.
 		store.isPlaying = false;
 		store.playhead = null;
@@ -153,11 +127,11 @@ let tempoRescheduleTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Call after a tempo change (stepper or live slider) so a piece already
  *  playing picks up the new speed immediately instead of waiting for the next
- *  Play. Tempo is baked into the compiled schedule's absolute note times, so
- *  "live" here means reschedule from the current playhead with the newly
- *  compiled (faster/slower) timeline — debounced so a slider drag doesn't
- *  trigger a reschedule on every pointer-move tick. No-op while stopped/paused,
- *  since the next Play already picks up the new tempo on its own. */
+ *  Play. Tempo is baked into the compiled MIDI, so "live" here means
+ *  reschedule from the current playhead with the newly compiled
+ *  (faster/slower) timeline — debounced so a slider drag doesn't trigger a
+ *  reschedule on every pointer-move tick. No-op while stopped/paused, since
+ *  the next Play already picks up the new tempo on its own. */
 export function reflectTempoChange() {
 	if (!store.isPlaying) return;
 	if (tempoRescheduleTimer) clearTimeout(tempoRescheduleTimer);

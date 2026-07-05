@@ -1,9 +1,9 @@
 // Instrument catalogue used by the track configuration combobox.
 //
-// Each preset maps a human-facing instrument to one of the audio engine's five
-// synthesis voices (see audio/engine.ts) plus a sensible default tuning/kind so
-// that picking, say, "Bass" also retunes the track. Grouped so the combobox can
-// show headings and filter by name.
+// Each preset maps a human-facing instrument to one of the audio engine's
+// voice names (mapped to a General MIDI program in audio/midi.ts) plus a
+// sensible default tuning/kind so that picking, say, "Bass" also retunes the
+// track. Grouped so the combobox can show headings and filter by name.
 
 import { TUNINGS } from './pitch';
 import type { TrackKind } from './types';
@@ -12,7 +12,7 @@ export interface InstrumentPreset {
 	value: string; // unique id
 	label: string;
 	/** Audio engine voice: nylon | acoustic | electric | bass | clean | piano | drums.
-	 *  Most map to a recorded sample set (see audio/samples.ts); drums stay synthesised. */
+	 *  Each maps to a General MIDI program (see audio/midi.ts); drums use the GM kit. */
 	engine: string;
 	group: string;
 	kind: TrackKind;

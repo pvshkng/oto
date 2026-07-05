@@ -38,9 +38,9 @@ export function openFile(): Promise<void> {
 				} else {
 					store.loadScore(await file.text());
 				}
-				// Preload the imported score's instrument samples behind the loading
-				// screen so playback is ready the moment the import lands.
-				audio.ensureSamples(store.score.tracks.map((t) => t.instrument));
+				// Warm up the audio engine behind the loading screen so playback is
+				// ready the moment the import lands.
+				audio.preload();
 				resolve();
 			} catch (e) {
 				reject(e);

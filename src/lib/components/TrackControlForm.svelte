@@ -53,7 +53,7 @@
 		else if (track?.instrument === 'drums')
 			patch.view = { standard: true, tab: true, rhythm: false };
 		store.updateTrack(index, patch);
-		audio.ensureSamples([p.engine]);
+		audio.preload();
 		instOpen = false;
 	}
 	function pickTuning(n: string) {

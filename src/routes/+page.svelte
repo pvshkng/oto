@@ -36,8 +36,8 @@
 	let scoreAreaEl = $state<HTMLElement | undefined>(undefined);
 
 	// Gates the first paint of the real layout: stays false until the saved
-	// score is restored, desktop/mobile is detected, and instrument samples
-	// have warmed up — so the page goes straight from the loading screen to
+	// score is restored, desktop/mobile is detected, and the audio engine
+	// has warmed up — so the page goes straight from the loading screen to
 	// the actual tab, with no flash of the empty default score in between.
 	let ready = $state(false);
 
@@ -152,7 +152,7 @@
 		// Touch-only (guards on pointerType internally): long-press any titled
 		// button to see what it does, since touch has no hover for `title`.
 		const disposeLongPress = initLongPressTooltips();
-		audio.ensureSamples(store.score.tracks.map((t) => t.instrument)).finally(() => {
+		audio.preload().finally(() => {
 			ready = true;
 		});
 		return () => {

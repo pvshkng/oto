@@ -312,7 +312,7 @@ export interface OtoTrack {
 	capo: number;
 	/** Semitone transposition applied at playback/display time. */
 	transpose: number;
-	/** Tone.js oscillator/instrument preset name. */
+	/** Audio engine voice name (mapped to a General MIDI program at playback). */
 	instrument: string;
 	/** 0..1 */
 	volume: number;
