@@ -71,7 +71,7 @@
 	use:panelDrag={{ id: 'note', floating }}
 	style={floating ? `translate: ${layout.x}px ${layout.y}px; z-index: ${store.panelZ('note')}` : ''}
 	class={cn(
-		'pointer-events-auto flex flex-col overflow-hidden bg-background/70 backdrop-blur-md',
+		'pointer-events-auto flex flex-col overflow-hidden bg-background/50 backdrop-blur-md',
 		floating
 			? 'fixed top-4 left-4 z-50 max-h-[min(60vh,560px)] w-72 rounded-lg border border-border shadow-[0_6px_24px_rgba(0,0,0,0.14)]'
 			: horizontal

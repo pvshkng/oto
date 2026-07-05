@@ -164,7 +164,7 @@ export class AudioEngine {
 			store.sampleWarning = null;
 		} catch (err) {
 			this.lastStartError = err;
-			store.sampleWarning = "Couldn't load instrument sounds — playback may be silent.";
+			store.sampleWarning = "Couldn't load instrument sounds. Playback may be silent.";
 		} finally {
 			loading.finish();
 		}

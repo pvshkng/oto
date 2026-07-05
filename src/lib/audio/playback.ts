@@ -110,7 +110,7 @@ async function startPlaybackFrom(
 		// and let the user know, instead of silently producing no sound.
 		store.isPlaying = false;
 		store.playhead = null;
-		store.audioError = "Audio couldn't start — tap Play again.";
+		store.audioError = "Audio couldn't start. Tap Play again.";
 	}
 }
 

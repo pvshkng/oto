@@ -39,7 +39,7 @@
 </script>
 
 <div
-	class="flex flex-col gap-[7px] border-border-strong bg-background/70 px-2.5 py-2 pb-1.5 backdrop-blur-md"
+	class="flex flex-col gap-[7px] border-border-strong bg-background/50 px-2.5 py-2 pb-1.5 backdrop-blur-md"
 >
 	<div class="flex items-center justify-between">
 		<div class="flex items-center gap-2">

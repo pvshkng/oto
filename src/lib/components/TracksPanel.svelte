@@ -189,7 +189,7 @@
 
 <div
 	class={cn(
-		'bg-background/70 flex flex-col backdrop-blur-md',
+		'bg-background/50 flex flex-col backdrop-blur-md',
 		store.isDesktop ? 'max-h-[300px]' : 'max-h-[55vh]'
 	)}
 >
@@ -206,9 +206,9 @@
 			></div>
 
 			<!-- Measure ruler -->
-			<div class="bg-background/70 sticky top-0 z-20 flex border-b backdrop-blur-md">
+			<div class="bg-background/50 sticky top-0 z-20 flex border-b backdrop-blur-md">
 				<div
-					class="bg-background/70 sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r px-3 py-1.5 backdrop-blur-md"
+					class="bg-background/50 sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r px-3 py-1.5 backdrop-blur-md"
 					style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px"
 				>
 					<!-- Add track (leftmost) -->
@@ -311,7 +311,7 @@
 				<div class={cn('relative flex border-b', active && 'bg-muted/40')}>
 					<!-- Frozen controls column -->
 					<div
-						class="bg-background/70 sticky left-0 z-10 flex shrink-0 flex-col gap-1.5 border-r px-2.5 py-2 backdrop-blur-md"
+						class="bg-background/50 sticky left-0 z-10 flex shrink-0 flex-col gap-1.5 border-r px-2.5 py-2 backdrop-blur-md"
 						style="width:{store.isDesktop
 							? LEAD
 							: LEAD_MOBILE}px;border-left:3px solid {track.color}"
@@ -401,7 +401,7 @@
 			<!-- Section markers -->
 			<div class="flex">
 				<div
-					class="bg-background/70 sticky left-0 z-10 flex shrink-0 items-center justify-between gap-2 border-r px-2.5 py-1 backdrop-blur-md"
+					class="bg-background/50 sticky left-0 z-10 flex shrink-0 items-center justify-between gap-2 border-r px-2.5 py-1 backdrop-blur-md"
 					style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px"
 				>
 					<!-- Master volume: compact speaker button + readout, opens a small
