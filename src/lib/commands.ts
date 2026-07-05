@@ -61,6 +61,9 @@ export interface CmdGroup {
 
 export const TIME_SIGS = ['4/4', '3/4', '2/4', '6/8', '12/8', '5/4', '7/8'];
 
+/** Play counts offered for a repeated passage (×2 is the notation default). */
+export const REPEAT_COUNTS = [2, 3, 4] as const;
+
 export interface EffectUi {
 	tech: Technique;
 	label: string;
@@ -329,6 +332,16 @@ export function barMarkCommands(): Cmd[] {
 			run: () => store.toggleMeasureCoda(mi)
 		}
 	];
+	for (const n of REPEAT_COUNTS) {
+		cmds.push({
+			id: `bar-repeat-count-${n}`,
+			label: `Repeat ×${n} (play count)`,
+			icon: Repeat,
+			keywords: 'repeat count times play passage',
+			active: !!m?.repeatEnd && (m?.repeatCount ?? 2) === n,
+			run: () => store.setMeasureRepeatCount(mi, n)
+		});
+	}
 	for (const n of [1, 2, 3]) {
 		cmds.push({
 			id: `bar-volta-${n}`,
@@ -362,6 +375,15 @@ export function noteCommands(): Cmd[] {
 		icon: MusicNote,
 		active: store.activeDotted,
 		run: toggleDotted
+	});
+	items.push({
+		id: 'tie-note',
+		label: 'Tie to next note',
+		icon: MusicNote,
+		keywords: 'tie hold sustain legato',
+		active: !!note?.tied,
+		disabled: !note,
+		run: () => store.toggleNoteTie()
 	});
 	items.push({
 		id: 'delete-note',
