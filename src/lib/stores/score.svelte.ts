@@ -141,6 +141,9 @@ export class ScoreStore {
 	#editModeState = $state(false);
 	#mixerOpenState = $state(false);
 	editTool = $state<'keypad' | 'fretboard' | 'piano'>('keypad');
+	/** Which attribute strip the mobile edit panel shows: note/beat controls or
+	 *  bar (measure) controls. Desktop shows both at once and ignores this. */
+	editScope = $state<'note' | 'bar'>('note');
 	songModalOpen = $state(false);
 	/** Track-staff right-click menu (any track). Closed on outer scroll. */
 	contextMenuOpen = $state(false);
@@ -1736,6 +1739,16 @@ export class ScoreStore {
 		});
 	}
 
+	/** Tie the note under the cursor to the next beat's note on the same string. */
+	toggleNoteTie() {
+		this.commit(() => {
+			const beat = this.currentBeatRef();
+			const note = beat?.notes.find((n) => n.string === this.cursor.string);
+			if (!note) return;
+			note.tied = note.tied ? undefined : true;
+		});
+	}
+
 	setSlideTarget(fret: number) {
 		this.commit(() => {
 			const beat = this.currentBeatRef();
@@ -1837,6 +1850,21 @@ export class ScoreStore {
 			this.#eachTrackMeasure(measureIndex, (m) => {
 				m.repeatEnd = next;
 				if (!next) m.repeatCount = undefined;
+			})
+		);
+	}
+
+	/** Play count for the repeated passage ending at this measure. Selecting a
+	 *  count also arms the end repeat; ×2 is the notation default, so it's
+	 *  stored as undefined and re-selecting the active count falls back to it. */
+	setMeasureRepeatCount(measureIndex: number, count: number) {
+		const m = this.track.measures[measureIndex];
+		const cur = m?.repeatEnd ? (m.repeatCount ?? 2) : undefined;
+		const next = cur === count ? 2 : count;
+		this.commit(() =>
+			this.#eachTrackMeasure(measureIndex, (mm) => {
+				mm.repeatEnd = true;
+				mm.repeatCount = next === 2 ? undefined : next;
 			})
 		);
 	}

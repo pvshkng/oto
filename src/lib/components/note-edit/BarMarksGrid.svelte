@@ -5,6 +5,7 @@
 	// Structural marks apply to this measure on every track (like a time-sig
 	// change); simile only marks the active track's bar.
 	import { store } from '$lib/stores/score.svelte';
+	import { REPEAT_COUNTS } from '$lib/commands';
 	import { GLYPH } from '$lib/notation/glyphs';
 	import { cn } from '$lib/utils';
 	import { fxStyle } from './control-styles';
@@ -64,6 +65,16 @@
 		aria-pressed={!!measure?.repeatEnd}
 		onclick={() => store.toggleMeasureRepeatEnd(mi)}>:|</button
 	>
+	{#each REPEAT_COUNTS as n (n)}
+		<button
+			class={cn(fxStyle({ dense }), {
+				sunk: !!measure?.repeatEnd && (measure?.repeatCount ?? 2) === n
+			})}
+			title={`Repeat ×${n} (play count)`}
+			aria-pressed={!!measure?.repeatEnd && (measure?.repeatCount ?? 2) === n}
+			onclick={() => store.setMeasureRepeatCount(mi, n)}>×{n}</button
+		>
+	{/each}
 {/snippet}
 
 {#snippet voltas()}
