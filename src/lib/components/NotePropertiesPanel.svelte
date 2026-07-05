@@ -40,12 +40,17 @@
 		'border-b border-border bg-foreground/[0.05] px-3 py-1.5 text-[10px] font-bold tracking-[0.6px] text-text-muted uppercase';
 	// Bottom-strip group cell: a vertical group label on the left that spans
 	// every wrapped row of controls (rotated so it stays narrow), and the
-	// labelled clusters wrapping beside it. Controls wrap rather than scroll —
-	// a horizontal scrollbar in the dock strip felt broken.
-	const groupCell = 'flex items-stretch gap-2 rounded-md border border-border/60 p-2';
+	// labelled clusters wrapping beside it. Controls wrap rather than scroll
+	// horizontally — a horizontal scrollbar in the dock strip felt broken — but
+	// each cell caps at 150px tall and lets its *content* scroll vertically past
+	// that. `overflow-hidden` enforces the cap; the inner cluster wrap owns the
+	// vertical scroll so the group-label rail stays put (top-aligned) beside it.
+	const groupCell =
+		'flex max-h-[150px] items-stretch gap-2 overflow-hidden rounded-md border border-border/60 p-2';
 	const vLabel =
-		'flex w-5 shrink-0 rotate-180 items-center justify-center rounded-sm bg-foreground/[0.05] py-1 text-[10px] font-bold tracking-[0.6px] text-text-muted uppercase [writing-mode:vertical-rl]';
-	const clusterWrap = 'flex min-w-0 flex-1 flex-wrap content-start items-start gap-x-3 gap-y-1.5';
+		'flex w-5 shrink-0 rotate-180 items-center justify-end rounded-sm bg-foreground/3 py-1 px-2 text-[10px] font-bold tracking-[0.6px] text-text-muted uppercase [writing-mode:vertical-rl]';
+	const clusterWrap =
+		'flex min-h-0 min-w-0 flex-1 flex-wrap content-start items-start gap-x-3 gap-y-1.5 overflow-y-auto';
 	// Matches the mini section labels EffectsGrid & friends use in `sectioned`
 	// mode, so hand-labelled clusters and grid-provided ones read as one system.
 	const clusterLabel = 'text-[9px] font-bold tracking-[0.4px] text-text-muted/80 uppercase';

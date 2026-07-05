@@ -320,7 +320,7 @@
 				     here; when BOTH are here they share the strip side-by-side (with a
 				     swappable divider) rather than stacking. -->
 				{#if noteBottom && keysBottom}
-					<div class="flex max-h-[300px] min-h-0 shrink-0 items-stretch border-t border-border">
+					<div class="flex max-h-[46vh] min-h-0 shrink-0 items-stretch border-t border-border">
 						{#if !store.bottomSplitSwap}
 							<div class="min-w-0 flex-1">{@render slotPanel('note', 'bottom')}</div>
 							{@render splitSeparator()}
@@ -332,7 +332,7 @@
 						{/if}
 					</div>
 				{:else if noteBottom}
-					<div class="max-h-[300px] shrink-0 overflow-y-auto border-t border-border">
+					<div class="max-h-[46vh] shrink-0 border-t border-border">
 						{@render slotPanel('note', 'bottom')}
 					</div>
 				{:else if keysBottom}
