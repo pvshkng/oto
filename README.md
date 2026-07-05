@@ -1,3 +1,25 @@
+<div align="center">
+  <picture>
+         <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/pvshkng/oto/main/src/lib/assets/android-chrome-512x512-transparent.png" height="256" width="256">
+         <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/pvshkng/oto/main/src/lib/assets/android-chrome-512x512.png" height="256" width="256">
+         <img alt="Oto logo." src="https://raw.githubusercontent.com/pvshkng/oto/main/src/lib/assets/android-chrome-512x512.png" height="256" width="256">
+      </picture>
+  <h1>Oto</h1>
+</div>
+
+<div align="center">
+  <a href="https://github.com/pvshkng/oto/actions">
+    <img src="https://github.com/pvshkng/oto/actions/workflows/ci.yml/badge.svg?branch=main" alt="Github Actions Badge">
+  </a>
+  <a href="https://github.com/pvshkng/oto/releases/">
+    <img src="https://img.shields.io/github/v/release/pvshkng/oto?color=white&display_name=tag&logoColor=white" alt="Latest Oto Release">
+  </a>
+  <a href="https://puvish.dev/">
+    <img src="https://img.shields.io/badge/built by-puvish.dev-white" alt="Built by puvish.dev">
+  </a>
+</div>
+<h1></h1>
+
 # oto
 
 A lightweight, web-based music **tablature & notation studio** — think Guitar Pro / Soundslice,
