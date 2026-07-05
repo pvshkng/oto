@@ -82,6 +82,7 @@ async function startPlaybackFrom(
 			metronome: store.metronomeOn,
 			metronomeVolume: store.metronomeVolume,
 			countIn: opts.countIn,
+			playbackSpeed: store.effectivePlaybackSpeed,
 			startTick,
 			endTick,
 			loopStartTick,

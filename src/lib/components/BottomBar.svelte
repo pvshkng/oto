@@ -8,7 +8,9 @@
 	import { store } from '$lib/stores/score.svelte';
 	import { play, pausePlayback, stopPlayback, goToStart } from '$lib/audio/playback';
 	import { audio } from '$lib/audio/engine';
-	import { Button } from '$lib/components/ui/button';
+	import { Button, buttonVariants } from '$lib/components/ui/button';
+	import * as Popover from '$lib/components/ui/popover';
+	import { MIXER_FADER_CLASS } from './tracks-panel/mixer-fader';
 	import { cn } from '$lib/utils';
 	import OmniCommand from './OmniCommand.svelte';
 	import AddRemoveDrawer from './AddRemoveDrawer.svelte';
@@ -20,6 +22,7 @@
 	import Stop from 'phosphor-svelte/lib/Stop';
 	import SkipBack from 'phosphor-svelte/lib/SkipBack';
 	import Metronome from 'phosphor-svelte/lib/Metronome';
+	import Speedometer from 'phosphor-svelte/lib/Speedometer';
 	import ClockCountdown from 'phosphor-svelte/lib/ClockCountdown';
 	import Repeat from 'phosphor-svelte/lib/Repeat';
 	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
@@ -51,6 +54,17 @@
 	}
 	function toggleSong() {
 		store.togglePanel('song');
+	}
+
+	// Playback speed: the toggle switches the multiplier on/off and the slider
+	// adjusts it; both apply to the synth immediately, even mid-playback.
+	function setSpeedOn(v: boolean) {
+		store.playbackSpeedOn = v;
+		audio.setPlaybackSpeed(store.effectivePlaybackSpeed);
+	}
+	function setSpeed(v: number) {
+		store.playbackSpeed = v;
+		audio.setPlaybackSpeed(store.effectivePlaybackSpeed);
 	}
 </script>
 
@@ -315,6 +329,59 @@
 		>
 			<Metronome class="size-5" />
 		</Button>
+		<!-- Playback speed: shows icon + multiplier, sunk while active. Clicking
+		     always opens the popover (toggling off happens inside it, so a press
+		     never accidentally disables the speed override). -->
+		<Popover.Root>
+			<Popover.Trigger
+				class={cn(
+					buttonVariants({ variant: 'outline', size: 'sm' }),
+					'h-9 gap-1 rounded-none border-l-0 px-2 tabular-nums',
+					store.playbackSpeedOn && 'sunk'
+				)}
+				title="Playback speed"
+				aria-label="Playback speed"
+				aria-pressed={store.playbackSpeedOn}
+			>
+				<Speedometer class="size-5" />
+				{Math.round(store.playbackSpeed * 100)}%
+			</Popover.Trigger>
+			<Popover.Content side="top" align="center" class="w-60 p-3">
+				<div class="mb-2 flex items-center justify-between">
+					<span class="text-xs font-semibold">Playback speed</span>
+					<button
+						class={cn(
+							'rounded-md border px-2 py-0.5 text-[11px] font-semibold [background-image:none!important]',
+							store.playbackSpeedOn
+								? 'sunk text-foreground'
+								: 'text-muted-foreground hover:text-foreground'
+						)}
+						title={store.playbackSpeedOn ? 'Disable speed override' : 'Enable speed override'}
+						aria-pressed={store.playbackSpeedOn}
+						onclick={() => setSpeedOn(!store.playbackSpeedOn)}
+					>
+						{store.playbackSpeedOn ? 'On' : 'Off'}
+					</button>
+				</div>
+				<div class="flex items-center gap-2">
+					<input
+						type="range"
+						min="0.5"
+						max="1.5"
+						step="0.05"
+						aria-label="Playback speed"
+						title="Playback speed"
+						class={cn(MIXER_FADER_CLASS, 'min-w-0 flex-1')}
+						value={store.playbackSpeed}
+						aria-valuetext={`${Math.round(store.playbackSpeed * 100)} percent`}
+						oninput={(e) => setSpeed(e.currentTarget.valueAsNumber)}
+					/>
+					<span class="text-muted-foreground w-10 shrink-0 text-right text-[11px] tabular-nums"
+						>{Math.round(store.playbackSpeed * 100)}%</span
+					>
+				</div>
+			</Popover.Content>
+		</Popover.Root>
 		<Button
 			variant="outline"
 			size="icon"

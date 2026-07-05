@@ -48,6 +48,8 @@ export interface PlayOptions {
 	metronomeVolume: number;
 	/** Play a one-bar count-in (at the start position's tempo/metre) first. */
 	countIn: boolean;
+	/** Playback speed multiplier (1 = normal). */
+	playbackSpeed: number;
 	/** Tick to start playing from. */
 	startTick: number;
 	/** When repeating: tick the loop wraps at. Ignored otherwise. */
@@ -272,6 +274,12 @@ export class AudioEngine {
 		if (this.synth) this.synth.masterVolume = Math.max(0, Math.min(1, v));
 	}
 
+	/** Set the playback speed multiplier live (0.5..1.5, 1 = normal). Applies
+	 *  immediately mid-playback; also remembered by play() via PlayOptions. */
+	setPlaybackSpeed(v: number) {
+		if (this.synth) this.synth.playbackSpeed = Math.max(0.5, Math.min(1.5, v));
+	}
+
 	/** Play one metronome click immediately (used by the sound picker, so
 	 *  picking a variant gives instant audible feedback without starting
 	 *  playback). Skipped while a piece is playing — a one-time preview would
@@ -324,6 +332,7 @@ export class AudioEngine {
 		synth.loadMidiFile(compiled.midi);
 
 		this.setMasterVolume(opts.masterVolume);
+		this.setPlaybackSpeed(opts.playbackSpeed);
 		this.setMetronomeVolume(opts.metronomeVolume);
 		this.setMetronomeEnabled(opts.metronome);
 		this.syncAllTracks(opts.tracks);

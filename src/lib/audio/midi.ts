@@ -13,7 +13,13 @@
 import type * as at from '@coderline/alphatab';
 import { frettedMidi } from '$lib/oto/pitch';
 import { beatFraction, beatsCutoff } from '$lib/oto/duration';
-import { DYNAMIC_VELOCITY, measureVoices, type OtoScore, type OtoTrack } from '$lib/oto/types';
+import {
+	DYNAMIC_VELOCITY,
+	measureVoices,
+	type OtoMeasure,
+	type OtoScore,
+	type OtoTrack
+} from '$lib/oto/types';
 
 export type MetronomeSound = 'click' | 'beep' | 'wood' | 'bell';
 
@@ -83,11 +89,12 @@ export interface CompiledSong {
 	midi: at.midi.MidiFile;
 	/** Track id → MIDI channel the track's notes were written to. */
 	channels: Map<string, number>;
-	/** One entry per beat of the primary track/voice, for the moving playhead. */
+	/** One entry per played beat of the primary track/voice (repeat passes
+	 *  included), sorted by tick — drives the moving playhead. */
 	beatTicks: BeatTick[];
-	/** Start tick of each measure. */
+	/** Start tick of each measure's first playthrough. */
 	measureTicks: number[];
-	/** Per measure: start tick of each primary-voice beat. */
+	/** Per measure: start tick of each primary-voice beat (first playthrough). */
 	measureBeatTicks: number[][];
 	totalTicks: number;
 	/** Which click timbre was baked into the metronome channel. */
@@ -97,6 +104,71 @@ export interface CompiledSong {
 function secondsToTicks(seconds: number, tempo: number): number {
 	// 1 quarter = 60/tempo seconds = TICKS_PER_QUARTER ticks.
 	return (seconds * tempo * TICKS_PER_QUARTER) / 60;
+}
+
+/** Structural flags (repeats/voltas) of a measure — they're kept in sync
+ *  across tracks, so read from the first track that has the measure. */
+function structuralMeasure(score: OtoScore, mi: number): OtoMeasure | undefined {
+	for (const t of score.tracks) {
+		const m = t.measures[mi];
+		if (m) return m;
+	}
+	return undefined;
+}
+
+/**
+ * Expand repeat barlines and volta brackets into the linear order the
+ * measures actually play in. Pass 1 plays volta-1 bars and jumps back at an
+ * end-repeat; pass 2 skips volta-1 bars and plays volta-2 bars, and so on
+ * (repeatCount passes total, default 2). An end-repeat with no begin-repeat
+ * rewinds to the bar after the previous repeated section (or bar 1).
+ */
+export function expandRepeats(score: OtoScore, measureCount: number): number[] {
+	const order: number[] = [];
+	// Runaway guard: malformed structure can't loop forever.
+	const limit = Math.max(measureCount * 32, 1024);
+	let i = 0;
+	let repeatStartIdx = 0;
+	let pass = 1;
+	while (i < measureCount && order.length < limit) {
+		const m = structuralMeasure(score, i);
+		if (m?.repeatStart && i !== repeatStartIdx) {
+			// Entering a new repeated section for the first time.
+			repeatStartIdx = i;
+			pass = 1;
+		}
+		if (m?.volta && m.volta !== pass) {
+			i++;
+			continue;
+		}
+		order.push(i);
+		if (m?.repeatEnd) {
+			const count = m.repeatCount ?? 2;
+			if (pass < count) {
+				pass++;
+				i = repeatStartIdx;
+				continue;
+			}
+			// Section finished — a later bare end-repeat rewinds to after it.
+			pass = 1;
+			repeatStartIdx = i + 1;
+		} else if (m?.volta && !structuralMeasure(score, i + 1)?.volta) {
+			// Walked off the end of the volta group (the final ending played
+			// through) — the repeated section is finished.
+			pass = 1;
+			repeatStartIdx = i + 1;
+		}
+		i++;
+	}
+	return order;
+}
+
+/** The measure whose content a (possibly simile-marked) bar actually sounds:
+ *  walk back past consecutive simile marks to the bar they all echo. */
+function simileSource(track: OtoTrack, mi: number): OtoMeasure | undefined {
+	let idx = mi;
+	while (idx > 0 && track.measures[idx]?.simile) idx--;
+	return track.measures[idx];
 }
 
 /** Channel for each track: drums share the GM percussion channel, pitched
@@ -168,20 +240,26 @@ export async function compileSong(
 	}
 
 	const measureCount = Math.max(...score.tracks.map((t) => t.measures.length), 0);
-	const measureTicks: number[] = [];
-	const measureBeatTicks: number[][] = [];
+	// Repeats/voltas replay measures, so the playback timeline is the expanded
+	// order — a measure can own several tick windows. The per-measure tables
+	// keep only the first playthrough (loop windows and play-from-cursor are
+	// expressed in measure indices); beatTicks covers every pass so the moving
+	// playhead follows the jumps.
+	const playOrder = expandRepeats(score, measureCount);
+	const measureTicks: number[] = new Array(measureCount).fill(-1);
+	const measureBeatTicks: number[][] = Array.from({ length: measureCount }, () => []);
 	const beatTicks: BeatTick[] = [];
 
 	let cursorTick = 0;
 	let lastTempo = -1;
 	let lastTimeSig = '';
 
-	for (let mi = 0; mi < measureCount; mi++) {
+	for (const mi of playOrder) {
 		const tempo = score.tracks[0]?.measures[mi]?.tempo ?? score.tempo;
 		const timeSig = score.tracks[0]?.measures[mi]?.timeSignature ?? score.timeSignature;
 		const measureStart = Math.round(cursorTick);
-		measureTicks.push(measureStart);
-		measureBeatTicks.push([]);
+		const firstPass = measureTicks[mi] < 0;
+		if (firstPass) measureTicks[mi] = measureStart;
 
 		if (tempo !== lastTempo) {
 			handler.addTempo(measureStart, tempo);
@@ -211,13 +289,15 @@ export async function compileSong(
 			);
 		}
 
-		// Schedule each track's voices within this measure independently.
+		// Schedule each track's voices within this measure independently. A
+		// simile bar sounds the content of the bar it echoes instead of its own.
 		const capacity = timeSig[0] / timeSig[1];
 		for (const track of score.tracks) {
 			const measure = track.measures[mi];
 			if (!measure) continue;
+			const content = measure.simile ? (simileSource(track, mi) ?? measure) : measure;
 			const channel = channels.get(track.id)!;
-			const voices = measureVoices(measure);
+			const voices = measureVoices(content);
 			const isPrimary = track === score.tracks[0];
 			for (const voice of voices) {
 				const cutoff = beatsCutoff(voice, capacity);
@@ -229,8 +309,14 @@ export async function compileSong(
 					const durTicks = beatFraction(beat) * WHOLE_NOTE_TICKS;
 					const startTick = Math.round(measureStart + localTicks);
 					if (isPrimaryVoice) {
-						measureBeatTicks[mi].push(startTick);
-						beatTicks.push({ tick: startTick, measure: mi, beat: bi });
+						if (firstPass) measureBeatTicks[mi].push(startTick);
+						// Simile content may have more beats than the bar's own
+						// notation — clamp so the playhead stays inside the bar.
+						beatTicks.push({
+							tick: startTick,
+							measure: mi,
+							beat: content === measure ? bi : Math.min(bi, measure.beats.length - 1)
+						});
 					}
 					if (!beat.rest) {
 						const palm = beat.notes.some((n) => n.techniques?.includes('palm-mute'));
@@ -312,6 +398,12 @@ export async function compileSong(
 	}
 
 	const totalTicks = Math.round(cursorTick);
+	// Measures that never play (e.g. a volta ending beyond the repeat count)
+	// still need a tick so cursor/loop lookups resolve: map them to wherever
+	// the next played measure starts (or the end of the piece).
+	for (let mi = measureCount - 1; mi >= 0; mi--) {
+		if (measureTicks[mi] < 0) measureTicks[mi] = measureTicks[mi + 1] ?? totalTicks;
+	}
 	handler.finishTrack(0, totalTicks);
 
 	return {

@@ -1,24 +1,29 @@
 <script lang="ts">
-	// Eye (focus) | Name | Mute | Solo button group, identical between the
-	// desktop single-row layout and the mobile expandable row — only what
-	// happens on the name click differs per host.
+	// Eye (focus) | Name | Mute | Solo | Volume button group, identical between
+	// the desktop and mobile rows — only what happens on the name click differs
+	// per host. Volume is a compact popover fader joined to the right of Solo.
 	import { store } from '$lib/stores/score.svelte';
 	import { cn } from '$lib/utils';
+	import * as Popover from '$lib/components/ui/popover';
+	import { MIXER_FADER_CLASS } from './mixer-fader';
 	import type { OtoTrack } from '$lib/oto/types';
 	import Eye from 'phosphor-svelte/lib/Eye';
+	import SpeakerSimpleHigh from 'phosphor-svelte/lib/SpeakerSimpleHigh';
 
 	let {
 		track,
 		index,
 		onNameClick,
 		onToggleMute,
-		onToggleSolo
+		onToggleSolo,
+		onVolume
 	}: {
 		track: OtoTrack;
 		index: number;
 		onNameClick: () => void;
 		onToggleMute: () => void;
 		onToggleSolo: () => void;
+		onVolume: (v: number) => void;
 	} = $props();
 </script>
 
@@ -72,11 +77,45 @@
 	<!-- Solo -->
 	<button
 		class={cn(
-			'flex h-7 w-7 shrink-0 items-center justify-center rounded-r-md rounded-l-none border border-l-0 text-[11px] font-bold',
+			'flex h-7 w-7 shrink-0 items-center justify-center rounded-none border border-l-0 text-[11px] font-bold',
 			track.soloed ? 'sunk text-foreground' : 'text-muted-foreground hover:text-foreground'
 		)}
 		title="Solo"
 		aria-pressed={track.soloed}
 		onclick={onToggleSolo}>S</button
 	>
+	<!-- Volume — rounded right, opens a small popover fader -->
+	<Popover.Root>
+		<Popover.Trigger
+			class="text-muted-foreground hover:text-foreground flex h-7 shrink-0 items-center gap-1 rounded-l-none rounded-r-md border border-l-0 px-1.5 text-[11px] tabular-nums"
+			title={`Volume: ${Math.round(track.volume * 100)}%`}
+			aria-label={`${track.name} volume`}
+		>
+			<SpeakerSimpleHigh class="size-3.5" />
+			{Math.round(track.volume * 100)}%
+		</Popover.Trigger>
+		<Popover.Content side="top" align="end" class="w-44 p-1.5">
+			<div class="flex items-center gap-2">
+				<SpeakerSimpleHigh class="text-muted-foreground size-3.5 shrink-0" />
+				<input
+					type="range"
+					min="0"
+					max="1"
+					step="0.01"
+					aria-label={`${track.name} volume`}
+					title="Volume"
+					class={cn(MIXER_FADER_CLASS, 'min-w-0 flex-1')}
+					value={track.volume}
+					aria-valuetext={`${Math.round(track.volume * 100)} percent`}
+					onpointerdown={() => store.beginGesture()}
+					onpointerup={() => store.endGesture()}
+					onpointercancel={() => store.endGesture()}
+					oninput={(e) => onVolume(e.currentTarget.valueAsNumber)}
+				/>
+				<span class="text-muted-foreground w-9 shrink-0 text-right text-[11px] tabular-nums"
+					>{Math.round(track.volume * 100)}%</span
+				>
+			</div>
+		</Popover.Content>
+	</Popover.Root>
 </div>

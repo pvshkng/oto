@@ -9,7 +9,9 @@
 	//
 	// It can be docked to any edge or floated freely; `placement` (from +page)
 	// says where it currently lives. Side/float use a vertical stack of grouped
-	// sections; the bottom strip uses one wide, wrapping toolbar row per group.
+	// sections; the bottom strip uses a responsive grid of three group cells
+	// (Note / Beat / Bar), each led by a vertical group label with small
+	// labelled control clusters wrapping beside it.
 
 	import { store } from '$lib/stores/score.svelte';
 	import { panelDrag } from '$lib/panel-drag';
@@ -36,13 +38,34 @@
 	// Group band separating the Note / Beat / Bar clusters in the sidebar stack.
 	const groupHead =
 		'border-b border-border bg-foreground/[0.05] px-3 py-1.5 text-[10px] font-bold tracking-[0.6px] text-text-muted uppercase';
-	const divider = 'mx-1 h-6 w-px shrink-0 self-center bg-border-strong';
-	// Bottom-strip rows wrap rather than scroll — a horizontal scrollbar in the
-	// dock strip felt broken; wrapping keeps every control reachable. Each row
-	// leads with its group label so the strip reads as Note / Beat / Bar lanes.
-	const wrapRow = 'flex flex-wrap items-center gap-x-2 gap-y-1.5';
-	const rowLabel = 'w-9 shrink-0 text-[10px] font-bold tracking-[0.4px] text-text-muted uppercase';
+	// Bottom-strip group cell: a vertical group label on the left that spans
+	// every wrapped row of controls (rotated so it stays narrow), and the
+	// labelled clusters wrapping beside it. Controls wrap rather than scroll —
+	// a horizontal scrollbar in the dock strip felt broken.
+	const groupCell = 'flex items-stretch gap-2 rounded-md border border-border/60 p-2';
+	const vLabel =
+		'flex w-5 shrink-0 rotate-180 items-center justify-center rounded-sm bg-foreground/[0.05] py-1 text-[10px] font-bold tracking-[0.6px] text-text-muted uppercase [writing-mode:vertical-rl]';
+	const clusterWrap = 'flex min-w-0 flex-1 flex-wrap content-start items-start gap-x-3 gap-y-1.5';
+	// Matches the mini section labels EffectsGrid & friends use in `sectioned`
+	// mode, so hand-labelled clusters and grid-provided ones read as one system.
+	const clusterLabel = 'text-[9px] font-bold tracking-[0.4px] text-text-muted/80 uppercase';
 </script>
+
+{#snippet cluster(title: string, body: import('svelte').Snippet)}
+	<div class="flex flex-col gap-1">
+		<span class={clusterLabel}>{title}</span>
+		<div class="flex flex-wrap items-center gap-[3px]" role="group" aria-label={title}>
+			{@render body()}
+		</div>
+	</div>
+{/snippet}
+
+{#snippet durationBtns()}<DurationPicker />{/snippet}
+{#snippet noteActionBtns()}<NoteActions />{/snippet}
+{#snippet voiceBtns()}<VoiceToggle />{/snippet}
+{#snippet beatActionBtns()}<BeatActions />{/snippet}
+{#snippet timeSigBtns()}<BarTimeSigPicker side="top" />{/snippet}
+{#snippet barActionBtns()}<BarActions />{/snippet}
 
 <aside
 	use:panelDrag={{ id: 'note', floating }}
@@ -50,7 +73,7 @@
 	class={cn(
 		'pointer-events-auto flex flex-col overflow-hidden bg-background/70 backdrop-blur-md',
 		floating
-			? 'fixed top-4 left-4 z-50 max-h-[calc(100dvh-2rem)] w-72 rounded-lg border border-border shadow-[0_6px_24px_rgba(0,0,0,0.14)]'
+			? 'fixed top-4 left-4 z-50 max-h-[min(60vh,560px)] w-72 rounded-lg border border-border shadow-[0_6px_24px_rgba(0,0,0,0.14)]'
 			: horizontal
 				? 'h-full w-full'
 				: 'h-full w-full rounded-lg border border-border shadow-[0_6px_24px_rgba(0,0,0,0.14)]'
@@ -64,33 +87,37 @@
 	/>
 
 	{#if horizontal}
-		<!-- Bottom strip: one wrapping lane per group (Note / Beat / Bar), each
-		     led by its label, with thin dividers between the control clusters. -->
-		<div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 py-2.5">
-			<div class={wrapRow}>
-				<span class={rowLabel}>Note</span>
-				<div class="inline-flex flex-none items-center gap-[3px]"><DurationPicker /></div>
-				<span class={divider}></span>
-				<div class="inline-flex flex-none items-center gap-[3px]"><NoteActions /></div>
-				<span class={divider}></span>
-				<div class="inline-flex flex-none items-center gap-[3px]"><VoiceToggle /></div>
-				<span class={divider}></span>
-				<EffectsGrid />
-			</div>
-			<div class={wrapRow}>
-				<span class={rowLabel}>Beat</span>
-				<div class="inline-flex flex-none items-center gap-[3px]"><BeatActions /></div>
-				<span class={divider}></span>
-				<BeatMarksGrid />
-			</div>
-			<div class={wrapRow}>
-				<span class={rowLabel}>Bar</span>
-				<div class="inline-flex flex-none items-center"><BarTimeSigPicker side="top" /></div>
-				<span class={divider}></span>
-				<div class="inline-flex flex-none items-center gap-[3px]"><BarActions /></div>
-				<span class={divider}></span>
-				<BarMarksGrid />
-			</div>
+		<!-- Bottom strip: a responsive grid of the three group cells. auto-fit
+		     keeps them equal — three across when the strip has the dock to
+		     itself, fewer columns when it shares the bottom with the keypad /
+		     fretboard / piano pad, stacking when space gets tight. -->
+		<div
+			class="grid min-h-0 flex-1 content-start gap-2 overflow-y-auto px-3 py-2.5 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]"
+		>
+			<section class={groupCell} aria-label="Note">
+				<span class={vLabel} aria-hidden="true">Note</span>
+				<div class={clusterWrap}>
+					{@render cluster('Duration', durationBtns)}
+					{@render cluster('Actions', noteActionBtns)}
+					{@render cluster('Voice', voiceBtns)}
+					<EffectsGrid sectioned />
+				</div>
+			</section>
+			<section class={groupCell} aria-label="Beat">
+				<span class={vLabel} aria-hidden="true">Beat</span>
+				<div class={clusterWrap}>
+					{@render cluster('Beats', beatActionBtns)}
+					<BeatMarksGrid sectioned />
+				</div>
+			</section>
+			<section class={groupCell} aria-label="Bar">
+				<span class={vLabel} aria-hidden="true">Bar</span>
+				<div class={clusterWrap}>
+					{@render cluster('Time signature', timeSigBtns)}
+					{@render cluster('Bar actions', barActionBtns)}
+					<BarMarksGrid sectioned />
+				</div>
+			</section>
 		</div>
 	{:else}
 		<!-- Side/float panels scroll vertically when the stacked sections outgrow
