@@ -2,9 +2,9 @@
 	// Tracks panel. A bottom-docked panel (toggled from the menubar, mutually
 	// exclusive with the note editor's keypad/fretboard dock) that gathers every
 	// per-track mixing control in one place: a frozen track-list column on the
-	// left (name, mute/solo, volume fader, pan knob, EQ) and a scrollable
-	// arrangement timeline on the right, with a Master strip and section
-	// markers underneath. All edits apply immediately.
+	// left (name, mute/solo, volume) and a scrollable arrangement timeline on
+	// the right, with a Master strip and section markers underneath. All edits
+	// apply immediately.
 
 	import { store } from '$lib/stores/score.svelte';
 	import { audio } from '$lib/audio/engine';
@@ -13,7 +13,6 @@
 	import { cn } from '$lib/utils';
 	import TrackControlDrawer from './TrackControlDrawer.svelte';
 	import TrackIdentityRow from './tracks-panel/TrackIdentityRow.svelte';
-	import TrackMixerControls from './tracks-panel/TrackMixerControls.svelte';
 	import * as Popover from '$lib/components/ui/popover';
 	import { MIXER_FADER_CLASS } from './tracks-panel/mixer-fader';
 	import type { OtoTrack } from '$lib/oto/types';
@@ -23,14 +22,13 @@
 	import MapPin from 'phosphor-svelte/lib/MapPin';
 	import MagnifyingGlassPlus from 'phosphor-svelte/lib/MagnifyingGlassPlus';
 	import MagnifyingGlassMinus from 'phosphor-svelte/lib/MagnifyingGlassMinus';
-	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 	import Minus from 'phosphor-svelte/lib/Minus';
 	import List from 'phosphor-svelte/lib/List';
 	import SpeakerSimpleHigh from 'phosphor-svelte/lib/SpeakerSimpleHigh';
 
 	// Width of the frozen track-controls column. Desktop: draggable 350–520 px.
 	// Mobile: fixed, narrow enough to leave more room for the timeline.
-	const LEAD_MOBILE = 210;
+	const LEAD_MOBILE = 230;
 	let LEAD = $state(350);
 
 	function startColumnResize(e: PointerEvent) {
@@ -93,20 +91,6 @@
 
 	let editIndex = $state(-1);
 	let editOpen = $state(false);
-	let eqOpen = $state<Record<string, boolean>>({});
-
-	// Per-row mixer detail (volume/pan/EQ/settings) expand state. Collapsed by
-	// default — rows show only name, mute, solo and the expand chevron.
-	let rowOpen = $state<Record<string, boolean>>({});
-	const allRowsOpen = $derived(tracks.length > 0 && tracks.every((t) => rowOpen[t.id]));
-
-	function toggleRow(id: string) {
-		rowOpen = { ...rowOpen, [id]: !rowOpen[id] };
-	}
-	function toggleAllRows() {
-		const next = !allRowsOpen;
-		rowOpen = Object.fromEntries(tracks.map((t) => [t.id, next]));
-	}
 
 	function trackHasContent(t: OtoTrack, mi: number): boolean {
 		const m = t.measures[mi];
@@ -188,18 +172,6 @@
 		store.setVolume(i, v);
 		audio.syncTrack(tracks[i]);
 	}
-	function setPan(i: number, p: number) {
-		store.setPan(i, p);
-		audio.syncTrack(tracks[i]);
-	}
-	function setEqBand(i: number, band: 'low' | 'mid' | 'high', db: number) {
-		store.setEqBand(i, band, db);
-		audio.syncTrack(tracks[i]);
-	}
-	function resetEq(i: number) {
-		store.resetEq(i);
-		audio.syncTrack(tracks[i]);
-	}
 	function setMaster(v: number) {
 		store.setMasterVolume(v);
 		audio.setMasterVolume(v); // live while playing
@@ -239,16 +211,6 @@
 					class="bg-background/70 sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r px-3 py-1.5 backdrop-blur-md"
 					style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px"
 				>
-					{#if !store.isDesktop}
-						<button
-							class="text-muted-foreground hover:text-foreground [background-image:none!important] flex shrink-0 items-center"
-							title={allRowsOpen ? 'Collapse all tracks' : 'Expand all tracks'}
-							aria-label={allRowsOpen ? 'Collapse all tracks' : 'Expand all tracks'}
-							onclick={toggleAllRows}
-						>
-							<CaretDown class={cn('size-3.5 transition-transform', allRowsOpen && 'rotate-180')} />
-						</button>
-					{/if}
 					<!-- Add track (leftmost) -->
 					<button
 						class="text-muted-foreground hover:text-foreground hover:border-border [background-image:none!important] flex size-6 shrink-0 items-center justify-center rounded-md border"
@@ -354,73 +316,25 @@
 							? LEAD
 							: LEAD_MOBILE}px;border-left:3px solid {track.color}"
 					>
-						{#if store.isDesktop}
-							<!-- Desktop: single row — Eye | Name | M | S · Vol · Pan · EQ -->
-							<div class="flex items-center gap-2">
-								<TrackIdentityRow
-									{track}
-									index={i}
-									onNameClick={() => {
+						<!-- Single row — Eye | Name | M | S | Vol -->
+						<div class="flex items-center gap-2">
+							<TrackIdentityRow
+								{track}
+								index={i}
+								onNameClick={() => {
+									if (store.isDesktop) {
 										store.trackControlIndex = i;
 										store.openPanel('track');
-									}}
-									onToggleMute={() => toggleMute(i)}
-									onToggleSolo={() => toggleSolo(i)}
-								/>
-								<!-- Mixer controls: Vol · Pan · EQ (with gap between each) -->
-								<TrackMixerControls
-									{track}
-									eqOpen={!!eqOpen[track.id]}
-									onEqOpenChange={(v) => (eqOpen = { ...eqOpen, [track.id]: v })}
-									onVolume={(v) => setVolume(i, v)}
-									onPan={(v) => setPan(i, v)}
-									onEqBand={(band, db) => setEqBand(i, band, db)}
-									onEqReset={() => resetEq(i)}
-								/>
-							</div>
-						{:else}
-							<!-- Mobile: Eye | Name | M | S + expand chevron, then expandable vol/pan/EQ row -->
-							<div class="flex items-center gap-1.5">
-								<TrackIdentityRow
-									{track}
-									index={i}
-									onNameClick={() => {
+									} else {
 										editIndex = i;
 										editOpen = true;
-									}}
-									onToggleMute={() => toggleMute(i)}
-									onToggleSolo={() => toggleSolo(i)}
-								/>
-								<!-- Expand chevron (mobile only) -->
-								<button
-									class="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-md [background-image:none!important]"
-									title={rowOpen[track.id] ? 'Collapse track controls' : 'Expand track controls'}
-									aria-label={rowOpen[track.id]
-										? 'Collapse track controls'
-										: 'Expand track controls'}
-									aria-expanded={!!rowOpen[track.id]}
-									onclick={() => toggleRow(track.id)}
-								>
-									<CaretDown
-										class={cn('size-4 transition-transform', rowOpen[track.id] && 'rotate-180')}
-									/>
-								</button>
-							</div>
-
-							{#if rowOpen[track.id]}
-								<div class="flex items-center gap-2">
-									<TrackMixerControls
-										{track}
-										eqOpen={!!eqOpen[track.id]}
-										onEqOpenChange={(v) => (eqOpen = { ...eqOpen, [track.id]: v })}
-										onVolume={(v) => setVolume(i, v)}
-										onPan={(v) => setPan(i, v)}
-										onEqBand={(band, db) => setEqBand(i, band, db)}
-										onEqReset={() => resetEq(i)}
-									/>
-								</div>
-							{/if}
-						{/if}
+									}
+								}}
+								onToggleMute={() => toggleMute(i)}
+								onToggleSolo={() => toggleSolo(i)}
+								onVolume={(v) => setVolume(i, v)}
+							/>
+						</div>
 					</div>
 
 					<!-- Column resize handle (desktop only) — positioned at the column border -->

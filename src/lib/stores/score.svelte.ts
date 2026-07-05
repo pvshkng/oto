@@ -103,6 +103,8 @@ interface StoredPrefs {
 	metronomeVolume?: number;
 	loopEnabled?: boolean;
 	countInOn?: boolean;
+	playbackSpeedOn?: boolean;
+	playbackSpeed?: number;
 	panelLayout?: Partial<Record<PanelId, Partial<PanelLayout>>>;
 	bottomSplitSwap?: boolean;
 }
@@ -475,6 +477,8 @@ export class ScoreStore {
 	#metronomeVolume = $state(1);
 	#loopEnabled = $state(false);
 	#countInOn = $state(false);
+	#playbackSpeedOn = $state(false);
+	#playbackSpeed = $state(1);
 
 	get metronomeOn(): boolean {
 		return this.#metronomeOn;
@@ -510,6 +514,25 @@ export class ScoreStore {
 	set countInOn(v: boolean) {
 		this.#countInOn = v;
 		this.#persistPrefs();
+	}
+	get playbackSpeedOn(): boolean {
+		return this.#playbackSpeedOn;
+	}
+	set playbackSpeedOn(v: boolean) {
+		this.#playbackSpeedOn = v;
+		this.#persistPrefs();
+	}
+	/** Playback speed multiplier (0.5..1.5) applied only while speed is on. */
+	get playbackSpeed(): number {
+		return this.#playbackSpeed;
+	}
+	set playbackSpeed(v: number) {
+		this.#playbackSpeed = clamp(v, 0.5, 1.5);
+		this.#persistPrefs();
+	}
+	/** The speed the engine should actually play at (1 while speed is off). */
+	get effectivePlaybackSpeed(): number {
+		return this.#playbackSpeedOn ? this.#playbackSpeed : 1;
 	}
 	/** Set when the audio engine failed to start (e.g. blocked autoplay), so the
 	 *  UI can surface a clear, actionable message instead of silent no-sound. */
@@ -617,6 +640,9 @@ export class ScoreStore {
 				this.#metronomeVolume = clamp(p.metronomeVolume, 0, 1);
 			if (typeof p.loopEnabled === 'boolean') this.#loopEnabled = p.loopEnabled;
 			if (typeof p.countInOn === 'boolean') this.#countInOn = p.countInOn;
+			if (typeof p.playbackSpeedOn === 'boolean') this.#playbackSpeedOn = p.playbackSpeedOn;
+			if (typeof p.playbackSpeed === 'number')
+				this.#playbackSpeed = clamp(p.playbackSpeed, 0.5, 1.5);
 			if (p.panelLayout) {
 				for (const id of PANEL_IDS) {
 					const s = p.panelLayout[id];
@@ -642,6 +668,8 @@ export class ScoreStore {
 				metronomeVolume: this.#metronomeVolume,
 				loopEnabled: this.#loopEnabled,
 				countInOn: this.#countInOn,
+				playbackSpeedOn: this.#playbackSpeedOn,
+				playbackSpeed: this.#playbackSpeed,
 				panelLayout: $state.snapshot(this.panelLayout),
 				bottomSplitSwap: this.bottomSplitSwap
 			};
