@@ -1,0 +1,1237 @@
+{
+  "format": "oto",
+  "version": 4,
+  "title": "Test: Multiple Tracks",
+  "artist": "oto fixtures",
+  "tempo": 116,
+  "timeSignature": [
+    4,
+    4
+  ],
+  "keySignature": 0,
+  "masterVolume": 0.85,
+  "tracks": [
+    {
+      "id": "trk-mr6gu1tv-1",
+      "name": "Lead Guitar",
+      "kind": "guitar",
+      "tuning": [
+        "E4",
+        "B3",
+        "G3",
+        "D3",
+        "A2",
+        "E2"
+      ],
+      "capo": 0,
+      "transpose": 0,
+      "instrument": "electric",
+      "volume": 0.8,
+      "pan": 0,
+      "eq": {
+        "low": 0,
+        "mid": 0,
+        "high": 0
+      },
+      "muted": false,
+      "soloed": false,
+      "view": {
+        "standard": true,
+        "tab": true,
+        "rhythm": false
+      },
+      "measures": [
+        {
+          "beats": [
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 4,
+                  "fret": 2
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 2
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 1,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 0,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 4,
+                  "techniques": [
+                    "hammer"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "vibrato"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 2,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 2,
+                  "techniques": [
+                    "let-ring"
+                  ]
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 0,
+                  "fret": 3
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 0,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 1,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 2,
+                  "techniques": [
+                    "slide"
+                  ],
+                  "slideTo": 4
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 4
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 1,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 0
+                },
+                {
+                  "string": 4,
+                  "fret": 2
+                },
+                {
+                  "string": 3,
+                  "fret": 2
+                },
+                {
+                  "string": 2,
+                  "fret": 1
+                },
+                {
+                  "string": 1,
+                  "fret": 0
+                },
+                {
+                  "string": 0,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            }
+          ]
+        }
+      ],
+      "color": "#e0f2fe"
+    },
+    {
+      "id": "trk-mr6gu1u1-2",
+      "name": "Rhythm Guitar",
+      "kind": "guitar",
+      "tuning": [
+        "E4",
+        "B3",
+        "G3",
+        "D3",
+        "A2",
+        "E2"
+      ],
+      "capo": 0,
+      "transpose": 0,
+      "instrument": "acoustic",
+      "volume": 0.8,
+      "pan": 0,
+      "eq": {
+        "low": 0,
+        "mid": 0,
+        "high": 0
+      },
+      "muted": false,
+      "soloed": false,
+      "view": {
+        "standard": false,
+        "tab": true,
+        "rhythm": true
+      },
+      "measures": [
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 0
+                },
+                {
+                  "string": 4,
+                  "fret": 2
+                },
+                {
+                  "string": 3,
+                  "fret": 2
+                },
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false,
+              "strum": "down"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 0
+                },
+                {
+                  "string": 4,
+                  "fret": 2
+                },
+                {
+                  "string": 3,
+                  "fret": 2
+                },
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false,
+              "strum": "up"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 0
+                },
+                {
+                  "string": 4,
+                  "fret": 2
+                },
+                {
+                  "string": 3,
+                  "fret": 2
+                },
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false,
+              "strum": "down"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 0
+                },
+                {
+                  "string": 4,
+                  "fret": 2
+                },
+                {
+                  "string": 3,
+                  "fret": 2
+                },
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false,
+              "strum": "up"
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 2,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 3
+                },
+                {
+                  "string": 4,
+                  "fret": 2
+                },
+                {
+                  "string": 3,
+                  "fret": 0
+                },
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 1,
+                  "fret": 0
+                },
+                {
+                  "string": 0,
+                  "fret": 3
+                }
+              ],
+              "rest": false,
+              "strum": "down"
+            },
+            {
+              "duration": 2,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 3
+                },
+                {
+                  "string": 4,
+                  "fret": 2
+                },
+                {
+                  "string": 3,
+                  "fret": 0
+                },
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 1,
+                  "fret": 0
+                },
+                {
+                  "string": 0,
+                  "fret": 3
+                }
+              ],
+              "rest": false,
+              "strum": "down"
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 4,
+                  "fret": 0
+                },
+                {
+                  "string": 3,
+                  "fret": 2
+                },
+                {
+                  "string": 2,
+                  "fret": 2
+                },
+                {
+                  "string": 1,
+                  "fret": 1
+                }
+              ],
+              "rest": false,
+              "strum": "down"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 4,
+                  "fret": 0
+                },
+                {
+                  "string": 3,
+                  "fret": 2
+                },
+                {
+                  "string": 2,
+                  "fret": 2
+                },
+                {
+                  "string": 1,
+                  "fret": 1
+                }
+              ],
+              "rest": false,
+              "strum": "up"
+            },
+            {
+              "duration": 2,
+              "notes": [
+                {
+                  "string": 4,
+                  "fret": 0
+                },
+                {
+                  "string": 3,
+                  "fret": 2
+                },
+                {
+                  "string": 2,
+                  "fret": 2
+                },
+                {
+                  "string": 1,
+                  "fret": 1
+                }
+              ],
+              "rest": false,
+              "strum": "down"
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 1,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 0
+                },
+                {
+                  "string": 4,
+                  "fret": 2
+                },
+                {
+                  "string": 3,
+                  "fret": 2
+                },
+                {
+                  "string": 2,
+                  "fret": 1
+                },
+                {
+                  "string": 1,
+                  "fret": 0
+                },
+                {
+                  "string": 0,
+                  "fret": 0
+                }
+              ],
+              "rest": false,
+              "strum": "down"
+            }
+          ]
+        }
+      ],
+      "color": "#d1fae5"
+    },
+    {
+      "id": "trk-mr6gu1u1-3",
+      "name": "Bass",
+      "kind": "bass",
+      "tuning": [
+        "G2",
+        "D2",
+        "A1",
+        "E1"
+      ],
+      "capo": 0,
+      "transpose": 0,
+      "instrument": "bass",
+      "volume": 0.8,
+      "pan": 0,
+      "eq": {
+        "low": 0,
+        "mid": 0,
+        "high": 0
+      },
+      "muted": false,
+      "soloed": false,
+      "view": {
+        "standard": true,
+        "tab": true,
+        "rhythm": false
+      },
+      "measures": [
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 3
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 5
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 2
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 2
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 3
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 5
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 3
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 3
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 2
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 1,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            }
+          ]
+        }
+      ],
+      "color": "#e0e7ff"
+    },
+    {
+      "id": "trk-mr6gu1u2-4",
+      "name": "Drums",
+      "kind": "custom",
+      "tuning": [
+        "C#3",
+        "A3",
+        "F#2",
+        "A#2",
+        "D2",
+        "C3",
+        "A2",
+        "G2",
+        "C2"
+      ],
+      "capo": 0,
+      "transpose": 0,
+      "instrument": "drums",
+      "volume": 0.8,
+      "pan": 0,
+      "eq": {
+        "low": 0,
+        "mid": 0,
+        "high": 0
+      },
+      "muted": false,
+      "soloed": false,
+      "view": {
+        "standard": false,
+        "tab": true,
+        "rhythm": false
+      },
+      "measures": [
+        {
+          "beats": [
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 0,
+                  "fret": 0
+                },
+                {
+                  "string": 8,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 4,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 8,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 4,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 8,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 4,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 8,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 4,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 0
+                },
+                {
+                  "string": 8,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 0
+                },
+                {
+                  "string": 4,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 0
+                },
+                {
+                  "string": 8,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 0
+                },
+                {
+                  "string": 4,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 8,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 4,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 8,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                },
+                {
+                  "string": 4,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 4,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 4,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 6,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 6,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 7,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 7,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            }
+          ]
+        }
+      ],
+      "color": "#fef3c7"
+    }
+  ],
+  "sections": [
+    {
+      "id": "sec-mt-1",
+      "measure": 0,
+      "label": "Intro"
+    },
+    {
+      "id": "sec-mt-2",
+      "measure": 2,
+      "label": "Verse"
+    }
+  ],
+  "createdAt": "2026-07-04T14:36:46.154Z",
+  "updatedAt": "2026-07-04T14:36:46.155Z"
+}

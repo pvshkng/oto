@@ -9,9 +9,16 @@ import { togglePlayback, stopPlayback } from '$lib/audio/playback';
 import { DURATION_ORDER } from '$lib/oto/duration';
 import {
 	DURATION_LABELS,
+	DYNAMICS,
 	TECHNIQUE_LABELS,
+	TUPLET_VALUES,
+	OTTAVAS,
+	type Dynamic,
 	type DurationValue,
-	type Technique
+	type Ottava,
+	type StrumDirection,
+	type Technique,
+	type TupletValue
 } from '$lib/oto/types';
 
 import Play from 'phosphor-svelte/lib/Play';
@@ -129,6 +136,43 @@ export const EFFECT_UI: EffectUi[] = EFFECT_SECTIONS.flatMap((s) => s.items);
 
 export const EFFECT_LIST: Technique[] = EFFECT_UI.map((e) => e.tech);
 
+/** Human-facing labels for the dynamics palette (buttons show the raw mark). */
+export const DYNAMIC_LABELS: Record<Dynamic, string> = {
+	ppp: 'Pianississimo',
+	pp: 'Pianissimo',
+	p: 'Piano',
+	mp: 'Mezzo-piano',
+	mf: 'Mezzo-forte',
+	f: 'Forte',
+	ff: 'Fortissimo',
+	fff: 'Fortississimo',
+	fp: 'Fortepiano',
+	fz: 'Forzando',
+	sf: 'Sforzando',
+	sfz: 'Sforzato',
+	sffz: 'Sforzato-fortissimo'
+};
+
+export const TUPLET_LABELS: Record<TupletValue, string> = {
+	3: 'Triplet',
+	5: 'Quintuplet',
+	6: 'Sextuplet',
+	7: 'Septuplet',
+	9: 'Nonuplet'
+};
+
+export const OTTAVA_LABELS: Record<Ottava, string> = {
+	'8va': 'Octave up (8va)',
+	'8vb': 'Octave down (8vb)',
+	'15ma': 'Two octaves up (15ma)',
+	'15mb': 'Two octaves down (15mb)'
+};
+
+export const STRUM_LABELS: Record<StrumDirection, string> = {
+	down: 'Strum down',
+	up: 'Strum up'
+};
+
 // ---- shared action helpers (reused by palette and context menu) -----------
 
 export function setDuration(d: DurationValue) {
@@ -171,6 +215,131 @@ export function effectCommands(): Cmd[] {
 		disabled: !note,
 		run: () => store.toggleTechnique(t)
 	}));
+}
+
+export function dynamicCommands(): Cmd[] {
+	const beat = store.currentBeat;
+	return DYNAMICS.map((d) => ({
+		id: `dyn-${d}`,
+		label: `Dynamic: ${d} (${DYNAMIC_LABELS[d]})`,
+		icon: Sparkle,
+		keywords: 'dynamics volume loud soft velocity',
+		active: beat?.dynamic === d,
+		run: () => store.setBeatDynamic(d)
+	}));
+}
+
+export function tupletCommands(): Cmd[] {
+	const beat = store.currentBeat;
+	return TUPLET_VALUES.map((n) => ({
+		id: `tuplet-${n}`,
+		label: `Tuplet: ${TUPLET_LABELS[n]} (${n})`,
+		icon: MusicNote,
+		keywords: 'tuplet triplet rhythm division',
+		active: beat?.tuplet === n,
+		run: () => store.setBeatTuplet(n)
+	}));
+}
+
+export function beatMarkCommands(): Cmd[] {
+	const beat = store.currentBeat;
+	const cmds: Cmd[] = [
+		{
+			id: 'fermata',
+			label: 'Fermata',
+			icon: MusicNote,
+			keywords: 'hold pause bird eye',
+			active: !!beat?.fermata,
+			run: () => store.toggleBeatFermata()
+		}
+	];
+	for (const o of OTTAVAS) {
+		cmds.push({
+			id: `ottava-${o}`,
+			label: OTTAVA_LABELS[o],
+			icon: MusicNote,
+			keywords: 'octave ottava transpose sign',
+			active: beat?.ottava === o,
+			run: () => store.setBeatOttava(o)
+		});
+	}
+	for (const dir of ['down', 'up'] as const) {
+		cmds.push({
+			id: `strum-${dir}`,
+			label: STRUM_LABELS[dir],
+			icon: MusicNote,
+			keywords: 'strum brush arrow chord tab',
+			active: beat?.strum === dir,
+			run: () => store.setBeatStrum(dir)
+		});
+	}
+	return cmds;
+}
+
+export function barMarkCommands(): Cmd[] {
+	const mi = store.cursor.measure;
+	const m = store.currentMeasure;
+	const cmds: Cmd[] = [
+		{
+			id: 'bar-double',
+			label: 'Double barline',
+			icon: Rows,
+			keywords: 'barline section double',
+			active: m?.barline === 'double',
+			run: () => store.toggleMeasureDoubleBarline(mi)
+		},
+		{
+			id: 'bar-repeat-start',
+			label: 'Begin repeat',
+			icon: Repeat,
+			keywords: 'repeat open barline',
+			active: !!m?.repeatStart,
+			run: () => store.toggleMeasureRepeatStart(mi)
+		},
+		{
+			id: 'bar-repeat-end',
+			label: 'End repeat',
+			icon: Repeat,
+			keywords: 'repeat close barline',
+			active: !!m?.repeatEnd,
+			run: () => store.toggleMeasureRepeatEnd(mi)
+		},
+		{
+			id: 'bar-simile',
+			label: 'Simile mark (repeat previous bar)',
+			icon: Repeat,
+			keywords: 'simile percent repeat bar',
+			active: !!m?.simile,
+			run: () => store.toggleMeasureSimile(mi)
+		},
+		{
+			id: 'bar-segno',
+			label: 'Segno',
+			icon: MusicNote,
+			keywords: 'segno navigation dal',
+			active: !!m?.segno,
+			run: () => store.toggleMeasureSegno(mi)
+		},
+		{
+			id: 'bar-coda',
+			label: 'Coda',
+			icon: MusicNote,
+			keywords: 'coda navigation al',
+			active: !!m?.coda,
+			run: () => store.toggleMeasureCoda(mi)
+		}
+	];
+	for (const n of [1, 2, 3]) {
+		cmds.push({
+			id: `bar-volta-${n}`,
+			label: `Volta bracket ${n}.`,
+			icon: Repeat,
+			keywords: 'volta ending alternate bracket',
+			active: m?.volta === n,
+			run: () => store.setMeasureVolta(mi, n)
+		});
+	}
+	return cmds;
 }
 
 export function timeSigCommands(): Cmd[] {
@@ -378,8 +547,12 @@ export function allCommandGroups(): CmdGroup[] {
 		groups.push({ heading: 'Note', items: durationCommands() });
 	}
 	groups.push({
+		heading: 'Beat',
+		items: [...tupletCommands(), ...dynamicCommands(), ...beatMarkCommands()]
+	});
+	groups.push({
 		heading: `Bar ${store.cursor.measure + 1}`,
-		items: [...barCommands(), ...timeSigCommands()]
+		items: [...barCommands(), ...barMarkCommands(), ...timeSigCommands()]
 	});
 	const panels = panelCommands();
 	if (panels.length) groups.push({ heading: 'Panels', items: panels });

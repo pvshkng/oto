@@ -6,7 +6,17 @@ import { analyzeMeasure, beatFraction } from '$lib/oto/duration';
 import { frettedMidi } from '$lib/oto/pitch';
 import { accidentalGlyph, beamCount, midiToStaffStep } from './glyphs';
 import { sectionLetterAt, sortSections } from '$lib/oto/sections';
-import type { OtoScore, OtoTrack, DurationValue, TrackKind } from '$lib/oto/types';
+import type {
+	BarlineStyle,
+	Dynamic,
+	DurationValue,
+	OtoScore,
+	OtoTrack,
+	Ottava,
+	StrumDirection,
+	TrackKind,
+	TupletValue
+} from '$lib/oto/types';
 
 export interface LayoutOptions {
 	containerWidth: number;
@@ -78,6 +88,16 @@ export interface LaidBeat {
 	startFrac: number;
 	duration: DurationValue;
 	dotted: boolean;
+	/** Tuplet size (3 = triplet, …), for the bracket/number over the group. */
+	tuplet: TupletValue | null;
+	/** Dynamic marking drawn under the staff at this beat. */
+	dynamic: Dynamic | null;
+	/** Strum arrow beside the chord in tab. */
+	strum: StrumDirection | null;
+	/** Fermata over this beat. */
+	fermata: boolean;
+	/** Octave sign over/under the standard staff. */
+	ottava: Ottava | null;
 	rest: boolean;
 	notes: LaidNote[];
 	stemDir: 1 | -1; // 1 = up
@@ -100,6 +120,22 @@ export interface LaidMeasure {
 	overflow: boolean;
 	showHeader: boolean;
 	timeSignature: [number, number] | null; // shown when it changes
+	/** Closing barline style ('double' draws a thin+thin section barline). */
+	barline: BarlineStyle | null;
+	/** Begin-repeat barline at the start of this measure. */
+	repeatStart: boolean;
+	/** End-repeat barline at the end of this measure. */
+	repeatEnd: boolean;
+	/** Play count for the end repeat (shown as “x3” when above 2). */
+	repeatCount: number | null;
+	/** Volta bracket number this measure belongs to (null = none). */
+	volta: number | null;
+	/** True when this measure starts a volta bracket (previous bar differs). */
+	voltaStart: boolean;
+	/** Simile: this bar repeats the previous one (% mark, beats not drawn). */
+	simile: boolean;
+	segno: boolean;
+	coda: boolean;
 	/** Section marker starting at this measure, if any — id/letter/name split so the
 	 *  letter is always derived from position (see `$lib/oto/sections`) rather than
 	 *  baked into stored data. */
@@ -298,8 +334,11 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 	// never by anything stored — see `$lib/oto/sections`.
 	const sortedSections = sortSections(score.sections);
 
-	// Vertical bands within a system.
-	const hasSections = score.sections.length > 0;
+	// Vertical bands within a system. Volta brackets and segno/coda marks are
+	// drawn in the same strip as the section labels, so having any of them also
+	// reserves it.
+	const hasSections =
+		score.sections.length > 0 || track.measures.some((m) => m.volta || m.segno || m.coda);
 	let y = hasSections ? 8 + METRICS.sectionLabelHeight : 8;
 	const bands: TrackLayout['bands'] = { standard: null, tab: null, rhythm: null };
 	if (opts.showStandard) {
@@ -443,6 +482,11 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 						startFrac,
 						duration: beat.duration,
 						dotted: !!beat.dotted,
+						tuplet: beat.tuplet ?? null,
+						dynamic: beat.dynamic ?? null,
+						strum: beat.strum ?? null,
+						fermata: !!beat.fermata,
+						ottava: beat.ottava ?? null,
 						rest: !!beat.rest || beat.notes.length === 0,
 						notes,
 						stemDir: forcedDir ?? 1,
@@ -475,6 +519,7 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 			const sectionIdx = sortedSections.findIndex((s) => s.measure === mi);
 			const section = sectionIdx >= 0 ? sortedSections[sectionIdx] : null;
 
+			const prevMeasure = mi > 0 ? track.measures[mi - 1] : null;
 			const laid: LaidMeasure = {
 				index: mi,
 				x: mx,
@@ -484,6 +529,15 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 				overflow: fill.overflow,
 				showHeader,
 				timeSignature: showTs ? (measure.timeSignature ?? score.timeSignature) : null,
+				barline: measure.barline ?? null,
+				repeatStart: !!measure.repeatStart,
+				repeatEnd: !!measure.repeatEnd,
+				repeatCount: measure.repeatEnd ? (measure.repeatCount ?? null) : null,
+				volta: measure.volta ?? null,
+				voltaStart: !!measure.volta && (prevMeasure?.volta ?? null) !== measure.volta,
+				simile: !!measure.simile,
+				segno: !!measure.segno,
+				coda: !!measure.coda,
 				sectionId: section?.id ?? null,
 				sectionLetter: section ? sectionLetterAt(sectionIdx) : null,
 				sectionName: section?.label || null

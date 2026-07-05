@@ -1,0 +1,826 @@
+{
+  "format": "oto",
+  "version": 4,
+  "title": "Test: Tuplets & Triplets",
+  "artist": "oto fixtures",
+  "tempo": 96,
+  "timeSignature": [
+    4,
+    4
+  ],
+  "keySignature": 0,
+  "masterVolume": 0.85,
+  "tracks": [
+    {
+      "id": "trk-mr6gu1ua-8",
+      "name": "Tuplets",
+      "kind": "guitar",
+      "tuning": [
+        "E4",
+        "B3",
+        "G3",
+        "D3",
+        "A2",
+        "E2"
+      ],
+      "capo": 0,
+      "transpose": 0,
+      "instrument": "nylon",
+      "volume": 0.8,
+      "pan": 0,
+      "eq": {
+        "low": 0,
+        "mid": 0,
+        "high": 0
+      },
+      "muted": false,
+      "soloed": false,
+      "view": {
+        "standard": true,
+        "tab": true,
+        "rhythm": false
+      },
+      "measures": [
+        {
+          "beats": [
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 1
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 2
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 3
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 4
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 6
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 7
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 8
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 9
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 10
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 11
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 3
+                }
+              ],
+              "rest": false,
+              "tuplet": 5
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 4
+                }
+              ],
+              "rest": false,
+              "tuplet": 5
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "tuplet": 5
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 6
+                }
+              ],
+              "rest": false,
+              "tuplet": 5
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 7
+                }
+              ],
+              "rest": false,
+              "tuplet": 5
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 8
+                }
+              ],
+              "rest": false,
+              "tuplet": 5
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 9
+                }
+              ],
+              "rest": false,
+              "tuplet": 5
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 10
+                }
+              ],
+              "rest": false,
+              "tuplet": 5
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 11
+                }
+              ],
+              "rest": false,
+              "tuplet": 5
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false,
+              "tuplet": 5
+            },
+            {
+              "duration": 2,
+              "notes": [],
+              "rest": true
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "tuplet": 6
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 6
+                }
+              ],
+              "rest": false,
+              "tuplet": 6
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 7
+                }
+              ],
+              "rest": false,
+              "tuplet": 6
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 8
+                }
+              ],
+              "rest": false,
+              "tuplet": 6
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 9
+                }
+              ],
+              "rest": false,
+              "tuplet": 6
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 10
+                }
+              ],
+              "rest": false,
+              "tuplet": 6
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 11
+                }
+              ],
+              "rest": false,
+              "tuplet": 6
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false,
+              "tuplet": 6
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 1
+                }
+              ],
+              "rest": false,
+              "tuplet": 6
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 2
+                }
+              ],
+              "rest": false,
+              "tuplet": 6
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 3
+                }
+              ],
+              "rest": false,
+              "tuplet": 6
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 4
+                }
+              ],
+              "rest": false,
+              "tuplet": 6
+            },
+            {
+              "duration": 2,
+              "notes": [],
+              "rest": true
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 7
+                }
+              ],
+              "rest": false,
+              "tuplet": 7
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 8
+                }
+              ],
+              "rest": false,
+              "tuplet": 7
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 9
+                }
+              ],
+              "rest": false,
+              "tuplet": 7
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 10
+                }
+              ],
+              "rest": false,
+              "tuplet": 7
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 11
+                }
+              ],
+              "rest": false,
+              "tuplet": 7
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false,
+              "tuplet": 7
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 1
+                }
+              ],
+              "rest": false,
+              "tuplet": 7
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 2
+                }
+              ],
+              "rest": false,
+              "tuplet": 7
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 3
+                }
+              ],
+              "rest": false,
+              "tuplet": 7
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 4
+                }
+              ],
+              "rest": false,
+              "tuplet": 7
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "tuplet": 7
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 6
+                }
+              ],
+              "rest": false,
+              "tuplet": 7
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 7
+                }
+              ],
+              "rest": false,
+              "tuplet": 7
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 8
+                }
+              ],
+              "rest": false,
+              "tuplet": 7
+            },
+            {
+              "duration": 2,
+              "notes": [],
+              "rest": true
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 0
+                }
+              ],
+              "rest": false,
+              "tuplet": 9
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 1
+                }
+              ],
+              "rest": false,
+              "tuplet": 9
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 2
+                }
+              ],
+              "rest": false,
+              "tuplet": 9
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 3
+                }
+              ],
+              "rest": false,
+              "tuplet": 9
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 4
+                }
+              ],
+              "rest": false,
+              "tuplet": 9
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "tuplet": 9
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 6
+                }
+              ],
+              "rest": false,
+              "tuplet": 9
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 7
+                }
+              ],
+              "rest": false,
+              "tuplet": 9
+            },
+            {
+              "duration": 16,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 8
+                }
+              ],
+              "rest": false,
+              "tuplet": 9
+            },
+            {
+              "duration": 2,
+              "notes": [],
+              "rest": true
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 6
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 7
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 8
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 9
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 10
+                }
+              ],
+              "rest": false,
+              "tuplet": 3
+            }
+          ],
+          "voice2": [
+            {
+              "duration": 2,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 0
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 2,
+              "notes": [
+                {
+                  "string": 5,
+                  "fret": 3
+                }
+              ],
+              "rest": false
+            }
+          ]
+        }
+      ],
+      "color": "#cffafe"
+    }
+  ],
+  "sections": [
+    {
+      "id": "sec-tu-1",
+      "measure": 0,
+      "label": "Triplets"
+    },
+    {
+      "id": "sec-tu-2",
+      "measure": 1,
+      "label": "5:4 6:4 7:4 9:8"
+    },
+    {
+      "id": "sec-tu-3",
+      "measure": 5,
+      "label": "Two voices"
+    }
+  ],
+  "createdAt": "2026-07-04T14:36:46.162Z",
+  "updatedAt": "2026-07-04T14:36:46.162Z"
+}

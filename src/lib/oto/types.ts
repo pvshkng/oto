@@ -88,6 +88,96 @@ export function isTechnique(v: unknown): v is Technique {
 	return typeof v === 'string' && (TECHNIQUES as string[]).includes(v);
 }
 
+/**
+ * Dynamic marking attached to a beat. Ordered soft → loud, with the accented
+ * ("subito"/sforzando family) marks after the plain levels, mirroring the
+ * Guitar Pro dynamics palette.
+ */
+export type Dynamic =
+	| 'ppp'
+	| 'pp'
+	| 'p'
+	| 'mp'
+	| 'mf'
+	| 'f'
+	| 'ff'
+	| 'fff'
+	| 'fp' // fortepiano
+	| 'fz' // forzando
+	| 'sf' // sforzando
+	| 'sfz' // sforzato
+	| 'sffz'; // sforzato-fortissimo
+
+export const DYNAMICS: Dynamic[] = [
+	'ppp',
+	'pp',
+	'p',
+	'mp',
+	'mf',
+	'f',
+	'ff',
+	'fff',
+	'fp',
+	'fz',
+	'sf',
+	'sfz',
+	'sffz'
+];
+
+export function isDynamic(v: unknown): v is Dynamic {
+	return typeof v === 'string' && (DYNAMICS as string[]).includes(v);
+}
+
+/**
+ * Playback velocity (0..1) for each dynamic. The sforzando family plays at
+ * forte-or-louder attack strength — the notation carries the nuance.
+ */
+export const DYNAMIC_VELOCITY: Record<Dynamic, number> = {
+	ppp: 0.16,
+	pp: 0.26,
+	p: 0.38,
+	mp: 0.52,
+	mf: 0.66,
+	f: 0.8,
+	ff: 0.9,
+	fff: 1,
+	fp: 0.85,
+	fz: 0.9,
+	sf: 0.85,
+	sfz: 0.92,
+	sffz: 1
+};
+
+/** Octave-transposition marks drawn over/under the standard staff. */
+export type Ottava = '8va' | '8vb' | '15ma' | '15mb';
+
+export const OTTAVAS: Ottava[] = ['8va', '8vb', '15ma', '15mb'];
+
+export function isOttava(v: unknown): v is Ottava {
+	return typeof v === 'string' && (OTTAVAS as string[]).includes(v);
+}
+
+/** Tab strum (brush) direction for a chord beat. */
+export type StrumDirection = 'up' | 'down';
+
+export function isStrumDirection(v: unknown): v is StrumDirection {
+	return v === 'up' || v === 'down';
+}
+
+/**
+ * Supported tuplet sizes: N notes in the time of the next-lower power of two
+ * (3:2, 5:4, 6:4, 7:4, 9:8) — see `tupletFactor` in `./duration`.
+ */
+export const TUPLET_VALUES = [3, 5, 6, 7, 9] as const;
+export type TupletValue = (typeof TUPLET_VALUES)[number];
+
+export function isTupletValue(v: unknown): v is TupletValue {
+	return typeof v === 'number' && (TUPLET_VALUES as readonly number[]).includes(v);
+}
+
+/** End-of-measure barline style. Default (undefined) is a single thin line. */
+export type BarlineStyle = 'double';
+
 /** Circle-of-fifths lookup: fifths offset -> major/relative-minor key names. */
 export const KEY_SIGS: { fifths: number; major: string; minor: string }[] = [
 	{ fifths: -7, major: 'Cb', minor: 'Ab' },
@@ -132,6 +222,21 @@ export interface OtoBeat {
 	duration: DurationValue;
 	/** Dotted note → 1.5× duration. */
 	dotted?: boolean;
+	/**
+	 * Tuplet membership: this beat is one of N notes played in the time of the
+	 * next-lower power of two (3 = triplet, 5 = quintuplet, …). Scales the
+	 * beat's duration by that ratio; consecutive same-N beats render under one
+	 * bracket.
+	 */
+	tuplet?: TupletValue;
+	/** Dynamic marking shown under the staff (also drives playback velocity). */
+	dynamic?: Dynamic;
+	/** Strum/brush direction arrow next to the chord in tab. */
+	strum?: StrumDirection;
+	/** Fermata (hold) over this beat. */
+	fermata?: boolean;
+	/** Octave sign over/under the standard staff for this beat. */
+	ottava?: Ottava;
 	/** Notes sounding on this beat. Empty + rest=true → a rest. */
 	notes: OtoNote[];
 	/** True when this beat is an explicit rest. */
@@ -143,6 +248,22 @@ export interface OtoMeasure {
 	timeSignature?: [number, number];
 	/** Per-measure tempo override (BPM). */
 	tempo?: number;
+	/** Closing barline style ('double' = thin+thin section barline). */
+	barline?: BarlineStyle;
+	/** Begin-repeat barline (thick + thin + dots) at the start of this measure. */
+	repeatStart?: boolean;
+	/** End-repeat barline (dots + thin + thick) at the end of this measure. */
+	repeatEnd?: boolean;
+	/** Number of times the repeated passage plays (with repeatEnd; default 2). */
+	repeatCount?: number;
+	/** Volta bracket (alternate ending) number this measure belongs to. */
+	volta?: number;
+	/** Simile mark: this bar repeats the previous bar's content (%). */
+	simile?: boolean;
+	/** Segno mark at the start of this measure. */
+	segno?: boolean;
+	/** Coda mark at the start of this measure. */
+	coda?: boolean;
 	/** Voice 1 (primary). Always present. */
 	beats: OtoBeat[];
 	/**

@@ -9,9 +9,14 @@
 //   v2 → v3  Added score-level `keySignature` (circle-of-fifths count, 0 =
 //            C/Am). Optional on disk — `parse()` backfills 0 (no sharps/flats)
 //            for older documents.
+//   v3 → v4  Added beat-level notation marks (`tuplet`, `dynamic`, `strum`,
+//            `fermata`, `ottava`) and measure-level structure marks
+//            (`barline`, `repeatStart`, `repeatEnd`, `repeatCount`, `volta`,
+//            `simile`, `segno`, `coda`). All optional on disk, so v3 documents
+//            load unchanged and are upgraded on the next save.
 
 import { TUNINGS } from './pitch';
-import { isTechnique } from './types';
+import { isDynamic, isOttava, isStrumDirection, isTechnique, isTupletValue } from './types';
 import type {
 	DurationValue,
 	OtoBeat,
@@ -22,7 +27,7 @@ import type {
 	TrackKind
 } from './types';
 
-export const OTO_VERSION = 3;
+export const OTO_VERSION = 4;
 
 let idCounter = 0;
 export function uid(prefix = 'id'): string {
@@ -217,6 +222,18 @@ function normaliseMeasure(m: unknown): OtoMeasure {
 	return {
 		timeSignature: isTimeSig(o.timeSignature) ? o.timeSignature : undefined,
 		tempo: typeof o.tempo === 'number' ? o.tempo : undefined,
+		barline: o.barline === 'double' ? 'double' : undefined,
+		repeatStart: o.repeatStart === true ? true : undefined,
+		repeatEnd: o.repeatEnd === true ? true : undefined,
+		repeatCount:
+			o.repeatEnd === true && typeof o.repeatCount === 'number' && o.repeatCount >= 2
+				? Math.floor(o.repeatCount)
+				: undefined,
+		volta:
+			typeof o.volta === 'number' && o.volta >= 1 ? Math.min(9, Math.floor(o.volta)) : undefined,
+		simile: o.simile === true ? true : undefined,
+		segno: o.segno === true ? true : undefined,
+		coda: o.coda === true ? true : undefined,
 		beats: beats.length ? beats : [restBeat()],
 		voice2: voice2 && voice2.length ? voice2 : undefined
 	};
@@ -248,6 +265,13 @@ function normaliseBeat(b: unknown): OtoBeat {
 	return {
 		duration,
 		dotted: !!o.dotted,
+		// Marks written by newer/older builds (or by hand) are validated so junk
+		// never reaches the UI — same policy as note techniques above.
+		tuplet: isTupletValue(o.tuplet) ? o.tuplet : undefined,
+		dynamic: isDynamic(o.dynamic) ? o.dynamic : undefined,
+		strum: isStrumDirection(o.strum) ? o.strum : undefined,
+		fermata: o.fermata === true ? true : undefined,
+		ottava: isOttava(o.ottava) ? o.ottava : undefined,
 		notes,
 		rest: notes.length === 0 ? true : !!o.rest
 	};

@@ -241,10 +241,17 @@
 						height={system.height}
 						role="presentation"
 					>
-						{#each system.measures as measure (measure.index)}
+						{#each system.measures as measure, mIdx (measure.index)}
+							<!-- x where a begin-repeat sign sits: at the bar's start, or just
+							     after the clef/key header on the first bar of a system. -->
+							{@const repeatX =
+								measure.x + (measure.showHeader ? METRICS.headerWidth + layout.keySigWidth + 2 : 0)}
+							{@const nextMeasure = system.measures[mIdx + 1] ?? null}
 							<!-- ===== Standard staff band ===== -->
 							{#if layout.bands.standard}
 								{@const band = layout.bands.standard}
+								{@const stdTop = METRICS.stdTopPad + METRICS.staffLineGap}
+								{@const stdBottom = METRICS.stdTopPad + 5 * METRICS.staffLineGap}
 								<g
 									transform="translate(0,{band.offsetY})"
 									onclick={(e) => handleClick(e, measure, 'standard')}
@@ -279,30 +286,121 @@
 										y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
 										class={BARLINE}
 									/>
-									{#if measure.index === lastMeasureIndex}
+									{#if measure.repeatStart}
+										<!-- Begin repeat: thick + thin + two dots, after the header. -->
+										<line
+											x1={repeatX + 2}
+											y1={stdTop}
+											x2={repeatX + 2}
+											y2={stdBottom}
+											class={BARLINE_THICK}
+										/>
+										<line
+											x1={repeatX + 6.5}
+											y1={stdTop}
+											x2={repeatX + 6.5}
+											y2={stdBottom}
+											class={BARLINE}
+										/>
+										<circle
+											cx={repeatX + 11.5}
+											cy={stdTop + 1.5 * METRICS.staffLineGap}
+											r="2"
+											class="fill-[#3f3f46]"
+										/>
+										<circle
+											cx={repeatX + 11.5}
+											cy={stdTop + 2.5 * METRICS.staffLineGap}
+											r="2"
+											class="fill-[#3f3f46]"
+										/>
+									{/if}
+									{#if measure.repeatEnd}
+										<!-- End repeat: two dots + thin + thick (mirrors begin). -->
+										<circle
+											cx={measure.x + measure.width - 11.5}
+											cy={stdTop + 1.5 * METRICS.staffLineGap}
+											r="2"
+											class="fill-[#3f3f46]"
+										/>
+										<circle
+											cx={measure.x + measure.width - 11.5}
+											cy={stdTop + 2.5 * METRICS.staffLineGap}
+											r="2"
+											class="fill-[#3f3f46]"
+										/>
+										<line
+											x1={measure.x + measure.width - 6.5}
+											y1={stdTop}
+											x2={measure.x + measure.width - 6.5}
+											y2={stdBottom}
+											class={BARLINE}
+										/>
+										<line
+											x1={measure.x + measure.width - 2}
+											y1={stdTop}
+											x2={measure.x + measure.width - 2}
+											y2={stdBottom}
+											class={BARLINE_THICK}
+										/>
+										{#if measure.repeatCount && measure.repeatCount > 2}
+											<text
+												x={measure.x + measure.width - 8}
+												y={stdTop - 4}
+												class="fill-[#3f3f46] [font:700_9px_ui-sans-serif,sans-serif] [text-anchor:end]"
+												>x{measure.repeatCount}</text
+											>
+										{/if}
+									{:else if measure.index === lastMeasureIndex}
 										<!-- Final double barline: thin then thick at the very end. -->
 										<line
 											x1={measure.x + measure.width - 5}
-											y1={METRICS.stdTopPad + METRICS.staffLineGap}
+											y1={stdTop}
 											x2={measure.x + measure.width - 5}
-											y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
+											y2={stdBottom}
 											class={BARLINE}
 										/>
 										<line
 											x1={measure.x + measure.width - 1.5}
-											y1={METRICS.stdTopPad + METRICS.staffLineGap}
+											y1={stdTop}
 											x2={measure.x + measure.width - 1.5}
-											y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
+											y2={stdBottom}
 											class={BARLINE_THICK}
+										/>
+									{:else if measure.barline === 'double'}
+										<!-- Section double barline: two thin lines. -->
+										<line
+											x1={measure.x + measure.width - 4}
+											y1={stdTop}
+											x2={measure.x + measure.width - 4}
+											y2={stdBottom}
+											class={BARLINE}
+										/>
+										<line
+											x1={measure.x + measure.width}
+											y1={stdTop}
+											x2={measure.x + measure.width}
+											y2={stdBottom}
+											class={BARLINE}
 										/>
 									{:else}
 										<line
 											x1={measure.x + measure.width}
-											y1={METRICS.stdTopPad + METRICS.staffLineGap}
+											y1={stdTop}
 											x2={measure.x + measure.width}
-											y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
+											y2={stdBottom}
 											class={BARLINE}
 										/>
+									{/if}
+									{#if measure.simile}
+										<!-- Simile: repeat-previous-bar mark, centred in the bar. -->
+										<text
+											x={measure.x +
+												measure.width / 2 +
+												(measure.showHeader ? (METRICS.headerWidth + layout.keySigWidth) / 2 : 0)}
+											y={stdTop + 2 * METRICS.staffLineGap + 6}
+											class="{BRAVURA} text-[26px] [text-anchor:middle]">{GLYPH.repeat1Bar}</text
+										>
 									{/if}
 
 									{#if measure.showHeader}
@@ -364,6 +462,9 @@
 							<!-- ===== Tablature band ===== -->
 							{#if layout.bands.tab}
 								{@const band = layout.bands.tab}
+								{@const tabTop = 14}
+								{@const tabBottom = 14 + (track.tuning.length - 1) * METRICS.tabLineGap}
+								{@const tabMid = (tabTop + tabBottom) / 2}
 								<g
 									transform="translate(0,{band.offsetY})"
 									onclick={(e) => handleClick(e, measure, 'tab')}
@@ -404,29 +505,106 @@
 										y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
 										class={BARLINE}
 									/>
-									{#if measure.index === lastMeasureIndex}
+									{#if measure.repeatStart}
+										<line
+											x1={repeatX + 2}
+											y1={tabTop}
+											x2={repeatX + 2}
+											y2={tabBottom}
+											class={BARLINE_THICK}
+										/>
+										<line
+											x1={repeatX + 6.5}
+											y1={tabTop}
+											x2={repeatX + 6.5}
+											y2={tabBottom}
+											class={BARLINE}
+										/>
+										<circle cx={repeatX + 11.5} cy={tabMid - 5.5} r="2" class="fill-[#3f3f46]" />
+										<circle cx={repeatX + 11.5} cy={tabMid + 5.5} r="2" class="fill-[#3f3f46]" />
+									{/if}
+									{#if measure.repeatEnd}
+										<circle
+											cx={measure.x + measure.width - 11.5}
+											cy={tabMid - 5.5}
+											r="2"
+											class="fill-[#3f3f46]"
+										/>
+										<circle
+											cx={measure.x + measure.width - 11.5}
+											cy={tabMid + 5.5}
+											r="2"
+											class="fill-[#3f3f46]"
+										/>
+										<line
+											x1={measure.x + measure.width - 6.5}
+											y1={tabTop}
+											x2={measure.x + measure.width - 6.5}
+											y2={tabBottom}
+											class={BARLINE}
+										/>
+										<line
+											x1={measure.x + measure.width - 2}
+											y1={tabTop}
+											x2={measure.x + measure.width - 2}
+											y2={tabBottom}
+											class={BARLINE_THICK}
+										/>
+										{#if measure.repeatCount && measure.repeatCount > 2}
+											<text
+												x={measure.x + measure.width - 8}
+												y={tabTop - 3}
+												class="fill-[#3f3f46] [font:700_9px_ui-sans-serif,sans-serif] [text-anchor:end]"
+												>x{measure.repeatCount}</text
+											>
+										{/if}
+									{:else if measure.index === lastMeasureIndex}
 										<line
 											x1={measure.x + measure.width - 5}
-											y1={14}
+											y1={tabTop}
 											x2={measure.x + measure.width - 5}
-											y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
+											y2={tabBottom}
 											class={BARLINE}
 										/>
 										<line
 											x1={measure.x + measure.width - 1.5}
-											y1={14}
+											y1={tabTop}
 											x2={measure.x + measure.width - 1.5}
-											y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
+											y2={tabBottom}
 											class={BARLINE_THICK}
+										/>
+									{:else if measure.barline === 'double'}
+										<line
+											x1={measure.x + measure.width - 4}
+											y1={tabTop}
+											x2={measure.x + measure.width - 4}
+											y2={tabBottom}
+											class={BARLINE}
+										/>
+										<line
+											x1={measure.x + measure.width}
+											y1={tabTop}
+											x2={measure.x + measure.width}
+											y2={tabBottom}
+											class={BARLINE}
 										/>
 									{:else}
 										<line
 											x1={measure.x + measure.width}
-											y1={14}
+											y1={tabTop}
 											x2={measure.x + measure.width}
-											y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
+											y2={tabBottom}
 											class={BARLINE}
 										/>
+									{/if}
+									{#if measure.simile}
+										<text
+											x={measure.x +
+												measure.width / 2 +
+												(measure.showHeader ? (METRICS.headerWidth + layout.keySigWidth) / 2 : 0)}
+											y={tabMid + 7}
+											class="{BRAVURA} text-[24px] [text-anchor:middle]">{GLYPH.repeat1Bar}</text
+										>
 									{/if}
 
 									{#if measure.showHeader}
@@ -445,6 +623,7 @@
 										bandHeight={band.height}
 										{isActiveTrack}
 										{trackIndex}
+										showMarks={!layout.bands.standard}
 									/>
 									{#if measure.voice2}
 										<TabVoice
@@ -454,6 +633,7 @@
 											bandHeight={band.height}
 											{isActiveTrack}
 											{trackIndex}
+											showMarks={!layout.bands.standard}
 										/>
 									{/if}
 								</g>
@@ -550,6 +730,50 @@
 										{/if}
 									{/each}
 								</g>
+							{/if}
+							<!-- Volta bracket + segno/coda marks in the reserved strip above the
+							     bands (layout reserves it whenever any measure carries one). -->
+							{#if measure.volta}
+								{@const voltaEnds = !nextMeasure || nextMeasure.volta !== measure.volta}
+								{#if measure.voltaStart}
+									<line x1={measure.x + 1} y1={13} x2={measure.x + 1} y2={3} class={BARLINE} />
+								{/if}
+								<line
+									x1={measure.x + 1}
+									y1={3}
+									x2={measure.x + measure.width - 1}
+									y2={3}
+									class={BARLINE}
+								/>
+								{#if voltaEnds}
+									<line
+										x1={measure.x + measure.width - 1}
+										y1={3}
+										x2={measure.x + measure.width - 1}
+										y2={13}
+										class={BARLINE}
+									/>
+								{/if}
+								{#if measure.voltaStart}
+									<text
+										x={measure.x + 5}
+										y={13}
+										class="fill-[#3f3f46] [font:700_9px_ui-sans-serif,sans-serif]"
+										>{measure.volta}.</text
+									>
+								{/if}
+							{/if}
+							{#if measure.segno}
+								<text x={measure.x + (measure.volta ? 18 : 3)} y={15} class="{BRAVURA} text-[15px]"
+									>{GLYPH.segno}</text
+								>
+							{/if}
+							{#if measure.coda}
+								<text
+									x={measure.x + (measure.volta ? 18 : 3) + (measure.segno ? 13 : 0)}
+									y={15}
+									class="{BRAVURA} text-[15px]">{GLYPH.coda}</text
+								>
 							{/if}
 							<!-- Section-marker label: small text above the staff bands. Rendered
 						     last (on top) so its hit area always wins over the bands' glyphs.

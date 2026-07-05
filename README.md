@@ -16,7 +16,13 @@ runes, Tailwind, [bits-ui](https://github.com/huntabyte/bits-ui) and Tone.js.
 - **Fast note entry**: click a beat, type fret numbers (multi-digit supported), pick a duration.
 - **Bar-capacity awareness**: durations are summed against the time signature; over-filled bars
   turn **red** and the overflowing notes are skipped on playback.
-- **Note durations**: whole, half, quarter, eighth, sixteenth, thirty-second + dotted.
+- **Note durations**: whole, half, quarter, eighth, sixteenth, thirty-second + dotted, plus
+  **tuplets** (triplet, quintuplet, sextuplet, septuplet, nonuplet) with correct bar math.
+- **Dynamics** per beat (`ppp` … `fff`, `fp`, `fz`, `sf`, `sfz`, `sffz`) — engraved under the
+  staff and driving playback velocity.
+- **Structure marks**: double barlines, begin/end repeats (with play count), volta brackets,
+  simile marks, segno & coda.
+- **Beat marks**: fermata, octave signs (8va/8vb/15ma/15mb) and strum-up/down arrows for tab.
 - **Two voices per bar**: a second voice (stems down) can hold a different rhythm than
   the first, so a sustained note can ring under a run of faster notes.
 - **Auto-grow entry**: typing a note extends the bar with a ready next beat and advances

@@ -17,6 +17,8 @@
 	import BarTimeSigPicker from './note-edit/BarTimeSigPicker.svelte';
 	import BeatActions from './note-edit/BeatActions.svelte';
 	import EffectsGrid from './note-edit/EffectsGrid.svelte';
+	import BeatMarksGrid from './note-edit/BeatMarksGrid.svelte';
+	import BarMarksGrid from './note-edit/BarMarksGrid.svelte';
 	import PanelHeader from './PanelHeader.svelte';
 
 	let { placement = 'left' }: { placement?: 'left' | 'right' | 'bottom' | 'float' } = $props();
@@ -67,6 +69,8 @@
 				<div class="inline-flex flex-none items-center gap-[3px]"><BeatActions /></div>
 			</div>
 			<div class="flex flex-wrap content-start items-center gap-1.5"><EffectsGrid /></div>
+			<div class="flex flex-wrap content-start items-center gap-1.5"><BeatMarksGrid /></div>
+			<div class="flex flex-wrap content-start items-center gap-1.5"><BarMarksGrid /></div>
 		</div>
 	{:else}
 		<!-- Side/float panels scroll vertically when the stacked sections outgrow
@@ -92,6 +96,14 @@
 			<div class={vSection}>
 				<span class={label}>Techniques</span>
 				<div class="flex flex-col gap-2"><EffectsGrid dense sectioned /></div>
+			</div>
+			<div class={vSection}>
+				<span class={label}>Beat marks</span>
+				<div class="flex flex-col gap-2"><BeatMarksGrid dense sectioned /></div>
+			</div>
+			<div class={vSection}>
+				<span class={label}>Bar marks</span>
+				<div class="flex flex-col gap-2"><BarMarksGrid dense sectioned /></div>
 			</div>
 		</div>
 	{/if}

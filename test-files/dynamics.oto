@@ -1,0 +1,305 @@
+{
+  "format": "oto",
+  "version": 4,
+  "title": "Test: Dynamics",
+  "artist": "oto fixtures",
+  "tempo": 80,
+  "timeSignature": [
+    4,
+    4
+  ],
+  "keySignature": 0,
+  "masterVolume": 0.85,
+  "tracks": [
+    {
+      "id": "trk-mr6gu1u8-7",
+      "name": "Dynamics",
+      "kind": "guitar",
+      "tuning": [
+        "E4",
+        "B3",
+        "G3",
+        "D3",
+        "A2",
+        "E2"
+      ],
+      "capo": 0,
+      "transpose": 0,
+      "instrument": "clean",
+      "volume": 0.8,
+      "pan": 0,
+      "eq": {
+        "low": 0,
+        "mid": 0,
+        "high": 0
+      },
+      "muted": false,
+      "soloed": false,
+      "view": {
+        "standard": true,
+        "tab": true,
+        "rhythm": false
+      },
+      "measures": [
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "ppp"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "pp"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "p"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "mp"
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "mf"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "f"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "ff"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "fff"
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "fp"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "fz"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "sf"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "sfz"
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "sffz"
+            },
+            {
+              "duration": 2,
+              "notes": [],
+              "rest": true
+            },
+            {
+              "duration": 4,
+              "notes": [],
+              "rest": true
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 2
+                }
+              ],
+              "rest": false,
+              "dynamic": "pp"
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 4
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 3,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "p"
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 2
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 4
+                }
+              ],
+              "rest": false,
+              "dynamic": "mp"
+            },
+            {
+              "duration": 8,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "mf"
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 1,
+                  "fret": 5
+                }
+              ],
+              "rest": false,
+              "dynamic": "f"
+            }
+          ]
+        }
+      ],
+      "color": "#ccfbf1"
+    }
+  ],
+  "sections": [
+    {
+      "id": "sec-dy-1",
+      "measure": 0,
+      "label": "ppp → sffz"
+    }
+  ],
+  "createdAt": "2026-07-04T14:36:46.160Z",
+  "updatedAt": "2026-07-04T14:36:46.160Z"
+}

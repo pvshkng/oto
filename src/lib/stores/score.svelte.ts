@@ -19,14 +19,18 @@ import { detuneTrack, transposeTrackFrets, retuneTrack } from '$lib/oto/transpos
 import { MAX_SECTIONS } from '$lib/oto/sections';
 import type { MetronomeSound } from '$lib/audio/engine';
 import type {
+	Dynamic,
 	DurationValue,
 	OtoBeat,
 	OtoMeasure,
 	OtoScore,
 	OtoTrack,
+	Ottava,
 	ScorePosition,
 	Section,
-	Technique
+	StrumDirection,
+	Technique,
+	TupletValue
 } from '$lib/oto/types';
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -1708,6 +1712,121 @@ export class ScoreStore {
 	get currentNote() {
 		const beat = this.currentBeatRef();
 		return beat?.notes.find((n) => n.string === this.cursor.string) ?? null;
+	}
+
+	/** The beat under the cursor (read-only view for the editor panels). */
+	get currentBeat(): OtoBeat | null {
+		return this.currentBeatRef();
+	}
+
+	// ---- beat-level notation marks -------------------------------------------
+	//
+	// All of these toggle: applying the value already on the beat clears it, so
+	// a single button per mark covers both set and unset.
+
+	setBeatTuplet(n: TupletValue) {
+		this.commit(() => {
+			const beat = this.currentBeatRef();
+			if (!beat) return;
+			beat.tuplet = beat.tuplet === n ? undefined : n;
+		});
+	}
+
+	setBeatDynamic(d: Dynamic) {
+		this.commit(() => {
+			const beat = this.currentBeatRef();
+			if (!beat) return;
+			beat.dynamic = beat.dynamic === d ? undefined : d;
+		});
+	}
+
+	setBeatStrum(dir: StrumDirection) {
+		this.commit(() => {
+			const beat = this.currentBeatRef();
+			if (!beat) return;
+			beat.strum = beat.strum === dir ? undefined : dir;
+		});
+	}
+
+	toggleBeatFermata() {
+		this.commit(() => {
+			const beat = this.currentBeatRef();
+			if (!beat) return;
+			beat.fermata = beat.fermata ? undefined : true;
+		});
+	}
+
+	setBeatOttava(o: Ottava) {
+		this.commit(() => {
+			const beat = this.currentBeatRef();
+			if (!beat) return;
+			beat.ottava = beat.ottava === o ? undefined : o;
+		});
+	}
+
+	// ---- measure-level structure marks ----------------------------------------
+	//
+	// Barlines, repeats, voltas and segno/coda are score structure, so — like a
+	// time-signature change — they're applied to the same measure on every track
+	// to keep the grid consistent. Simile is per-track content ("this instrument
+	// repeats its previous bar") and only touches the active track.
+
+	/** The cursor measure on the active track (for reading current mark state). */
+	get currentMeasure(): OtoMeasure | null {
+		return this.track.measures[this.cursor.measure] ?? null;
+	}
+
+	#eachTrackMeasure(measureIndex: number, fn: (m: OtoMeasure) => void) {
+		for (const t of this.score.tracks) {
+			const m = t.measures[measureIndex];
+			if (m) fn(m);
+		}
+	}
+
+	toggleMeasureDoubleBarline(measureIndex: number) {
+		const cur = this.track.measures[measureIndex]?.barline;
+		const next = cur === 'double' ? undefined : ('double' as const);
+		this.commit(() => this.#eachTrackMeasure(measureIndex, (m) => (m.barline = next)));
+	}
+
+	toggleMeasureRepeatStart(measureIndex: number) {
+		const next = this.track.measures[measureIndex]?.repeatStart ? undefined : true;
+		this.commit(() => this.#eachTrackMeasure(measureIndex, (m) => (m.repeatStart = next)));
+	}
+
+	toggleMeasureRepeatEnd(measureIndex: number) {
+		const next = this.track.measures[measureIndex]?.repeatEnd ? undefined : true;
+		this.commit(() =>
+			this.#eachTrackMeasure(measureIndex, (m) => {
+				m.repeatEnd = next;
+				if (!next) m.repeatCount = undefined;
+			})
+		);
+	}
+
+	/** Volta (alternate ending) number; re-applying the same number clears it. */
+	setMeasureVolta(measureIndex: number, n: number) {
+		const next = this.track.measures[measureIndex]?.volta === n ? undefined : n;
+		this.commit(() => this.#eachTrackMeasure(measureIndex, (m) => (m.volta = next)));
+	}
+
+	toggleMeasureSegno(measureIndex: number) {
+		const next = this.track.measures[measureIndex]?.segno ? undefined : true;
+		this.commit(() => this.#eachTrackMeasure(measureIndex, (m) => (m.segno = next)));
+	}
+
+	toggleMeasureCoda(measureIndex: number) {
+		const next = this.track.measures[measureIndex]?.coda ? undefined : true;
+		this.commit(() => this.#eachTrackMeasure(measureIndex, (m) => (m.coda = next)));
+	}
+
+	/** Simile is per-track: only the active track's bar becomes a repeat mark. */
+	toggleMeasureSimile(measureIndex: number) {
+		this.commit(() => {
+			const m = this.track.measures[measureIndex];
+			if (!m) return;
+			m.simile = m.simile ? undefined : true;
+		});
 	}
 }
 

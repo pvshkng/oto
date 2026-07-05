@@ -1,0 +1,440 @@
+{
+  "format": "oto",
+  "version": 4,
+  "title": "Test: All Note Effects",
+  "artist": "oto fixtures",
+  "tempo": 90,
+  "timeSignature": [
+    4,
+    4
+  ],
+  "keySignature": 0,
+  "masterVolume": 0.85,
+  "tracks": [
+    {
+      "id": "trk-mr6gu1u7-6",
+      "name": "Effects",
+      "kind": "guitar",
+      "tuning": [
+        "E4",
+        "B3",
+        "G3",
+        "D3",
+        "A2",
+        "E2"
+      ],
+      "capo": 0,
+      "transpose": 0,
+      "instrument": "electric",
+      "volume": 0.8,
+      "pan": 0,
+      "eq": {
+        "low": 0,
+        "mid": 0,
+        "high": 0
+      },
+      "muted": false,
+      "soloed": false,
+      "view": {
+        "standard": true,
+        "tab": true,
+        "rhythm": false
+      },
+      "measures": [
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "hammer"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "pull"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "slide"
+                  ],
+                  "slideTo": 7
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "bend"
+                  ],
+                  "bend": 1
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "release"
+                  ],
+                  "bend": 0.5
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "bend-release"
+                  ],
+                  "bend": 1
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "vibrato"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "wide-vibrato"
+                  ]
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "trill"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "tremolo"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "palm-mute"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "let-ring"
+                  ]
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "tap"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "slap"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "pop"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "harmonic"
+                  ]
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "artificial-harmonic"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "dead"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "staccato"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "tenuto"
+                  ]
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "ghost"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "accent"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "heavy-accent"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "fade-in"
+                  ]
+                }
+              ],
+              "rest": false
+            }
+          ]
+        },
+        {
+          "beats": [
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "techniques": [
+                    "grace"
+                  ]
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5,
+                  "tied": true
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [
+                {
+                  "string": 2,
+                  "fret": 5
+                }
+              ],
+              "rest": false
+            },
+            {
+              "duration": 4,
+              "notes": [],
+              "rest": true
+            }
+          ]
+        }
+      ],
+      "color": "#f3e8ff"
+    }
+  ],
+  "sections": [
+    {
+      "id": "sec-fx-1",
+      "measure": 0,
+      "label": "Every technique, one beat each"
+    }
+  ],
+  "createdAt": "2026-07-04T14:36:46.159Z",
+  "updatedAt": "2026-07-04T14:36:46.159Z"
+}
