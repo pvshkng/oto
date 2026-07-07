@@ -32,7 +32,7 @@
 
 	// Width of the frozen track-controls column. Desktop: draggable 350–520 px.
 	// Mobile: fixed, narrow enough to leave more room for the timeline.
-	const LEAD_MOBILE = 200;
+	const LEAD_MOBILE = 230;
 	let MIN_DESKTOP_LEAD = 280;
 	let LEAD = $state(MIN_DESKTOP_LEAD);
 

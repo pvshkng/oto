@@ -19,7 +19,6 @@
 	import * as Popover from '$lib/components/ui/popover';
 	import { MIXER_FADER_CLASS } from './mixer-fader';
 	import SpeakerSimpleHigh from 'phosphor-svelte/lib/SpeakerSimpleHigh';
-	import Sliders from 'phosphor-svelte/lib/Sliders';
 	import CaretLeft from 'phosphor-svelte/lib/CaretLeft';
 	import CaretRight from 'phosphor-svelte/lib/CaretRight';
 	import Waveform from 'phosphor-svelte/lib/Waveform';
@@ -131,7 +130,7 @@
 						title="Audio tempo & pitch tools"
 						aria-label="Audio tempo and pitch tools"
 					>
-						<Sliders class="size-3.5" />
+						<Waveform class="size-3.5" />
 					</Popover.Trigger>
 					<Popover.Content side="top" align="start" class="w-64 space-y-3 p-3 text-[12px]">
 						<!-- Tempo match -->
@@ -217,7 +216,6 @@
 					class="text-foreground flex h-7 min-w-0 flex-1 items-center gap-1.5 border border-l-0 bg-transparent px-2 text-[13px] font-semibold"
 					title={cfg.fileName}
 				>
-					<Waveform class="text-muted-foreground size-3.5 shrink-0" />
 					<span class="truncate">{cfg.name}</span>
 				</div>
 
@@ -277,10 +275,12 @@
 		</div>
 	</div>
 
-	<!-- Timeline area: the waveform clip, aligned to the bar grid. Overflow stays
-	     visible here so the sticky mobile carets below resolve against the panel's
-	     scroll container; the clip itself is clipped by an inner mask layer. -->
-	<div class="relative shrink-0" style="width:{timelineW}px;min-height:56px">
+	<!-- Timeline area: the waveform clip, aligned to the bar grid. Height comes
+	     from the controls column (flex-stretch), so the row matches a MIDI track
+	     exactly; the waveform fills that height and never overflows or scrolls.
+	     Overflow stays visible so the mobile carets (a sticky flow child) resolve
+	     against the panel's scroll container. -->
+	<div class="relative flex shrink-0 items-center" style="width:{timelineW}px">
 		{#if audioTrack.needsFile}
 			<!-- Config restored from the .oto file but the audio itself isn't saved —
 			     prompt to re-add the same file to realign. -->
@@ -317,34 +317,28 @@
 				</div>
 			{/if}
 
-			<!-- Mobile: nudge carets. The timeline scrolls horizontally, so the pair
-			     is stuck to the left edge of the visible waveform (just past the
-			     frozen controls column) rather than the timeline's far ends — that
-			     keeps them reachable no matter how far the strip is scrolled. Tap a
+			<!-- Mobile: nudge carets, laid over the waveform. As a sticky flow child
+			     they stay pinned just past the frozen controls column no matter how
+			     far the timeline is scrolled, so they're always reachable. Tap a
 			     caret to shift the audio ∓250 ms to line it up with the notation. -->
 			{#if !store.isDesktop && audioTrack.ready}
-				<div class="pointer-events-none absolute inset-0">
-					<div
-						class="sticky flex h-full items-center gap-2 pl-2"
-						style="left:{lead}px;width:max-content"
+				<div class="sticky z-20 flex shrink-0 items-center gap-2 pl-2" style="left:{lead}px">
+					<button
+						class="bg-background/90 text-foreground flex size-9 touch-manipulation items-center justify-center rounded-full border shadow-sm active:scale-95 [background-image:none!important]"
+						title="Move audio earlier (−250 ms)"
+						aria-label="Move audio earlier by 250 milliseconds"
+						onclick={() => audioTrack.nudge(-NUDGE)}
 					>
-						<button
-							class="bg-background/90 text-foreground pointer-events-auto flex size-9 items-center justify-center rounded-full border shadow-sm [background-image:none!important]"
-							title="Move audio earlier (−250 ms)"
-							aria-label="Move audio earlier by 250 milliseconds"
-							onclick={() => audioTrack.nudge(-NUDGE)}
-						>
-							<CaretLeft class="size-4" weight="bold" />
-						</button>
-						<button
-							class="bg-background/90 text-foreground pointer-events-auto flex size-9 items-center justify-center rounded-full border shadow-sm [background-image:none!important]"
-							title="Move audio later (+250 ms)"
-							aria-label="Move audio later by 250 milliseconds"
-							onclick={() => audioTrack.nudge(NUDGE)}
-						>
-							<CaretRight class="size-4" weight="bold" />
-						</button>
-					</div>
+						<CaretLeft class="size-4" weight="bold" />
+					</button>
+					<button
+						class="bg-background/90 text-foreground flex size-9 touch-manipulation items-center justify-center rounded-full border shadow-sm active:scale-95 [background-image:none!important]"
+						title="Move audio later (+250 ms)"
+						aria-label="Move audio later by 250 milliseconds"
+						onclick={() => audioTrack.nudge(NUDGE)}
+					>
+						<CaretRight class="size-4" weight="bold" />
+					</button>
 				</div>
 			{/if}
 		{/if}

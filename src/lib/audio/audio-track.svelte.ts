@@ -155,7 +155,10 @@ class AudioTrackController {
 			container: el,
 			media: this.mediaEl!,
 			url: this.objectUrl,
-			height: 48,
+			// Fill the clip container so the waveform never exceeds the track row's
+			// height (the row height is driven by the controls column, as with MIDI
+			// tracks) — no fixed pixel height, no internal scrolling.
+			height: 'auto',
 			waveColor: 'rgba(120,120,140,0.55)',
 			progressColor: 'rgba(120,120,140,0.85)',
 			cursorColor: 'var(--primary)',
