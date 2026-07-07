@@ -8,6 +8,7 @@ import { SvelteSet } from 'svelte/reactivity';
 import {
 	makeScore,
 	makeTrack,
+	makeAudioConfig,
 	parse,
 	serialize,
 	restBeat,
@@ -19,6 +20,7 @@ import { detuneTrack, transposeTrackFrets, retuneTrack } from '$lib/oto/transpos
 import { MAX_SECTIONS } from '$lib/oto/sections';
 import type { MetronomeSound } from '$lib/audio/engine';
 import type {
+	AudioTrackConfig,
 	Dynamic,
 	DurationValue,
 	OtoBeat,
@@ -978,6 +980,69 @@ export class ScoreStore {
 	setMasterVolume(v: number) {
 		this.score.masterVolume = clamp(v, 0, 1);
 		this.persist();
+	}
+
+	// ---- audio backing track (config only; bytes live in the controller) -----
+	//
+	// Only ever one audio track. Its config is part of the .oto document so
+	// tempo/position/pitch persist; the audio file itself is held separately by
+	// the runtime controller (see $lib/audio/audio-track). Discrete changes go
+	// through commit() (undoable); continuous drags (offset/volume) mutate +
+	// persist directly and rely on beginGesture()/endGesture() for undo, exactly
+	// like the mixer faders — and deliberately skip the scoreVersion bump so a
+	// drag never triggers a MIDI recompile (audio isn't in the MIDI).
+
+	get audio(): AudioTrackConfig | undefined {
+		return this.score.audio;
+	}
+	get hasAudio(): boolean {
+		return !!this.score.audio;
+	}
+
+	/** Attach a freshly imported audio file. Preserves any existing config whose
+	 *  file name matches (so re-adding the same file after reopening a document
+	 *  keeps the saved tempo/position/pitch), otherwise starts from defaults. */
+	addAudioTrack(fileName: string) {
+		this.commit(() => {
+			const existing = this.score.audio;
+			this.score.audio =
+				existing && existing.fileName === fileName ? existing : makeAudioConfig(fileName);
+		});
+	}
+
+	removeAudioTrack() {
+		this.commit(() => {
+			this.score.audio = undefined;
+		});
+	}
+
+	/** Discrete, undoable audio-config change (name, tempo, pitch, toggles). */
+	updateAudio(patch: Partial<AudioTrackConfig>) {
+		if (!this.score.audio) return;
+		this.commit(() => {
+			Object.assign(this.score.audio!, patch);
+		});
+	}
+
+	/** Continuous audio-config change (offset drag, volume fader) — no version
+	 *  bump, no per-tick undo snapshot. */
+	setAudioOffset(sec: number) {
+		if (!this.score.audio || !isFinite(sec)) return;
+		this.score.audio.offsetSec = sec;
+		this.persist();
+	}
+	setAudioVolume(v: number) {
+		if (!this.score.audio) return;
+		this.score.audio.volume = clamp(v, 0, 1);
+		this.persist();
+	}
+	toggleAudioMute() {
+		if (!this.score.audio) return;
+		this.commit(() => (this.score.audio!.muted = !this.score.audio!.muted));
+	}
+	toggleAudioSolo() {
+		if (!this.score.audio) return;
+		this.commit(() => (this.score.audio!.soloed = !this.score.audio!.soloed));
 	}
 
 	// ---- sections / markers ------------------------------------------------

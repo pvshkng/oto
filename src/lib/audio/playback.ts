@@ -4,6 +4,7 @@
 
 import { audio, type CompiledSong, type MetronomeSound } from './engine';
 import { compileSong } from './midi';
+import { audioTrack } from './audio-track.svelte';
 import { store } from '$lib/stores/score.svelte';
 
 // Compiling builds the full MIDI file + tick tables for the whole score, which
@@ -50,6 +51,9 @@ async function startPlaybackFrom(
 	store.isPlaying = true;
 	store.isPaused = false;
 	store.playhead = { measure: startMeasure, beat: startBeat };
+	// Arm the audio backing track so it starts chasing the clock from the first
+	// position callback below.
+	audioTrack.onSongStart();
 
 	try {
 		const compiled = await getCompiledSong();
@@ -101,6 +105,7 @@ async function startPlaybackFrom(
 					store.playhead = { measure, beat };
 				}
 			},
+			onPosition: (ms) => audioTrack.syncToSong(ms),
 			onStop: () => stopPlayback()
 		});
 		store.audioError = null;
@@ -150,6 +155,7 @@ export function reflectTempoChange() {
 export function pausePlayback() {
 	if (!store.isPlaying) return;
 	audio.stop();
+	audioTrack.onSongStop();
 	const at = store.playhead ?? { measure: store.cursor.measure, beat: store.cursor.beat };
 	store.setCursor({ measure: at.measure, beat: at.beat });
 	store.isPlaying = false;
@@ -161,6 +167,7 @@ export function pausePlayback() {
  *  (that's reserved for the explicit "back to start" button). */
 export function stopPlayback() {
 	audio.stop();
+	audioTrack.onSongStop();
 	store.isPlaying = false;
 	store.isPaused = false;
 	store.playhead = null;

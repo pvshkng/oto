@@ -14,10 +14,15 @@
 //            (`barline`, `repeatStart`, `repeatEnd`, `repeatCount`, `volta`,
 //            `simile`, `segno`, `coda`). All optional on disk, so v3 documents
 //            load unchanged and are upgraded on the next save.
+//   v4 → v5  Added the optional `audio` backing-track config (file name, timeline
+//            offset, gain/mute/solo, tempo-match + pitch settings). Optional on
+//            disk — absent means no audio track. The audio bytes are never
+//            stored; only the alignment/tempo/pitch settings are.
 
 import { TUNINGS } from './pitch';
 import { isDynamic, isOttava, isStrumDirection, isTechnique, isTupletValue } from './types';
 import type {
+	AudioTrackConfig,
 	DurationValue,
 	OtoBeat,
 	OtoMeasure,
@@ -27,7 +32,7 @@ import type {
 	TrackKind
 } from './types';
 
-export const OTO_VERSION = 4;
+export const OTO_VERSION = 5;
 
 let idCounter = 0;
 export function uid(prefix = 'id'): string {
@@ -102,6 +107,22 @@ export function makeTrack(opts: Partial<OtoTrack> = {}): OtoTrack {
 	};
 }
 
+/** Default config for a freshly imported audio backing track. */
+export function makeAudioConfig(fileName: string): AudioTrackConfig {
+	const name = fileName.replace(/\.[^./\\]+$/, '') || fileName || 'Audio';
+	return {
+		fileName,
+		name,
+		offsetSec: 0,
+		volume: 0.85,
+		muted: false,
+		soloed: false,
+		sourceTempo: undefined,
+		matchTempo: false,
+		pitchSemitones: 0
+	};
+}
+
 export function makeScore(opts: Partial<OtoScore> = {}): OtoScore {
 	const now = new Date().toISOString();
 	return {
@@ -115,6 +136,7 @@ export function makeScore(opts: Partial<OtoScore> = {}): OtoScore {
 		masterVolume: opts.masterVolume ?? 0.85,
 		tracks: opts.tracks ?? [makeTrack()],
 		sections: opts.sections ?? [],
+		audio: opts.audio,
 		createdAt: opts.createdAt ?? now,
 		updatedAt: now
 	};
@@ -151,8 +173,36 @@ export function parse(text: string): OtoScore {
 		masterVolume: typeof d.masterVolume === 'number' ? d.masterVolume : undefined,
 		tracks,
 		sections: Array.isArray(d.sections) ? (d.sections as unknown[]).map(normaliseSection) : [],
+		audio: normaliseAudio(d.audio),
 		createdAt: typeof d.createdAt === 'string' ? d.createdAt : undefined
 	});
+}
+
+/** Validate a persisted audio-track config, or `undefined` when absent/invalid. */
+function normaliseAudio(v: unknown): AudioTrackConfig | undefined {
+	if (!v || typeof v !== 'object') return undefined;
+	const o = v as Record<string, unknown>;
+	const fileName = typeof o.fileName === 'string' ? o.fileName : '';
+	if (!fileName) return undefined;
+	const clamp01 = (n: unknown, d: number) =>
+		typeof n === 'number' && isFinite(n) ? Math.max(0, Math.min(1, n)) : d;
+	return {
+		fileName,
+		name: typeof o.name === 'string' && o.name ? o.name : fileName.replace(/\.[^./\\]+$/, ''),
+		offsetSec: typeof o.offsetSec === 'number' && isFinite(o.offsetSec) ? o.offsetSec : 0,
+		volume: clamp01(o.volume, 0.85),
+		muted: o.muted === true,
+		soloed: o.soloed === true,
+		sourceTempo:
+			typeof o.sourceTempo === 'number' && o.sourceTempo > 0
+				? Math.max(20, Math.min(400, o.sourceTempo))
+				: undefined,
+		matchTempo: o.matchTempo === true,
+		pitchSemitones:
+			typeof o.pitchSemitones === 'number' && isFinite(o.pitchSemitones)
+				? Math.max(-12, Math.min(12, Math.round(o.pitchSemitones)))
+				: 0
+	};
 }
 
 function isTimeSig(v: unknown): v is [number, number] {

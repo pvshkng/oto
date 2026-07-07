@@ -8,16 +8,20 @@
 
 	import { store } from '$lib/stores/score.svelte';
 	import { audio } from '$lib/audio/engine';
+	import { audioTrack } from '$lib/audio/audio-track.svelte';
 	import { analyzeMeasure } from '$lib/oto/duration';
 	import { sectionLetterAt } from '$lib/oto/sections';
 	import { cn } from '$lib/utils';
 	import TrackControlDrawer from './TrackControlDrawer.svelte';
 	import TrackIdentityRow from './tracks-panel/TrackIdentityRow.svelte';
+	import AudioTrackRow from './tracks-panel/AudioTrackRow.svelte';
 	import * as Popover from '$lib/components/ui/popover';
 	import { MIXER_FADER_CLASS } from './tracks-panel/mixer-fader';
 	import type { OtoTrack } from '$lib/oto/types';
 
 	import Plus from 'phosphor-svelte/lib/Plus';
+	import MusicNotesPlus from 'phosphor-svelte/lib/MusicNotesPlus';
+	import MusicNotesMinus from 'phosphor-svelte/lib/MusicNotesMinus';
 	import X from 'phosphor-svelte/lib/X';
 	import MapPin from 'phosphor-svelte/lib/MapPin';
 	import MagnifyingGlassPlus from 'phosphor-svelte/lib/MagnifyingGlassPlus';
@@ -28,8 +32,9 @@
 
 	// Width of the frozen track-controls column. Desktop: draggable 350–520 px.
 	// Mobile: fixed, narrow enough to leave more room for the timeline.
-	const LEAD_MOBILE = 230;
-	let LEAD = $state(350);
+	const LEAD_MOBILE = 200;
+	let MIN_DESKTOP_LEAD = 280;
+	let LEAD = $state(MIN_DESKTOP_LEAD);
 
 	function startColumnResize(e: PointerEvent) {
 		if (!store.isDesktop) return;
@@ -37,7 +42,7 @@
 		const startX = e.clientX;
 		const startW = LEAD;
 		function onMove(ev: PointerEvent) {
-			LEAD = Math.max(350, Math.min(520, startW + ev.clientX - startX));
+			LEAD = Math.max(MIN_DESKTOP_LEAD, Math.min(520, startW + ev.clientX - startX));
 		}
 		function onUp() {
 			window.removeEventListener('pointermove', onMove);
@@ -180,10 +185,13 @@
 		store.toggleMute(i);
 		// Solo/mute change every track's effective gain, so re-sync all of them.
 		audio.syncAllTracks(tracks);
+		audioTrack.applyGain();
 	}
 	function toggleSolo(i: number) {
 		store.toggleSolo(i);
 		audio.syncAllTracks(tracks);
+		// A MIDI solo also silences the audio track (unless it too is soloed).
+		audioTrack.applyGain();
 	}
 </script>
 
@@ -220,6 +228,44 @@
 					>
 						<Plus class="size-3.5" />
 					</button>
+					<!-- Add / remove audio backing track. Only ever one; when present the
+					     button flips to a remove action guarded by a confirm popover. -->
+					{#if store.hasAudio}
+						<Popover.Root>
+							<Popover.Trigger
+								class="text-muted-foreground hover:text-foreground hover:border-border [background-image:none!important] flex size-6 shrink-0 items-center justify-center rounded-md border"
+								title="Remove audio backing track"
+								aria-label="Remove audio backing track"
+							>
+								<MusicNotesMinus class="size-3.5" />
+							</Popover.Trigger>
+							<Popover.Content side="top" align="start" class="w-56 space-y-2 p-3 text-[12px]">
+								<p class="font-medium">Remove the audio backing track?</p>
+								<p class="text-muted-foreground text-[11px] leading-snug">
+									The saved tempo, position and pitch settings are cleared too.
+								</p>
+								<div class="flex justify-end gap-2 pt-1">
+									<Popover.Close
+										class="hover:bg-muted rounded-md border px-2 py-1 [background-image:none!important]"
+										>Cancel</Popover.Close
+									>
+									<Popover.Close
+										class="bg-destructive text-destructive-foreground rounded-md px-2 py-1 [background-image:none!important]"
+										onclick={() => audioTrack.remove()}>Remove</Popover.Close
+									>
+								</div>
+							</Popover.Content>
+						</Popover.Root>
+					{:else}
+						<button
+							class="text-muted-foreground hover:text-foreground hover:border-border [background-image:none!important] flex size-6 shrink-0 items-center justify-center rounded-md border"
+							title="Add audio backing track"
+							aria-label="Add audio backing track"
+							onclick={() => audioTrack.promptImport()}
+						>
+							<MusicNotesPlus class="size-3.5" />
+						</button>
+					{/if}
 					<!-- Single / Multi track view toggle -->
 					<div class="flex shrink-0 items-stretch">
 						<button
@@ -304,6 +350,11 @@
 					</div>
 				</div>
 			</div>
+
+			<!-- Audio backing track — pinned above every MIDI track -->
+			{#if store.hasAudio}
+				<AudioTrackRow lead={store.isDesktop ? LEAD : LEAD_MOBILE} {timelineW} {cell} />
+			{/if}
 
 			<!-- One row per track -->
 			{#each tracks as track, i (track.id)}

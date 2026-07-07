@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { store } from '$lib/stores/score.svelte';
 	import { stopPlayback } from '$lib/audio/playback';
+	import { audioTrack } from '$lib/audio/audio-track.svelte';
 	import { handleGlobalKeydown } from '$lib/keyboard-shortcuts';
 	import { initLongPressTooltips } from '$lib/long-press-tooltip';
 	import Swap from 'phosphor-svelte/lib/Swap';
@@ -94,6 +95,13 @@
 		}
 		return trackEls[0];
 	}
+
+	// When the open document changes (New / Open / Close), drop any in-memory
+	// audio that the new document doesn't reference so it can't keep playing.
+	$effect(() => {
+		void store.audio?.fileName;
+		audioTrack.reconcile();
+	});
 
 	$effect(() => {
 		const req = store.scrollRequest;

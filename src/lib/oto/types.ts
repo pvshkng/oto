@@ -295,6 +295,42 @@ export interface TrackEq {
 	high: number;
 }
 
+/**
+ * Configuration for the single optional audio backing track. This lives inside
+ * the .oto document so tempo/position/pitch survive a save — but the audio file
+ * itself does NOT (it can be megabytes and isn't ours to embed). Reopening a
+ * document therefore restores the config but shows an empty audio slot until the
+ * user re-imports the same file, at which point everything realigns.
+ */
+export interface AudioTrackConfig {
+	/** Original file name — shown in the track header and used to prompt the user
+	 *  to re-add the matching file when a saved document is reopened. */
+	fileName: string;
+	/** Display name (defaults to the file name; user-editable). */
+	name: string;
+	/**
+	 * Where the audio's start (its own time 0) sits on the song timeline, in
+	 * seconds measured from the song start (measure 0, beat 0). Positive → the
+	 * audio begins later than the song (e.g. a count-in of silence before it).
+	 * Negative → the audio's head is pushed left of the song start, so that part
+	 * is hidden/skipped and the audio is already mid-way when the song begins —
+	 * the way you line a long no-notes intro up with bar 1.
+	 */
+	offsetSec: number;
+	/** Playback gain, 0..1. */
+	volume: number;
+	muted: boolean;
+	soloed: boolean;
+	/** The audio's own musical tempo in BPM, used by the tempo-match tool to
+	 *  time-stretch it onto the song's grid. Undefined until the user sets it. */
+	sourceTempo?: number;
+	/** When true, time-stretch the audio (pitch preserved) so its tempo matches
+	 *  the song tempo. Requires sourceTempo. */
+	matchTempo: boolean;
+	/** Pitch shift applied to the audio, in semitones (−12..+12). 0 = bypassed. */
+	pitchSemitones: number;
+}
+
 /** A structural anchor placed at a measure (e.g. "Intro", "Chorus"). */
 export interface Section {
 	id: string;
@@ -344,6 +380,9 @@ export interface OtoScore {
 	tracks: OtoTrack[];
 	/** Structural section markers along the timeline. */
 	sections: Section[];
+	/** Optional single audio backing track. The file bytes are never persisted
+	 *  here — only the alignment/tempo/pitch config (see AudioTrackConfig). */
+	audio?: AudioTrackConfig;
 	createdAt: string;
 	updatedAt: string;
 }

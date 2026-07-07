@@ -274,4 +274,51 @@ describe('.oto format', () => {
 		const s = parse(doc);
 		expect(s.tracks[0].measures[0].beats[0].notes[0].techniques).toEqual(['slap']);
 	});
+
+	it('round-trips the audio backing-track config', () => {
+		const s = makeScore({
+			audio: {
+				fileName: 'song.mp3',
+				name: 'song',
+				offsetSec: -3.5,
+				volume: 0.6,
+				muted: true,
+				soloed: false,
+				sourceTempo: 128,
+				matchTempo: true,
+				pitchSemitones: 2
+			}
+		});
+		const back = parse(serialize(s));
+		expect(back.audio).toEqual(s.audio);
+	});
+
+	it('drops an audio config with no file name', () => {
+		const doc = JSON.stringify({ format: 'oto', tracks: [makeTrack()], audio: { volume: 0.5 } });
+		expect(parse(doc).audio).toBeUndefined();
+	});
+
+	it('clamps and defaults invalid audio config fields', () => {
+		const doc = JSON.stringify({
+			format: 'oto',
+			tracks: [makeTrack()],
+			audio: {
+				fileName: 'x.wav',
+				volume: 5,
+				pitchSemitones: 99,
+				sourceTempo: -4,
+				offsetSec: 'nope'
+			}
+		});
+		const a = parse(doc).audio!;
+		expect(a.volume).toBe(1);
+		expect(a.pitchSemitones).toBe(12);
+		expect(a.sourceTempo).toBeUndefined();
+		expect(a.offsetSec).toBe(0);
+		expect(a.name).toBe('x');
+	});
+
+	it('bumps the format version to at least 5 for audio support', () => {
+		expect(OTO_VERSION).toBeGreaterThanOrEqual(5);
+	});
 });

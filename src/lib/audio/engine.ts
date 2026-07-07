@@ -62,6 +62,9 @@ export interface PlayOptions {
 	repeat: boolean;
 	/** Fired as the playhead reaches each beat of the primary voice. */
 	onBeatMarker: (measure: number, beat: number) => void;
+	/** Fired on every position change with the raw song position (ms) — used to
+	 *  keep the audio backing track locked to the MIDI clock. */
+	onPosition?: (currentTimeMs: number) => void;
 	onStop: () => void;
 }
 
@@ -84,6 +87,7 @@ export class AudioEngine {
 	 *  callers to resolve solo state across the whole score. */
 	private currentTracks: OtoTrack[] = [];
 	private onBeatMarker: ((measure: number, beat: number) => void) | null = null;
+	private onPosition: ((currentTimeMs: number) => void) | null = null;
 	private onStopCb: (() => void) | null = null;
 	private repeat = false;
 	private loopEndTick = 0;
@@ -122,6 +126,7 @@ export class AudioEngine {
 		synth.positionChanged.on((e) => {
 			if (!this.playing) return;
 			this.emitBeatMarker(e.currentTick);
+			this.onPosition?.(e.currentTime);
 		});
 		synth.finished.on(() => {
 			if (!this.playing) return;
@@ -252,11 +257,14 @@ export class AudioEngine {
 		this.currentTracks = tracks;
 		const synth = this.synth;
 		if (!synth) return;
+		// Soloing the audio backing track silences every MIDI voice — the synth
+		// has no channel for the audio, so we enforce it here by muting them all.
+		const audioSolo = store.score.audio?.soloed ?? false;
 		for (const t of tracks) {
 			const channel = this.channels.get(t.id);
 			if (channel === undefined) continue;
 			synth.setChannelVolume(channel, Math.max(0, Math.min(1, t.volume ?? 1)));
-			synth.setChannelMute(channel, t.muted);
+			synth.setChannelMute(channel, t.muted || audioSolo);
 			synth.setChannelSolo(channel, t.soloed);
 		}
 		this.syncMetronomeSolo(tracks);
@@ -322,6 +330,7 @@ export class AudioEngine {
 		this.beatTicks = compiled.beatTicks;
 		this.lastBeatIndex = -1;
 		this.onBeatMarker = opts.onBeatMarker;
+		this.onPosition = opts.onPosition ?? null;
 		this.onStopCb = opts.onStop;
 		this.repeat = opts.repeat;
 		this.loopEndTick = opts.endTick;
