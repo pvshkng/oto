@@ -101,16 +101,36 @@ export class AudioEngine {
 	lastStartError: unknown = null;
 
 	/**
-	 * Boot the synth and load the SoundFont. Idempotent and cheap to re-call;
-	 * kicked off at app start so the first Play is instant. Never rejects —
-	 * failures are recorded (lastStartError + a status banner) and retried on
-	 * the next play().
+	 * Prefetch the heavy assets — the alphaTab module and the SoundFont bytes —
+	 * at app start so the first Play is (nearly) instant. Deliberately does NOT
+	 * create the synth: constructing the AudioWorklet output spins up an
+	 * AudioContext, and doing that before any user gesture makes the browser
+	 * keep it suspended and log "An AudioContext was prevented from starting
+	 * automatically". The synth itself is created by warmup()/ensureStarted()
+	 * from within the first user interaction instead. Never rejects — failures
+	 * are recorded (lastStartError + a status banner) and retried on the next
+	 * play().
 	 */
 	async preload(): Promise<void> {
 		if (typeof window === 'undefined') return;
-		this.initPromise ??= this.init();
-		await this.initPromise;
-		if (!this.soundFontOk) await this.loadSoundFont();
+		try {
+			await loadAlphaTab();
+			if (!this.soundFontBytes) {
+				this.soundFontBytes = await fetchWithProgress(soundFontUrl);
+			}
+		} catch (err) {
+			this.lastStartError = err;
+			store.sampleWarning = "Couldn't load instrument sounds. Playback may be silent.";
+		} finally {
+			loading.finish();
+		}
+	}
+
+	/** Boot the synth inside a user gesture (idempotent, never throws). Wired
+	 *  to the first pointer/key interaction so the AudioContext starts running
+	 *  before the first Play and playback is instant. */
+	warmup() {
+		void this.ensureStarted().catch(() => {});
 	}
 
 	private async init(): Promise<void> {
@@ -176,7 +196,9 @@ export class AudioEngine {
 	}
 
 	private async ensureStarted(): Promise<void> {
-		await this.preload();
+		this.initPromise ??= this.init();
+		await this.initPromise;
+		if (!this.soundFontOk) await this.loadSoundFont();
 		if (!this.synth) throw this.lastStartError ?? new Error('audio engine failed to start');
 	}
 

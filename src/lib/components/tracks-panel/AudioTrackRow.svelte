@@ -6,11 +6,12 @@
 	// bar grid as every MIDI track, so audio and MIDI can be lined up by eye.
 	//
 	// Positioning: the waveform is a clip on the song timeline. `offsetSec` is the
-	// song-time where the clip's own start sits; drag it (desktop) or nudge it in
-	// 250 ms steps with the carets (mobile) to sync it with the notation. A
-	// negative offset slides the clip's head left of bar 1, where it's clipped
-	// away — that's how you skip a long silent intro so the audio lines up with
-	// where the transcription actually begins.
+	// song-time where the clip's own start sits. Desktop drags it directly; on
+	// mobile a long-press picks it up for coarse drags and the carets nudge it in
+	// fine 250 ms steps — both to sync it with the notation. A negative offset
+	// slides the clip's head left of bar 1, where it's clipped away — that's how
+	// you skip a long silent intro so the audio lines up with where the
+	// transcription actually begins.
 
 	import { store } from '$lib/stores/score.svelte';
 	import { audio } from '$lib/audio/engine';
@@ -83,33 +84,85 @@
 		audioTrack.applyPitch();
 	}
 
-	// ---- desktop drag-to-reposition ----------------------------------------
+	// ---- drag-to-reposition ---------------------------------------------------
+	// Desktop (mouse): grab the waveform and drag it immediately, DAW-style.
+	// Touch: a swipe on the timeline must keep scrolling the panel, so an
+	// immediate drag would fight it — instead hold the waveform still for a
+	// moment to pick it up (haptic tick), then drag freely for long-distance
+	// moves; the carets remain for fine ±250 ms taps. If the finger wanders
+	// before the hold completes it's treated as a scroll and the pick-up is
+	// cancelled (the browser then takes over and fires pointercancel).
 	let dragging = $state(false);
+	let pressTimer: ReturnType<typeof setTimeout> | null = null;
+	const LONG_PRESS_MS = 350;
+	const WANDER_CANCEL_PX = 10;
+
 	function onWavePointerDown(e: PointerEvent) {
-		if (!store.isDesktop) return;
-		e.preventDefault();
-		dragging = true;
+		const clipEl = e.currentTarget as HTMLElement;
 		const startX = e.clientX;
+		const startY = e.clientY;
 		const startOffset = cfg.offsetSec;
-		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-		store.beginGesture();
-		function move(ev: PointerEvent) {
-			const dx = ev.clientX - startX;
-			store.setAudioOffset(audioTrack.clampOffset(startOffset + dx / pxPerSec));
-		}
-		function up(ev: PointerEvent) {
-			dragging = false;
-			store.endGesture();
-			window.removeEventListener('pointermove', move);
-			window.removeEventListener('pointerup', up);
+		const immediate = e.pointerType === 'mouse';
+
+		function beginDrag() {
+			dragging = true;
+			store.beginGesture();
 			try {
-				(e.currentTarget as HTMLElement).releasePointerCapture(ev.pointerId);
+				clipEl.setPointerCapture(e.pointerId);
 			} catch {
 				/* ignore */
 			}
 		}
+
+		// While dragging, swallow touchmove so the panel doesn't scroll under the
+		// clip (must be non-passive to be allowed to preventDefault).
+		function preventScroll(ev: TouchEvent) {
+			if (dragging) ev.preventDefault();
+		}
+
+		if (immediate) {
+			e.preventDefault();
+			beginDrag();
+		} else {
+			clipEl.addEventListener('touchmove', preventScroll, { passive: false });
+			pressTimer = setTimeout(() => {
+				pressTimer = null;
+				navigator.vibrate?.(15);
+				beginDrag();
+			}, LONG_PRESS_MS);
+		}
+
+		function move(ev: PointerEvent) {
+			const dx = ev.clientX - startX;
+			if (!dragging) {
+				// Finger wandered before the hold completed → it's a scroll; bail out.
+				if (
+					pressTimer &&
+					(Math.abs(dx) > WANDER_CANCEL_PX || Math.abs(ev.clientY - startY) > WANDER_CANCEL_PX)
+				) {
+					cleanup();
+				}
+				return;
+			}
+			store.setAudioOffset(audioTrack.clampOffset(startOffset + dx / pxPerSec));
+		}
+		function cleanup() {
+			if (pressTimer) {
+				clearTimeout(pressTimer);
+				pressTimer = null;
+			}
+			if (dragging) {
+				dragging = false;
+				store.endGesture();
+			}
+			clipEl.removeEventListener('touchmove', preventScroll);
+			window.removeEventListener('pointermove', move);
+			window.removeEventListener('pointerup', cleanup);
+			window.removeEventListener('pointercancel', cleanup);
+		}
 		window.addEventListener('pointermove', move);
-		window.addEventListener('pointerup', up);
+		window.addEventListener('pointerup', cleanup);
+		window.addEventListener('pointercancel', cleanup);
 	}
 
 	const NUDGE = 0.25; // seconds — one caret press
@@ -282,32 +335,46 @@
 	     against the panel's scroll container. -->
 	<div class="relative flex shrink-0 items-center" style="width:{timelineW}px">
 		{#if audioTrack.needsFile}
-			<!-- Config restored from the .oto file but the audio itself isn't saved —
-			     prompt to re-add the same file to realign. -->
-			<button
-				class="text-muted-foreground hover:text-foreground absolute inset-y-0 left-0 flex items-center gap-2 px-3 text-[12px] [background-image:none!important]"
-				onclick={() => audioTrack.promptImport()}
-			>
-				<ArrowClockwise class="size-4" />
-				Re-add “{cfg.fileName}” to restore the audio
-			</button>
+			{#if audioTrack.restoring}
+				<!-- Cache lookup in flight (page load / doc switch) — don't flash the
+				     re-add prompt for a file that's about to appear on its own. -->
+				<div
+					class="text-muted-foreground absolute inset-y-0 left-0 flex items-center gap-2 px-3 text-[12px]"
+				>
+					<Waveform class="size-4" />
+					Loading saved audio…
+				</div>
+			{:else}
+				<!-- Config came from the .oto file but the bytes aren't cached locally
+				     (new browser / cleared storage) — prompt to re-add the same file. -->
+				<button
+					class="text-muted-foreground hover:text-foreground absolute inset-y-0 left-0 flex items-center gap-2 px-3 text-[12px] [background-image:none!important]"
+					onclick={() => audioTrack.promptImport()}
+				>
+					<ArrowClockwise class="size-4" />
+					Re-add “{cfg.fileName}” to restore the audio
+				</button>
+			{/if}
 		{:else}
 			<!-- Clip mask: clips the waveform head at the song-start line when the
 			     clip is dragged to a negative offset (intro pushed off the left). -->
 			<div class="absolute inset-0 overflow-hidden">
-				<!-- The clip: absolutely positioned by offset -->
+				<!-- The clip: absolutely positioned by offset. Mouse drags immediately;
+				     touch picks it up after a long-press (see onWavePointerDown). -->
 				<div
 					class={cn(
-						'absolute inset-y-1',
+						'absolute inset-y-1 select-none',
 						store.isDesktop && 'cursor-ew-resize',
-						dragging && 'opacity-80'
+						dragging && 'ring-primary/60 rounded-sm opacity-80 ring-2'
 					)}
-					style="left:{clipLeftPx}px;width:{Math.max(8, clipWidthPx)}px"
+					style="left:{clipLeftPx}px;width:{Math.max(8, clipWidthPx)}px;-webkit-touch-callout:none"
 					onpointerdown={onWavePointerDown}
 					role="presentation"
-					title={store.isDesktop ? 'Drag to sync with the notation' : undefined}
+					title={store.isDesktop
+						? 'Drag to sync with the notation'
+						: 'Hold, then drag to sync with the notation'}
 				>
-					<div bind:this={waveEl} class="h-full w-full"></div>
+					<div bind:this={waveEl} class="pointer-events-none h-full w-full"></div>
 				</div>
 			</div>
 
@@ -317,27 +384,27 @@
 				</div>
 			{/if}
 
-			<!-- Mobile: nudge carets, laid over the waveform. As a sticky flow child
-			     they stay pinned just past the frozen controls column no matter how
-			     far the timeline is scrolled, so they're always reachable. Tap a
-			     caret to shift the audio ∓250 ms to line it up with the notation. -->
+			<!-- Mobile: fine-nudge carets (∓250 ms per tap), laid over the waveform.
+			     As a sticky flow child they stay pinned just past the frozen controls
+			     column no matter how far the timeline is scrolled, so they're always
+			     reachable. For coarse moves, long-press the waveform and drag. -->
 			{#if !store.isDesktop && audioTrack.ready}
-				<div class="sticky z-20 flex shrink-0 items-center gap-2 pl-2" style="left:{lead}px">
+				<div class="sticky z-20 flex shrink-0 items-center gap-1.5 pl-2" style="left:{lead}px">
 					<button
-						class="bg-background/90 text-foreground flex size-9 touch-manipulation items-center justify-center rounded-full border shadow-sm active:scale-95 [background-image:none!important]"
+						class="bg-background/90 text-foreground flex size-7 touch-manipulation items-center justify-center rounded-full border shadow-sm active:scale-95 [background-image:none!important]"
 						title="Move audio earlier (−250 ms)"
 						aria-label="Move audio earlier by 250 milliseconds"
 						onclick={() => audioTrack.nudge(-NUDGE)}
 					>
-						<CaretLeft class="size-4" weight="bold" />
+						<CaretLeft class="size-3.5" weight="bold" />
 					</button>
 					<button
-						class="bg-background/90 text-foreground flex size-9 touch-manipulation items-center justify-center rounded-full border shadow-sm active:scale-95 [background-image:none!important]"
+						class="bg-background/90 text-foreground flex size-7 touch-manipulation items-center justify-center rounded-full border shadow-sm active:scale-95 [background-image:none!important]"
 						title="Move audio later (+250 ms)"
 						aria-label="Move audio later by 250 milliseconds"
 						onclick={() => audioTrack.nudge(NUDGE)}
 					>
-						<CaretRight class="size-4" weight="bold" />
+						<CaretRight class="size-3.5" weight="bold" />
 					</button>
 				</div>
 			{/if}

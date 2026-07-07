@@ -39,8 +39,9 @@ export function openFile(): Promise<void> {
 					store.loadScore(await file.text());
 				}
 				// Warm up the audio engine behind the loading screen so playback is
-				// ready the moment the import lands.
-				audio.preload();
+				// ready the moment the import lands (the file-picker interaction
+				// counts as the user gesture the AudioContext needs).
+				audio.warmup();
 				resolve();
 			} catch (e) {
 				reject(e);

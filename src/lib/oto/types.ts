@@ -298,9 +298,11 @@ export interface TrackEq {
 /**
  * Configuration for the single optional audio backing track. This lives inside
  * the .oto document so tempo/position/pitch survive a save — but the audio file
- * itself does NOT (it can be megabytes and isn't ours to embed). Reopening a
- * document therefore restores the config but shows an empty audio slot until the
- * user re-imports the same file, at which point everything realigns.
+ * itself does NOT (it can be megabytes and isn't ours to embed). The bytes are
+ * cached per-browser in IndexedDB, so a reload usually restores them silently;
+ * when that cache misses (another browser, cleared storage), reopening shows an
+ * empty audio slot until the user re-imports the same file, at which point
+ * everything realigns.
  */
 export interface AudioTrackConfig {
 	/** Original file name — shown in the track header and used to prompt the user

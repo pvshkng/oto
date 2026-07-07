@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { store } from '$lib/stores/score.svelte';
 	import { stopPlayback } from '$lib/audio/playback';
 	import { audioTrack } from '$lib/audio/audio-track.svelte';
@@ -96,11 +96,17 @@
 		return trackEls[0];
 	}
 
-	// When the open document changes (New / Open / Close), drop any in-memory
-	// audio that the new document doesn't reference so it can't keep playing.
+	// Keep the loaded audio in step with the open document (page load / New /
+	// Open / Close): drop bytes the document doesn't reference so they can't
+	// keep playing, and auto-restore the file it *does* reference from the
+	// local IndexedDB cache so a reload doesn't require a manual re-import.
+	// reconcile() is untracked: it reads (and its async restore toggles) the
+	// controller's own reactive flags, and tracking those here would re-trigger
+	// this effect from every failed lookup — an infinite retry loop on a cache
+	// miss. Only the document's audio file name should re-run this.
 	$effect(() => {
 		void store.audio?.fileName;
-		audioTrack.reconcile();
+		untrack(() => audioTrack.reconcile());
 	});
 
 	$effect(() => {
@@ -160,11 +166,20 @@
 		// Touch-only (guards on pointerType internally): long-press any titled
 		// button to see what it does, since touch has no hover for `title`.
 		const disposeLongPress = initLongPressTooltips();
+		// Prefetch the heavy audio assets (module + soundfont) behind the loading
+		// screen. The synth itself boots on the first user interaction below —
+		// creating its AudioContext before a gesture would leave it suspended
+		// (browser autoplay policy) with a console warning.
 		audio.preload().finally(() => {
 			ready = true;
 		});
+		const warm = () => audio.warmup();
+		window.addEventListener('pointerdown', warm, { once: true });
+		window.addEventListener('keydown', warm, { once: true });
 		return () => {
 			window.removeEventListener('keydown', handleGlobalKeydown);
+			window.removeEventListener('pointerdown', warm);
+			window.removeEventListener('keydown', warm);
 			disposeLongPress();
 			stopPlayback();
 		};
