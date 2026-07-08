@@ -64,6 +64,18 @@ export function ottavaSpans(
 	return spans;
 }
 
+// Articulation marks (accent, marcato, tenuto, staccato, …) render once per
+// *beat*, not once per note: a chord carries a single symbol above the whole
+// stack, never one stacked over every notehead. This collapses the per-note
+// technique arrays into the distinct articulations present on the beat, in a
+// fixed stacking order (innermost first) so combinations never overlap.
+const ARTICULATION_ORDER = ['staccato', 'tenuto', 'accent', 'heavy-accent'] as const;
+export type Articulation = (typeof ARTICULATION_ORDER)[number];
+
+export function beatArticulations(beat: LaidBeat): Articulation[] {
+	return ARTICULATION_ORDER.filter((a) => beat.notes.some((n) => n.techniques.includes(a)));
+}
+
 export function beamGroups(beats: LaidBeat[]): number[] {
 	const groups: number[] = [];
 	for (const b of beats)
