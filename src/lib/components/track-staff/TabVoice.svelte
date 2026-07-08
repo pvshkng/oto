@@ -4,7 +4,7 @@
 	import { METRICS } from '$lib/notation/layout';
 	import { store } from '$lib/stores/score.svelte';
 	import { dynamicGlyph, GLYPH, tupletGlyphs } from '$lib/notation/glyphs';
-	import { letRingSpans, tupletSpans } from './beam-geometry';
+	import { beatArticulations, letRingSpans, tupletSpans } from './beam-geometry';
 	import { isCursorBeat, inSelection, isPlayingBeat } from './predicates';
 	import { fretStyle } from './note-styles';
 
@@ -29,7 +29,11 @@
 	} = $props();
 
 	const FX = '[font:600_8px_ui-sans-serif,sans-serif] fill-[#71717a] [text-anchor:middle]';
+	// Bend value label: left-anchored so it sits to the RIGHT of the bend
+	// arrowhead instead of centred on top of it.
+	const BEND_TEXT = '[font:600_8px_ui-sans-serif,sans-serif] fill-[#71717a] [text-anchor:start]';
 	const BEND_ARROW = 'fill-none stroke-[#52525b] [stroke-width:1.3] [marker-end:none]';
+	const BEND_HEAD = 'fill-none stroke-[#52525b] [stroke-width:1.3] [stroke-linejoin:round]';
 	const BG_CURSOR = 'fill-[rgba(24,24,27,0.16)] [rx:3]';
 	const BG_SEL = 'fill-[rgba(24,24,27,0.07)] [rx:3]';
 	const BG_PLAY = 'fill-[rgba(24,24,27,0.28)] [rx:3]';
@@ -67,20 +71,26 @@
 {/if}
 
 {#each letRingSpans(beats) as span (span.x1)}
+	<!-- "let ring" label + dashed extent. The dashed line always begins after
+	     the label text (lineStart) and is clamped so it can never run back to
+	     the left and overlap the words, no matter how short or how near the
+	     bar edge the let-ring span is. -->
+	{@const lineStart = span.x1 + 34}
+	{@const lineEnd = Math.max(lineStart + 6, span.x2 + 7)}
 	<text x={span.x1 - 7} y={9} class="[font:italic_600_8px_ui-sans-serif,sans-serif] fill-[#71717a]"
 		>let ring</text
 	>
 	<line
-		x1={span.x1 + 33}
+		x1={lineStart}
 		y1={6}
-		x2={span.x2 + 7}
+		x2={lineEnd}
 		y2={6}
 		class="stroke-[#a1a1aa] [stroke-width:1] [stroke-dasharray:3_2]"
 	/>
 	<line
-		x1={span.x2 + 7}
+		x1={lineEnd}
 		y1={6}
-		x2={span.x2 + 7}
+		x2={lineEnd}
 		y2={12}
 		class="stroke-[#a1a1aa] [stroke-width:1] [stroke-dasharray:3_2]"
 	/>
@@ -125,6 +135,40 @@
 			>{dynamicGlyph(beat.dynamic)}</text
 		>
 	{/if}
+	<!-- Articulations (accent / marcato / tenuto / staccato): one mark per beat,
+	     centred above the whole chord and clear of every fret number — never one
+	     symbol per note. Stacked upward when a beat carries more than one. -->
+	{#if beat.notes.length}
+		{@const topY = Math.min(...beat.notes.map((n) => n.tabY))}
+		{#each beatArticulations(beat) as art, ai (art)}
+			{@const ay = topY - 10 - ai * 8}
+			{#if art === 'staccato'}
+				<circle cx={beat.x} cy={ay} r="1.8" class="fill-[#18181b]" />
+			{:else if art === 'tenuto'}
+				<line
+					x1={beat.x - 4}
+					y1={ay}
+					x2={beat.x + 4}
+					y2={ay}
+					class="stroke-[#18181b] [stroke-width:1.6]"
+				/>
+			{:else if art === 'accent'}
+				<text
+					x={beat.x}
+					y={ay + 4}
+					class="[font-family:ui-sans-serif,sans-serif] text-[13px] font-bold fill-[#71717a] [text-anchor:middle]"
+					>›</text
+				>
+			{:else if art === 'heavy-accent'}
+				<text
+					x={beat.x}
+					y={ay + 4}
+					class="[font-family:ui-sans-serif,sans-serif] text-[11px] font-bold fill-[#71717a] [text-anchor:middle]"
+					>^</text
+				>
+			{/if}
+		{/each}
+	{/if}
 	{#each beat.notes as n (n.string)}
 		{@const isDead = n.techniques.includes('dead')}
 		{@const isGhost = n.techniques.includes('ghost')}
@@ -155,34 +199,6 @@
 		{/if}
 		{#if n.techniques.includes('artificial-harmonic')}
 			<text x={n.x} y={n.tabY - 18} class={FX}>A.H.</text>
-		{/if}
-		{#if n.techniques.includes('staccato')}
-			<circle cx={n.x} cy={n.tabY - 9} r="1.8" class="fill-[#18181b]" />
-		{/if}
-		{#if n.techniques.includes('accent')}
-			<text
-				x={n.x}
-				y={n.tabY - 9}
-				class="[font-family:ui-sans-serif,sans-serif] text-[13px] font-bold fill-[#71717a] [text-anchor:middle]"
-				>›</text
-			>
-		{/if}
-		{#if n.techniques.includes('heavy-accent')}
-			<text
-				x={n.x}
-				y={n.tabY - 9}
-				class="[font-family:ui-sans-serif,sans-serif] text-[11px] font-bold fill-[#71717a] [text-anchor:middle]"
-				>^</text
-			>
-		{/if}
-		{#if n.techniques.includes('tenuto')}
-			<line
-				x1={n.x - 4}
-				y1={n.tabY - 11}
-				x2={n.x + 4}
-				y2={n.tabY - 11}
-				class="stroke-[#18181b] [stroke-width:1.6]"
-			/>
 		{/if}
 		{#if n.techniques.includes('tap')}
 			<text x={n.x} y={n.tabY - 9} class={FX}>T</text>
@@ -236,17 +252,23 @@
 		{/if}
 		{#if n.techniques.includes('bend')}
 			<path d="M {n.x + 8} {n.tabY} q 10 -2 12 -14" class={BEND_ARROW} />
-			<text x={n.x + 20} y={n.tabY - 12} class={FX}
+			<!-- Arrowhead at the top of the bend, with the value label set to its
+			     right so the digit never sits under the arrow. -->
+			<path
+				d="M {n.x + 16.5} {n.tabY - 11} L {n.x + 20} {n.tabY - 15.5} L {n.x + 23} {n.tabY - 10.5}"
+				class={BEND_HEAD}
+			/>
+			<text x={n.x + 25} y={n.tabY - 11} class={BEND_TEXT}
 				>{n.bend === 0.5 ? '½' : n.bend === 1 ? 'full' : (n.bend ?? 'full')}</text
 			>
 		{/if}
 		{#if n.techniques.includes('release')}
 			<path d="M {n.x + 8} {n.tabY - 16} q 10 2 12 16" class={BEND_ARROW} />
-			<text x={n.x + 20} y={n.tabY - 12} class={FX}>↓</text>
+			<text x={n.x + 24} y={n.tabY - 13} class={BEND_TEXT}>↓</text>
 		{/if}
 		{#if n.techniques.includes('bend-release')}
 			<path d="M {n.x + 8} {n.tabY} q 5 -2 6 -12 q 4 10 8 12" class={BEND_ARROW} />
-			<text x={n.x + 22} y={n.tabY - 12} class={FX}>br</text>
+			<text x={n.x + 24} y={n.tabY - 13} class={BEND_TEXT}>br</text>
 		{/if}
 		{#if n.techniques.includes('slide') && n.slideTo !== undefined}
 			<line

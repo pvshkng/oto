@@ -318,7 +318,7 @@
 							</p>
 							<div class="max-h-56 overflow-y-auto">
 								{#each tracks as t (t.id)}
-									{@const visible = store.isTrackVisible(t.id)}
+									{@const visible = !store.isTrackHidden(t.id)}
 									<button
 										class="hover:bg-muted [background-image:none!important] flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px]"
 										aria-pressed={visible}
@@ -399,97 +399,100 @@
 				<AudioTrackRow lead={store.isDesktop ? LEAD : LEAD_MOBILE} {timelineW} {cell} />
 			{/if}
 
-			<!-- One row per track -->
+			<!-- One row per track. Tracks hidden via the visibility popover are
+			     removed from the panel entirely (toggle them back from that popover). -->
 			{#each tracks as track, i (track.id)}
-				{@const active = store.cursor.track === i}
-				<div class={cn('relative flex border-b', active && 'bg-muted/40')}>
-					<!-- Frozen controls column -->
-					<div
-						class="bg-background/50 sticky left-0 z-10 flex shrink-0 flex-col gap-1.5 border-r px-2.5 py-2 backdrop-blur-md"
-						style="width:{store.isDesktop
-							? LEAD
-							: LEAD_MOBILE}px;border-left:3px solid {track.color}"
-					>
-						<!-- Single row — Eye | Name | M | S | Vol -->
-						<div class="flex items-center gap-2">
-							<TrackIdentityRow
-								{track}
-								index={i}
-								onNameClick={() => {
-									if (store.isDesktop) {
-										store.trackControlIndex = i;
-										store.openPanel('track');
-									} else {
-										editIndex = i;
-										editOpen = true;
-									}
-								}}
-								onToggleMute={() => toggleMute(i)}
-								onToggleSolo={() => toggleSolo(i)}
-								onVolume={(v) => setVolume(i, v)}
-							/>
-						</div>
-					</div>
-
-					<!-- Column resize handle (desktop only) — positioned at the column border -->
-					{#if store.isDesktop}
+				{#if !store.isTrackHidden(track.id)}
+					{@const active = store.cursor.track === i}
+					<div class={cn('relative flex border-b', active && 'bg-muted/40')}>
+						<!-- Frozen controls column -->
 						<div
-							class="absolute inset-y-0 z-[15] w-2 cursor-col-resize bg-transparent hover:bg-[color-mix(in_srgb,var(--primary)_20%,transparent)]"
-							style="left:{LEAD - 4}px"
-							onpointerdown={startColumnResize}
-							title="Drag to resize track controls"
-						></div>
-					{/if}
-
-					<!-- Arrangement blocks -->
-					<button
-						class="relative flex shrink-0 cursor-pointer [background-image:none!important]"
-						style="width:{timelineW}px"
-						title="Click to focus track · Shift-click to select bar range · Double-click to select entire bar"
-						onclick={(e) => {
-							const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
-							const measure = Math.min(measureCount - 1, Math.floor(x / cell));
-							if (e.shiftKey && store.cursor.track === i) {
-								// Extend bar selection from the current cursor measure to here.
-								const anchor = store.cursor.measure;
-								const [start, end] = anchor <= measure ? [anchor, measure] : [measure, anchor];
-								const lastBeat = Math.max(0, (tracks[i].measures[end]?.beats.length ?? 1) - 1);
-								if (store.trackViewMode === 'single') store.focusedTrackId = track.id;
-								store.setCursor({ track: i, measure: start, beat: 0 });
-								store.setSelectionTo(end, lastBeat);
-							} else {
-								if (store.trackViewMode === 'single') store.focusedTrackId = track.id;
-								jumpTo(measure, i);
-							}
-						}}
-						ondblclick={(e) => {
-							const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
-							selectBar(i, Math.min(measureCount - 1, Math.floor(x / cell)));
-						}}
-						onpointerup={(e) => handleTrackbarTap(e, i)}
-					>
-						{#each Array.from({ length: measureCount }, (_, k) => k) as mi (mi)}
-							<div
-								class={cn(
-									'flex items-stretch py-1.5',
-									(mi + 1) % 4 === 0 ? 'border-r border-border' : 'border-r border-border/40',
-									store.cursor.measure === mi && active && 'bg-foreground/5'
-								)}
-								style="width:{cell}px"
-							>
-								{#if trackHasContent(track, mi)}
-									<div
-										class="m-px flex-1 rounded-sm"
-										style="background:{barOverflow(track, mi) ? 'var(--brick)' : track.color}"
-										title={barOverflow(track, mi)
-											? 'Over-full bar — extra notes won’t play'
-											: undefined}
-									></div>
-								{/if}
+							class="bg-background/50 sticky left-0 z-10 flex shrink-0 flex-col gap-1.5 border-r px-2.5 py-2 backdrop-blur-md"
+							style="width:{store.isDesktop
+								? LEAD
+								: LEAD_MOBILE}px;border-left:3px solid {track.color}"
+						>
+							<!-- Single row — Eye | Name | M | S | Vol -->
+							<div class="flex items-center gap-2">
+								<TrackIdentityRow
+									{track}
+									index={i}
+									onNameClick={() => {
+										if (store.isDesktop) {
+											store.trackControlIndex = i;
+											store.openPanel('track');
+										} else {
+											editIndex = i;
+											editOpen = true;
+										}
+									}}
+									onToggleMute={() => toggleMute(i)}
+									onToggleSolo={() => toggleSolo(i)}
+									onVolume={(v) => setVolume(i, v)}
+								/>
 							</div>
-						{/each}
-					</button>
-				</div>
+						</div>
+
+						<!-- Column resize handle (desktop only) — positioned at the column border -->
+						{#if store.isDesktop}
+							<div
+								class="absolute inset-y-0 z-[15] w-2 cursor-col-resize bg-transparent hover:bg-[color-mix(in_srgb,var(--primary)_20%,transparent)]"
+								style="left:{LEAD - 4}px"
+								onpointerdown={startColumnResize}
+								title="Drag to resize track controls"
+							></div>
+						{/if}
+
+						<!-- Arrangement blocks -->
+						<button
+							class="relative flex shrink-0 cursor-pointer [background-image:none!important]"
+							style="width:{timelineW}px"
+							title="Click to focus track · Shift-click to select bar range · Double-click to select entire bar"
+							onclick={(e) => {
+								const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
+								const measure = Math.min(measureCount - 1, Math.floor(x / cell));
+								if (e.shiftKey && store.cursor.track === i) {
+									// Extend bar selection from the current cursor measure to here.
+									const anchor = store.cursor.measure;
+									const [start, end] = anchor <= measure ? [anchor, measure] : [measure, anchor];
+									const lastBeat = Math.max(0, (tracks[i].measures[end]?.beats.length ?? 1) - 1);
+									if (store.trackViewMode === 'single') store.focusedTrackId = track.id;
+									store.setCursor({ track: i, measure: start, beat: 0 });
+									store.setSelectionTo(end, lastBeat);
+								} else {
+									if (store.trackViewMode === 'single') store.focusedTrackId = track.id;
+									jumpTo(measure, i);
+								}
+							}}
+							ondblclick={(e) => {
+								const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
+								selectBar(i, Math.min(measureCount - 1, Math.floor(x / cell)));
+							}}
+							onpointerup={(e) => handleTrackbarTap(e, i)}
+						>
+							{#each Array.from({ length: measureCount }, (_, k) => k) as mi (mi)}
+								<div
+									class={cn(
+										'flex items-stretch py-1.5',
+										(mi + 1) % 4 === 0 ? 'border-r border-border' : 'border-r border-border/40',
+										store.cursor.measure === mi && active && 'bg-foreground/5'
+									)}
+									style="width:{cell}px"
+								>
+									{#if trackHasContent(track, mi)}
+										<div
+											class="m-px flex-1 rounded-sm"
+											style="background:{barOverflow(track, mi) ? 'var(--brick)' : track.color}"
+											title={barOverflow(track, mi)
+												? 'Over-full bar — extra notes won’t play'
+												: undefined}
+										></div>
+									{/if}
+								</div>
+							{/each}
+						</button>
+					</div>
+				{/if}
 			{/each}
 
 			<!-- Section markers -->

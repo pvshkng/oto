@@ -462,6 +462,10 @@ export class ScoreStore {
 	focusedTrackId = $state<string | null>(this.score.tracks[0]?.id ?? null);
 	// Multi-track view: set of focused track IDs (empty = show all)
 	focusedTrackIds = $state(new SvelteSet<string>());
+	// Tracks explicitly hidden via the visibility popover. Independent of focus:
+	// a hidden track is removed from the score AND the tracks panel entirely,
+	// regardless of view mode, and never merely "focused".
+	hiddenTrackIds = $state(new SvelteSet<string>());
 	// 'single': only one track focused at a time; 'multi': toggle multiple tracks
 	trackViewMode = $state<'single' | 'multi'>('single');
 
@@ -804,6 +808,7 @@ export class ScoreStore {
 	#refocusAfterLoad() {
 		this.collapsed = {};
 		this.focusedTrackIds = new SvelteSet();
+		this.hiddenTrackIds = new SvelteSet();
 		this.focusedTrackId = this.score.tracks[0]?.id ?? null;
 	}
 
@@ -914,6 +919,13 @@ export class ScoreStore {
 			const trackIds = this.score.tracks.map((t) => t.id);
 			this.focusedTrackIds = new SvelteSet(
 				[...this.focusedTrackIds].filter((id) => trackIds.includes(id))
+			);
+		}
+		// Drop any hidden-track IDs that no longer exist.
+		const liveIds = this.score.tracks.map((t) => t.id);
+		if ([...this.hiddenTrackIds].some((id) => !liveIds.includes(id))) {
+			this.hiddenTrackIds = new SvelteSet(
+				[...this.hiddenTrackIds].filter((id) => liveIds.includes(id))
 			);
 		}
 	}
@@ -1111,31 +1123,39 @@ export class ScoreStore {
 		return this.focusedTrackIds.size > 0;
 	}
 
-	/** True if the given track ID should be visible in the score area. */
+	/** True if the given track ID has been explicitly hidden via the visibility
+	 *  popover. Independent of focus/view mode. */
+	isTrackHidden(id: string): boolean {
+		return this.hiddenTrackIds.has(id);
+	}
+
+	/** True if the given track ID should be visible in the score area. A track
+	 *  hidden via the visibility popover is never shown; otherwise the current
+	 *  focus (single-view focused track, or multi-view focused set) decides. */
 	isTrackVisible(id: string): boolean {
+		if (this.hiddenTrackIds.has(id)) return false;
 		if (this.trackViewMode === 'single') {
 			return !this.focusedTrackId || this.focusedTrackId === id;
 		}
 		return this.focusedTrackIds.size === 0 || this.focusedTrackIds.has(id);
 	}
 
-	/** Explicitly show/hide one track in the score area (the tracks-panel
-	 *  visibility popover). Multi view: edits the focused set — an empty set
-	 *  means "all visible", so the first hide materialises the full set before
-	 *  removing; the last visible track can never be hidden. Single view: only
-	 *  one track is ever visible, so picking a track focuses it. */
+	/** Explicitly show/hide one track everywhere (the tracks-panel visibility
+	 *  popover). This is a pure visibility toggle — it does NOT focus the track
+	 *  or touch the focus set, and it works the same in single and multi view.
+	 *  The last remaining visible track can never be hidden. */
 	setTrackVisible(id: string, visible: boolean) {
 		if (!this.score.tracks.some((t) => t.id === id)) return;
-		if (this.trackViewMode === 'single') {
-			if (visible) this.focusedTrackId = id;
-			return;
+		const next = new SvelteSet(this.hiddenTrackIds);
+		if (visible) {
+			next.delete(id);
+		} else {
+			// Refuse to hide the last track that's still visible.
+			const visibleCount = this.score.tracks.filter((t) => !next.has(t.id)).length;
+			if (visibleCount <= 1) return;
+			next.add(id);
 		}
-		const next = new SvelteSet(
-			this.focusedTrackIds.size ? this.focusedTrackIds : this.score.tracks.map((t) => t.id)
-		);
-		if (visible) next.add(id);
-		else if (next.size > 1) next.delete(id);
-		this.focusedTrackIds = next;
+		this.hiddenTrackIds = next;
 	}
 
 	/** True if the given track index is currently focused (Eye button pressed). */

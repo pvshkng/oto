@@ -15,6 +15,7 @@
 		beamGroups,
 		beamLine,
 		beamYAt,
+		beatArticulations,
 		ottavaSpans,
 		stemX,
 		tupletSpans,
@@ -237,32 +238,6 @@
 				<circle cx={n.x + n.headXOffset + 11} cy={n.stdY} r="1.6" class="fill-[#18181b]" />
 			{/if}
 			{@const markY = beat.stemDir === 1 ? n.stdY - 12 : n.stdY + 14}
-			{#if n.techniques.includes('staccato')}
-				<circle cx={n.x + n.headXOffset} cy={markY} r="1.8" class="fill-[#18181b]" />
-			{/if}
-			{#if n.techniques.includes('accent')}
-				<text
-					x={n.x + n.headXOffset - 5}
-					y={markY + 5}
-					class="text-[13px] font-bold fill-[#18181b] [text-anchor:middle]">›</text
-				>
-			{/if}
-			{#if n.techniques.includes('heavy-accent')}
-				<text
-					x={n.x + n.headXOffset}
-					y={markY + 4}
-					class="text-[11px] font-bold fill-[#18181b] [text-anchor:middle]">^</text
-				>
-			{/if}
-			{#if n.techniques.includes('tenuto')}
-				<line
-					x1={n.x + n.headXOffset - 4}
-					y1={markY}
-					x2={n.x + n.headXOffset + 4}
-					y2={markY}
-					class="stroke-[#18181b] [stroke-width:1.6]"
-				/>
-			{/if}
 			{#if n.techniques.includes('trill')}
 				<text
 					x={n.x + n.headXOffset}
@@ -288,5 +263,40 @@
 				/>
 			{/if}
 		{/each}
+		<!-- Articulations (accent / marcato / tenuto / staccato): one mark per
+		     beat, centred over the chord on the side away from the beam — never
+		     one symbol per notehead. Stacked outward when a beat carries more
+		     than one. -->
+		{#if beat.notes.length}
+			{@const up = beat.stemDir === 1}
+			{@const ys = beat.notes.map((n) => n.stdY)}
+			{@const anchorY = up ? Math.min(...ys) - 12 : Math.max(...ys) + 14}
+			{#each beatArticulations(beat) as art, ai (art)}
+				{@const ay = anchorY + (up ? -ai * 8 : ai * 8)}
+				{#if art === 'staccato'}
+					<circle cx={beat.x} cy={ay} r="1.8" class="fill-[#18181b]" />
+				{:else if art === 'tenuto'}
+					<line
+						x1={beat.x - 4}
+						y1={ay}
+						x2={beat.x + 4}
+						y2={ay}
+						class="stroke-[#18181b] [stroke-width:1.6]"
+					/>
+				{:else if art === 'accent'}
+					<text
+						x={beat.x}
+						y={ay + 4}
+						class="text-[13px] font-bold fill-[#18181b] [text-anchor:middle]">›</text
+					>
+				{:else if art === 'heavy-accent'}
+					<text
+						x={beat.x}
+						y={ay + 4}
+						class="text-[11px] font-bold fill-[#18181b] [text-anchor:middle]">^</text
+					>
+				{/if}
+			{/each}
+		{/if}
 	{/if}
 {/each}

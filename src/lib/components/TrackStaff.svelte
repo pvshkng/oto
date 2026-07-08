@@ -299,11 +299,13 @@
 											class={STAFF_LINE}
 										/>
 									{/each}
-									<!-- barlines -->
+									<!-- Opening barline — aligned with the left end of the staff
+									     lines (which are inset by 4px on a header bar) so it sits
+									     flush against the staff, with no gap like the closing line. -->
 									<line
-										x1={measure.x}
+										x1={measure.x + (measure.showHeader ? 4 : 0)}
 										y1={METRICS.stdTopPad + METRICS.staffLineGap}
-										x2={measure.x}
+										x2={measure.x + (measure.showHeader ? 4 : 0)}
 										y2={METRICS.stdTopPad + 5 * METRICS.staffLineGap}
 										class={BARLINE}
 									/>
@@ -519,10 +521,11 @@
 											class={STAFF_LINE}
 										/>
 									{/each}
+									<!-- Opening barline flush with the (inset) string lines. -->
 									<line
-										x1={measure.x}
+										x1={measure.x + (measure.showHeader ? 4 : 0)}
 										y1={14}
-										x2={measure.x}
+										x2={measure.x + (measure.showHeader ? 4 : 0)}
 										y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
 										class={BARLINE}
 									/>

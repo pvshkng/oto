@@ -453,11 +453,16 @@ describe('ScoreStore explicit track visibility', () => {
 		expect(ids.some((id) => s.isTrackVisible(id))).toBe(true);
 	});
 
-	it('focuses the picked track in single view', () => {
+	it('hides a track without changing focus in single view', () => {
 		s.setTrackViewMode('single');
+		const before = s.focusedTrackId;
 		const target = s.score.tracks[1].id;
+		s.setTrackVisible(target, false);
+		expect(s.isTrackHidden(target)).toBe(true);
+		expect(s.isTrackVisible(target)).toBe(false);
+		// Visibility toggling must NOT focus/refocus any track.
+		expect(s.focusedTrackId).toBe(before);
 		s.setTrackVisible(target, true);
-		expect(s.focusedTrackId).toBe(target);
-		expect(s.isTrackVisible(target)).toBe(true);
+		expect(s.isTrackHidden(target)).toBe(false);
 	});
 });
