@@ -5,6 +5,7 @@
 	import { audioTrack } from '$lib/audio/audio-track.svelte';
 	import { handleGlobalKeydown } from '$lib/keyboard-shortcuts';
 	import { initLongPressTooltips } from '$lib/long-press-tooltip';
+	import { initButtonHaptics } from '$lib/haptics';
 	import Swap from 'phosphor-svelte/lib/Swap';
 	import ScoreArea from '$lib/components/ScoreArea.svelte';
 	import BottomBar from '$lib/components/BottomBar.svelte';
@@ -166,6 +167,7 @@
 		// Touch-only (guards on pointerType internally): long-press any titled
 		// button to see what it does, since touch has no hover for `title`.
 		const disposeLongPress = initLongPressTooltips();
+		const disposeHaptics = initButtonHaptics();
 		// Prefetch the heavy audio assets (module + soundfont) behind the loading
 		// screen. The synth itself boots on the first user interaction below —
 		// creating its AudioContext before a gesture would leave it suspended
@@ -181,6 +183,7 @@
 			window.removeEventListener('pointerdown', warm);
 			window.removeEventListener('keydown', warm);
 			disposeLongPress();
+			disposeHaptics();
 			stopPlayback();
 		};
 	});
