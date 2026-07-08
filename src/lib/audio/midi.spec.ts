@@ -96,6 +96,28 @@ describe('compileSong', () => {
 		expect(compiled.measureTicks).toEqual([0, TICKS_PER_QUARTER * 4]);
 	});
 
+	it('keeps a mid-song tempo change in effect until the next one', async () => {
+		const track = makeTrack({
+			measures: [
+				{ beats: [note(0, 0)] },
+				{ tempo: 90, beats: [note(0, 1)] },
+				{ beats: [note(0, 2)] },
+				{ tempo: 180, beats: [note(0, 3)] }
+			]
+		});
+		const score = makeScore({ tempo: 120, timeSignature: [4, 4], tracks: [track] });
+		const compiled = await compileSong(score, 'click');
+		const bar = TICKS_PER_QUARTER * 4;
+
+		type TempoEvent = { type: number; tick: number; beatsPerMinute: number };
+		const events = compiled.midi.events as unknown as TempoEvent[];
+		// MidiEventType.TempoChange = 81. One event per change — and none where a
+		// bar merely inherits the tempo already in effect (bar 3 stays at 90
+		// instead of snapping back to the base 120).
+		const tempos = events.filter((e) => e.type === 81).map((e) => `${e.tick}:${e.beatsPerMinute}`);
+		expect(tempos).toEqual([`0:120`, `${bar}:90`, `${bar * 3}:180`]);
+	});
+
 	it('expands a plain repeat into two passes', () => {
 		const track = makeTrack({
 			measures: [

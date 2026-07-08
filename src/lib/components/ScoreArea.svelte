@@ -6,6 +6,8 @@
 	import { store } from '$lib/stores/score.svelte';
 	import { computeSharedSystems, layoutTrack, type TrackLayout } from '$lib/notation/layout';
 	import { GLYPH } from '$lib/notation/glyphs';
+	import { TUNINGS } from '$lib/oto/pitch';
+	import type { OtoTrack } from '$lib/oto/types';
 	import TrackStaff from './TrackStaff.svelte';
 
 	let { onHeaderClick }: { onHeaderClick: () => void } = $props();
@@ -31,6 +33,30 @@
 	});
 
 	const visibleTracks = $derived(store.score.tracks.filter((t) => store.isTrackVisible(t.id)));
+
+	// Non-standard tunings called out under the title, the way engraved guitar
+	// sheets announce "Tuning: D A D G B E". A track counts as custom-tuned when
+	// its tuning differs from its kind's standard set; drums have no tuning in
+	// the musical sense and never qualify.
+	const STANDARD_TUNING: Partial<Record<OtoTrack['kind'], string[]>> = {
+		guitar: TUNINGS['Guitar Standard'],
+		bass: TUNINGS['Bass Standard'],
+		ukulele: TUNINGS['Ukulele']
+	};
+	function hasCustomTuning(t: OtoTrack): boolean {
+		if (t.instrument === 'drums') return false;
+		const std = STANDARD_TUNING[t.kind];
+		if (!std) return true; // 'custom' kind: nothing standard to match
+		return std.length !== t.tuning.length || std.some((n, i) => n !== t.tuning[i]);
+	}
+	// Low string first, octave digits stripped: ['E4','B3',…,'D2'] → "D A D G B E".
+	function tuningLabel(t: OtoTrack): string {
+		return [...t.tuning]
+			.reverse()
+			.map((n) => n.replace(/-?\d+$/, ''))
+			.join(' ');
+	}
+	const customTunedTracks = $derived(visibleTracks.filter(hasCustomTuning));
 
 	// Multi-track view: every visible track's systems must break at the same
 	// measures and share the same computed system count, so a shared system
@@ -85,6 +111,17 @@
 			>edit ✎</span
 		>
 	</button>
+
+	<!-- Custom tunings, called out between the title and the tempo marking. -->
+	{#if customTunedTracks.length}
+		<div class="mb-1 flex flex-col items-start">
+			{#each customTunedTracks as t (t.id)}
+				<span class="[font-family:var(--serif)] text-[13px] text-text-muted italic">
+					{store.score.tracks.length > 1 ? `${t.name} tuning` : 'Tuning'}: {tuningLabel(t)}
+				</span>
+			{/each}
+		</div>
+	{/if}
 
 	<!-- Tempo marking (♩ = bpm), engraved above the first staff. Click to edit. -->
 	<button

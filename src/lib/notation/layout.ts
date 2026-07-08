@@ -10,6 +10,7 @@ import type {
 	BarlineStyle,
 	Dynamic,
 	DurationValue,
+	OtoMeasure,
 	OtoScore,
 	OtoTrack,
 	Ottava,
@@ -110,6 +111,28 @@ export interface LaidBeat {
 	stdStemBottom: number;
 }
 
+/**
+ * One bar-attribute symbol drawn in the strip above the staff bands (segno,
+ * coda, mid-song tempo change, bar lock). Laid out left→right per measure with
+ * a running x so symbols never overlap each other — or the volta number and
+ * section label, whose room is reserved before the first symbol.
+ */
+export interface BarSymbol {
+	kind: 'segno' | 'coda' | 'tempo' | 'lock';
+	/** Absolute x of the symbol's left edge within the system. */
+	x: number;
+	/** New BPM, for kind 'tempo'. */
+	tempo?: number;
+}
+
+/** Widths (px) each strip symbol occupies, for the running layout above. */
+const SYMBOL_WIDTHS: Record<BarSymbol['kind'], number> = {
+	segno: 14,
+	coda: 15,
+	tempo: 0, // depends on digit count — see barSymbols()
+	lock: 13
+};
+
 export interface LaidMeasure {
 	index: number;
 	x: number;
@@ -134,8 +157,9 @@ export interface LaidMeasure {
 	voltaStart: boolean;
 	/** Simile: this bar repeats the previous one (% mark, beats not drawn). */
 	simile: boolean;
-	segno: boolean;
-	coda: boolean;
+	/** Symbols to draw in the strip above the bands, pre-positioned so they
+	 *  never overlap each other, the volta number or the section label. */
+	symbols: BarSymbol[];
 	/** Section marker starting at this measure, if any — id/letter/name split so the
 	 *  letter is always derived from position (see `$lib/oto/sections`) rather than
 	 *  baked into stored data. */
@@ -249,6 +273,41 @@ export function timeSigAllowance(ts: [number, number] | null): number {
 	if (!ts) return 0;
 	const digits = Math.max(String(ts[0]).length, String(ts[1]).length);
 	return 10 + digits * 13;
+}
+
+/**
+ * Lay a measure's strip symbols (segno, coda, tempo change, lock) left→right
+ * from a running x that starts after whatever the strip already shows at the
+ * bar's start — the volta number and the section label — so no symbol ever
+ * lands on another.
+ */
+function barSymbols(
+	measure: OtoMeasure,
+	opts: {
+		x: number;
+		showHeader: boolean;
+		voltaStart: boolean;
+		sectionLetter: string | null;
+		sectionName: string | null;
+	}
+): BarSymbol[] {
+	const symbols: BarSymbol[] = [];
+	let sx = opts.x + (opts.showHeader ? 4 : 2);
+	if (opts.voltaStart) sx += 14;
+	if (opts.sectionLetter) {
+		// Approximate ink width of the 10px bold section label ("A Intro").
+		const chars = opts.sectionLetter.length + (opts.sectionName ? opts.sectionName.length + 1 : 0);
+		sx += chars * 6.2 + 6;
+	}
+	const push = (kind: BarSymbol['kind'], tempo?: number) => {
+		symbols.push({ kind, x: sx, tempo });
+		sx += kind === 'tempo' ? 16 + String(tempo).length * 6.5 : SYMBOL_WIDTHS[kind];
+	};
+	if (measure.segno) push('segno');
+	if (measure.coda) push('coda');
+	if (measure.tempo) push('tempo', measure.tempo);
+	if (measure.locked) push('lock');
+	return symbols;
 }
 
 export interface Band {
@@ -367,12 +426,14 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 	// never by anything stored — see `$lib/oto/sections`.
 	const sortedSections = sortSections(score.sections);
 
-	// Vertical bands within a system. Volta brackets and segno/coda marks are
-	// drawn in the same strip as the section labels, so having any of them also
-	// reserves it.
-	const hasSections =
-		score.sections.length > 0 || track.measures.some((m) => m.volta || m.segno || m.coda);
-	let y = hasSections ? 8 + METRICS.sectionLabelHeight : 8;
+	// Vertical bands within a system. Volta brackets, segno/coda, tempo changes
+	// and lock icons are drawn in the same strip as the section labels, so
+	// having any of them also reserves it — keeping strip symbols clear of
+	// in-band marks like "let ring" at the top of the tab band.
+	const hasTopStrip =
+		score.sections.length > 0 ||
+		track.measures.some((m) => m.volta || m.segno || m.coda || m.locked || m.tempo != null);
+	let y = hasTopStrip ? 8 + METRICS.sectionLabelHeight : 8;
 	const bands: TrackLayout['bands'] = { standard: null, tab: null, rhythm: null };
 	if (opts.showStandard) {
 		bands.standard = { offsetY: y, height: standardHeight };
@@ -565,6 +626,9 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 			const section = sectionIdx >= 0 ? sortedSections[sectionIdx] : null;
 
 			const prevMeasure = mi > 0 ? track.measures[mi - 1] : null;
+			const voltaStart = !!measure.volta && (prevMeasure?.volta ?? null) !== measure.volta;
+			const sectionLetter = section ? sectionLetterAt(sectionIdx) : null;
+			const sectionName = section?.label || null;
 			const laid: LaidMeasure = {
 				index: mi,
 				x: mx,
@@ -579,13 +643,12 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 				repeatEnd: !!measure.repeatEnd,
 				repeatCount: measure.repeatEnd ? (measure.repeatCount ?? null) : null,
 				volta: measure.volta ?? null,
-				voltaStart: !!measure.volta && (prevMeasure?.volta ?? null) !== measure.volta,
+				voltaStart,
 				simile: !!measure.simile,
-				segno: !!measure.segno,
-				coda: !!measure.coda,
+				symbols: barSymbols(measure, { x: mx, showHeader, voltaStart, sectionLetter, sectionName }),
 				sectionId: section?.id ?? null,
-				sectionLetter: section ? sectionLetterAt(sectionIdx) : null,
-				sectionName: section?.label || null
+				sectionLetter,
+				sectionName
 			};
 			mx += width;
 			return laid;

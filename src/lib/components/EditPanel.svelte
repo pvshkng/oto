@@ -16,6 +16,7 @@
 	import DurationPicker from './note-edit/DurationPicker.svelte';
 	import VoiceToggle from './note-edit/VoiceToggle.svelte';
 	import BarTimeSigPicker from './note-edit/BarTimeSigPicker.svelte';
+	import BarTempoPicker from './note-edit/BarTempoPicker.svelte';
 	import BeatActions from './note-edit/BeatActions.svelte';
 	import NoteActions from './note-edit/NoteActions.svelte';
 	import BarActions from './note-edit/BarActions.svelte';
@@ -162,6 +163,7 @@
 					Bar {store.cursor.measure + 1}
 				</span>
 				<BarTimeSigPicker side="top" />
+				<BarTempoPicker side="top" />
 			</div>
 
 			<span class={rowDivider}></span>

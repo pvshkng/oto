@@ -786,18 +786,35 @@
 									>
 								{/if}
 							{/if}
-							{#if measure.segno}
-								<text x={measure.x + (measure.volta ? 18 : 3)} y={15} class="{BRAVURA} text-[15px]"
-									>{GLYPH.segno}</text
-								>
-							{/if}
-							{#if measure.coda}
-								<text
-									x={measure.x + (measure.volta ? 18 : 3) + (measure.segno ? 13 : 0)}
-									y={15}
-									class="{BRAVURA} text-[15px]">{GLYPH.coda}</text
-								>
-							{/if}
+							<!-- Bar-attribute symbols (segno, coda, tempo change, lock) in the
+							     strip above the bands. Positions come pre-computed from
+							     layout.ts, laid left→right after the volta number and section
+							     label so nothing overlaps. -->
+							{#each measure.symbols as sym (sym.kind)}
+								{#if sym.kind === 'segno'}
+									<text x={sym.x} y={15} class="{BRAVURA} text-[15px]">{GLYPH.segno}</text>
+								{:else if sym.kind === 'coda'}
+									<text x={sym.x} y={15} class="{BRAVURA} text-[15px]">{GLYPH.coda}</text>
+								{:else if sym.kind === 'tempo'}
+									<!-- Mid-song tempo change: ♩ = N above the bar. -->
+									<text x={sym.x} y={14} class="{BRAVURA} text-[13px]"
+										>{GLYPH.metNoteQuarterUp}</text
+									>
+									<text
+										x={sym.x + 7}
+										y={14}
+										class="fill-[#18181b] [font:700_10px_ui-sans-serif,sans-serif]"
+										>= {sym.tempo}</text
+									>
+								{:else if sym.kind === 'lock'}
+									<!-- Locked bar: small padlock. -->
+									<path
+										d="M {sym.x + 2.2} 9.5 V 7.6 a 2.2 2.2 0 0 1 4.4 0 V 9.5"
+										class="fill-none stroke-[#71717a] [stroke-width:1.2]"
+									/>
+									<rect x={sym.x} y="9.5" width="8.8" height="5.8" rx="1" class="fill-[#71717a]" />
+								{/if}
+							{/each}
 							<!-- Section-marker label: small text above the staff bands. Rendered
 						     last (on top) so its hit area always wins over the bands' glyphs.
 						     Click to rename inline; the same store update the tracks panel uses. -->

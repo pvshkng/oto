@@ -250,12 +250,24 @@ export async function compileSong(
 	const measureBeatTicks: number[][] = Array.from({ length: measureCount }, () => []);
 	const beatTicks: BeatTick[] = [];
 
+	// Effective tempo per measure index: a mid-song tempo change stays in effect
+	// until the next one. Precomputed by index (not along the play order) so a
+	// repeat jump lands on the right tempo for the measure it jumps to.
+	const effectiveTempo: number[] = [];
+	{
+		let current = score.tempo;
+		for (let mi = 0; mi < measureCount; mi++) {
+			current = score.tracks[0]?.measures[mi]?.tempo ?? current;
+			effectiveTempo.push(current);
+		}
+	}
+
 	let cursorTick = 0;
 	let lastTempo = -1;
 	let lastTimeSig = '';
 
 	for (const mi of playOrder) {
-		const tempo = score.tracks[0]?.measures[mi]?.tempo ?? score.tempo;
+		const tempo = effectiveTempo[mi] ?? score.tempo;
 		const timeSig = score.tracks[0]?.measures[mi]?.timeSignature ?? score.timeSignature;
 		const measureStart = Math.round(cursorTick);
 		const firstPass = measureTicks[mi] < 0;

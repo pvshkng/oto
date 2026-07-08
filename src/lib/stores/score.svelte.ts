@@ -1330,6 +1330,32 @@ export class ScoreStore {
 		return this.score.timeSignature;
 	}
 
+	/**
+	 * Mid-song tempo change: pin a new BPM to a measure. Like a time-signature
+	 * change it's score structure (applied to the same bar on every track) and
+	 * stays in effect until the next change.
+	 */
+	setMeasureTempo(measureIndex: number, bpm: number) {
+		const clamped = Math.max(20, Math.min(400, bpm));
+		this.commit(() => this.#eachTrackMeasure(measureIndex, (m) => (m.tempo = clamped)));
+	}
+
+	/** Remove a measure's tempo change so the bar falls back to the tempo already
+	 *  in effect (an earlier change, or the song's base tempo). */
+	clearMeasureTempo(measureIndex: number) {
+		this.commit(() => this.#eachTrackMeasure(measureIndex, (m) => (m.tempo = undefined)));
+	}
+
+	/** Tempo in effect at a measure (nearest explicit change at or before it). */
+	tempoAt(measureIndex: number): number {
+		const measures = this.track.measures;
+		for (let i = Math.min(measureIndex, measures.length - 1); i >= 0; i--) {
+			const t = measures[i].tempo;
+			if (t) return t;
+		}
+		return this.score.tempo;
+	}
+
 	// ---- cursor / selection -----------------------------------------------
 
 	setCursor(pos: Partial<ScorePosition>) {

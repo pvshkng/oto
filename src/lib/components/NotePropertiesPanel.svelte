@@ -19,6 +19,7 @@
 	import DurationPicker from './note-edit/DurationPicker.svelte';
 	import VoiceToggle from './note-edit/VoiceToggle.svelte';
 	import BarTimeSigPicker from './note-edit/BarTimeSigPicker.svelte';
+	import BarTempoPicker from './note-edit/BarTempoPicker.svelte';
 	import BeatActions from './note-edit/BeatActions.svelte';
 	import NoteActions from './note-edit/NoteActions.svelte';
 	import BarActions from './note-edit/BarActions.svelte';
@@ -70,6 +71,7 @@
 {#snippet voiceBtns()}<VoiceToggle />{/snippet}
 {#snippet beatActionBtns()}<BeatActions />{/snippet}
 {#snippet timeSigBtns()}<BarTimeSigPicker side="top" />{/snippet}
+{#snippet tempoBtns()}<BarTempoPicker side="top" />{/snippet}
 {#snippet barActionBtns()}<BarActions />{/snippet}
 
 <aside
@@ -119,6 +121,7 @@
 				<span class={vLabel} aria-hidden="true">Bar</span>
 				<div class={clusterWrap}>
 					{@render cluster('Time signature', timeSigBtns)}
+					{@render cluster('Tempo', tempoBtns)}
 					{@render cluster('Bar actions', barActionBtns)}
 					<BarMarksGrid sectioned />
 				</div>
@@ -161,6 +164,10 @@
 			<div class={vSection}>
 				<span class={label}>Time signature</span>
 				<BarTimeSigPicker side="right" />
+			</div>
+			<div class={vSection}>
+				<span class={label}>Tempo</span>
+				<BarTempoPicker side="right" />
 			</div>
 			<div class={vSection}>
 				<span class={label}>Bar actions</span>

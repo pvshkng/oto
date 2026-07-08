@@ -425,6 +425,35 @@ describe('ScoreStore bar lock & line break', () => {
 	});
 });
 
+describe('ScoreStore mid-song tempo change', () => {
+	let s: ScoreStore;
+	beforeEach(() => (s = freshStore()));
+
+	it('sets the change on the same bar of every track and clamps the BPM', () => {
+		s.addTrack();
+		s.setMeasureTempo(1, 150);
+		expect(s.score.tracks[0].measures[1].tempo).toBe(150);
+		expect(s.score.tracks[1].measures[1].tempo).toBe(150);
+		s.setMeasureTempo(2, 9999);
+		expect(s.score.tracks[0].measures[2].tempo).toBe(400);
+	});
+
+	it('keeps a change in effect until the next one', () => {
+		s.setMeasureTempo(1, 90);
+		expect(s.tempoAt(0)).toBe(s.score.tempo);
+		expect(s.tempoAt(1)).toBe(90);
+		expect(s.tempoAt(3)).toBe(90);
+	});
+
+	it('clearing a change falls back to the tempo already in effect', () => {
+		s.setMeasureTempo(1, 90);
+		s.setMeasureTempo(2, 200);
+		s.clearMeasureTempo(2);
+		expect(s.score.tracks[0].measures[2].tempo).toBeUndefined();
+		expect(s.tempoAt(2)).toBe(90);
+	});
+});
+
 describe('ScoreStore explicit track visibility', () => {
 	let s: ScoreStore;
 	beforeEach(() => {

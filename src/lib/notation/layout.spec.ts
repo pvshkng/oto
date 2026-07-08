@@ -510,3 +510,41 @@ describe('ties', () => {
 		expect(tie!.x2).toBeCloseTo(m1[0].notes[0].x, 5);
 	});
 });
+
+describe('bar-symbol strip (segno / coda / tempo / lock)', () => {
+	const restBar = (extra: Partial<OtoMeasure> = {}): OtoMeasure => ({
+		beats: [beat(1, [], { rest: true })],
+		...extra
+	});
+
+	it('reserves the strip above the bands whenever a bar carries a symbol', () => {
+		const plain = layTrack([restBar()]);
+		const withLock = layTrack([restBar({ locked: true })]);
+		const withTempo = layTrack([restBar({ tempo: 140 })]);
+		// The 16px strip (METRICS.sectionLabelHeight) pushes every band down, so
+		// strip symbols stay clear of in-band marks like "let ring".
+		expect(withLock.bands.standard!.offsetY).toBe(plain.bands.standard!.offsetY + 16);
+		expect(withTempo.bands.standard!.offsetY).toBe(plain.bands.standard!.offsetY + 16);
+	});
+
+	it("lays a bar's symbols left to right without overlap", () => {
+		const layout = layTrack([restBar({ segno: true, coda: true, tempo: 140, locked: true })]);
+		const symbols = layout.systems[0].measures[0].symbols;
+		expect(symbols.map((s) => s.kind)).toEqual(['segno', 'coda', 'tempo', 'lock']);
+		for (let i = 1; i < symbols.length; i++) {
+			expect(symbols[i].x).toBeGreaterThan(symbols[i - 1].x + 10);
+		}
+		expect(symbols.find((s) => s.kind === 'tempo')?.tempo).toBe(140);
+	});
+
+	it('starts symbols after the volta number', () => {
+		const noVolta = layTrack([restBar({ segno: true })]).systems[0].measures[0].symbols[0];
+		const withVolta = layTrack([restBar({ segno: true, volta: 1 })]).systems[0].measures[0]
+			.symbols[0];
+		expect(withVolta.x).toBeGreaterThan(noVolta.x);
+	});
+
+	it('keeps bars without symbols empty', () => {
+		expect(layTrack([restBar()]).systems[0].measures[0].symbols).toEqual([]);
+	});
+});
