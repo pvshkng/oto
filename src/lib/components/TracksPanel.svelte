@@ -28,6 +28,8 @@
 	import MagnifyingGlassMinus from 'phosphor-svelte/lib/MagnifyingGlassMinus';
 	import Minus from 'phosphor-svelte/lib/Minus';
 	import List from 'phosphor-svelte/lib/List';
+	import ListStar from 'phosphor-svelte/lib/ListStar';
+	import Check from 'phosphor-svelte/lib/Check';
 	import SpeakerSimpleHigh from 'phosphor-svelte/lib/SpeakerSimpleHigh';
 
 	// Width of the frozen track-controls column. Desktop: draggable 350–520 px.
@@ -297,6 +299,47 @@
 							<List class="size-3.5" />
 						</button>
 					</div>
+					<!-- Show/hide tracks: popover listing every track with a visibility
+					     toggle, so a busy song can be narrowed to just the tracks being
+					     worked on. Scrolls vertically when the track list is long. -->
+					<Popover.Root>
+						<Popover.Trigger
+							class="text-muted-foreground hover:text-foreground hover:border-border [background-image:none!important] flex size-6 shrink-0 items-center justify-center rounded-md border"
+							title="Show / hide tracks"
+							aria-label="Show or hide tracks"
+						>
+							<ListStar class="size-3.5" />
+						</Popover.Trigger>
+						<Popover.Content side="bottom" align="start" class="w-56 p-1.5">
+							<p
+								class="text-muted-foreground px-2 pt-1 pb-1.5 text-[10px] font-semibold tracking-wide uppercase"
+							>
+								Visible tracks
+							</p>
+							<div class="max-h-56 overflow-y-auto">
+								{#each tracks as t (t.id)}
+									{@const visible = store.isTrackVisible(t.id)}
+									<button
+										class="hover:bg-muted [background-image:none!important] flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px]"
+										aria-pressed={visible}
+										title={visible ? `Hide ${t.name}` : `Show ${t.name}`}
+										onclick={() => store.setTrackVisible(t.id, !visible)}
+									>
+										<span class="size-2.5 shrink-0 rounded-full" style="background:{t.color}"
+										></span>
+										<span class={cn('min-w-0 flex-1 truncate', !visible && 'text-muted-foreground')}
+											>{t.name}</span
+										>
+										{#if visible}
+											<Check class="size-3.5 shrink-0" />
+										{:else}
+											<span class="size-3.5 shrink-0"></span>
+										{/if}
+									</button>
+								{/each}
+							</div>
+						</Popover.Content>
+					</Popover.Root>
 				</div>
 				<div class="relative shrink-0" style="width:{timelineW}px">
 					<div class="flex h-full">

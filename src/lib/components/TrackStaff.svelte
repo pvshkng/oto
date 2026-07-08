@@ -7,6 +7,7 @@
 	import {
 		layoutTrack,
 		computeSharedSystems,
+		timeSigAllowance,
 		METRICS,
 		type LaidMeasure,
 		type SharedSystems,
@@ -260,9 +261,12 @@
 					>
 						{#each system.measures as measure, mIdx (measure.index)}
 							<!-- x where a begin-repeat sign sits: at the bar's start, or just
-							     after the clef/key header on the first bar of a system. -->
+							     after the clef/key header (and any time signature) on the
+							     first bar of a system. -->
 							{@const repeatX =
-								measure.x + (measure.showHeader ? METRICS.headerWidth + layout.keySigWidth + 2 : 0)}
+								measure.x +
+								(measure.showHeader ? METRICS.headerWidth + layout.keySigWidth + 2 : 0) +
+								timeSigAllowance(measure.timeSignature)}
 							{@const nextMeasure = system.measures[mIdx + 1] ?? null}
 							<!-- ===== Standard staff band ===== -->
 							{#if layout.bands.standard}
@@ -444,12 +448,12 @@
 									{/if}
 									{#if measure.timeSignature}
 										<text
-											x={measure.x + (measure.showHeader ? 34 + layout.keySigWidth : 6)}
+											x={measure.x + (measure.showHeader ? 40 + layout.keySigWidth : 6)}
 											y={METRICS.stdTopPad + 2 * METRICS.staffLineGap + 1}
 											class="{BRAVURA} text-[26px]">{timeSigGlyphs(measure.timeSignature[0])}</text
 										>
 										<text
-											x={measure.x + (measure.showHeader ? 34 + layout.keySigWidth : 6)}
+											x={measure.x + (measure.showHeader ? 40 + layout.keySigWidth : 6)}
 											y={METRICS.stdTopPad + 4 * METRICS.staffLineGap + 1}
 											class="{BRAVURA} text-[26px]">{timeSigGlyphs(measure.timeSignature[1])}</text
 										>
@@ -725,10 +729,9 @@
 													class={STEM}
 												/>
 												{#if beat.beams > 0}
-													<text
-														x={beat.x}
-														y={stemTop}
-														class="{BRAVURA} text-[26px] [dominant-baseline:middle]"
+													<!-- Flag baseline sits exactly at the stem tip (SMuFL flags
+													     anchor there) so the flag always connects to the stem. -->
+													<text x={beat.x} y={stemTop} class="{BRAVURA} text-[26px]"
 														>{beat.beams === 1 ? GLYPH.flag8thUp : GLYPH.flag16thUp}</text
 													>
 												{/if}

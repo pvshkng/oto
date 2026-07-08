@@ -18,6 +18,10 @@
 //            offset, gain/mute/solo, tempo-match + pitch settings). Optional on
 //            disk — absent means no audio track. The audio bytes are never
 //            stored; only the alignment/tempo/pitch settings are.
+//   v5 → v6  Added measure-level `locked` (bar rejects content edits) and
+//            `lineBreak` (bar starts a new system in the layout). Both optional
+//            on disk, so v5 documents load unchanged and are upgraded on the
+//            next save.
 
 import { TUNINGS } from './pitch';
 import { isDynamic, isOttava, isStrumDirection, isTechnique, isTupletValue } from './types';
@@ -32,7 +36,7 @@ import type {
 	TrackKind
 } from './types';
 
-export const OTO_VERSION = 5;
+export const OTO_VERSION = 6;
 
 let idCounter = 0;
 export function uid(prefix = 'id'): string {
@@ -284,6 +288,8 @@ function normaliseMeasure(m: unknown): OtoMeasure {
 		simile: o.simile === true ? true : undefined,
 		segno: o.segno === true ? true : undefined,
 		coda: o.coda === true ? true : undefined,
+		locked: o.locked === true ? true : undefined,
+		lineBreak: o.lineBreak === true ? true : undefined,
 		beats: beats.length ? beats : [restBeat()],
 		voice2: voice2 && voice2.length ? voice2 : undefined
 	};

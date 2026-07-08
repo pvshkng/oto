@@ -38,6 +38,22 @@
 	const STRUM = 'stroke-[#3f3f46] [stroke-width:1.5] fill-none';
 </script>
 
+<!-- String-line masks under the fret numbers, drawn FIRST so everything else
+     (cursor/selection highlights, let-ring spans, effect marks) renders over
+     the number instead of being punched through by an opaque white box. Sized
+     snugly to the label so the mask hides only the line behind the digits. -->
+{#each beats as beat (beat.index)}
+	{#each beat.notes as n (n.string)}
+		{@const label = n.techniques.includes('dead')
+			? 'x'
+			: n.techniques.includes('ghost')
+				? `(${n.fret})`
+				: String(n.fret)}
+		{@const maskW = label.length * 6.5 + 3}
+		<rect x={n.x - maskW / 2} y={n.tabY - 4.5} width={maskW} height="9" class="fill-paper" />
+	{/each}
+{/each}
+
 {#if showMarks}
 	<!-- Tuplet brackets over the tab (only when the standard staff is hidden). -->
 	{#each tupletSpans(beats) as span (span.x1)}
@@ -128,13 +144,6 @@
 				class="fill-[rgba(24,24,27,0.22)] [rx:3]"
 			/>
 		{/if}
-		<rect
-			x={n.x - (isGhost ? 10 : 6)}
-			y={n.tabY - 4}
-			width={isGhost ? 20 : 13}
-			height="10"
-			class="fill-paper"
-		/>
 		<text x={n.x} y={n.tabY + 4} class={fretStyle({ mutedNote: isDead, v2: vIdx === 1 })}
 			>{fretLabel}</text
 		>

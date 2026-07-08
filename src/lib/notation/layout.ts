@@ -214,7 +214,9 @@ function letterClassOf(step: number): number {
 }
 
 const KEY_SIG_GLYPH_GAP = 7;
-const KEY_SIG_START_DX = 26; // right after the clef glyph
+// The treble clef glyph (40px Bravura, drawn from x+8) inks out to ~x+35, so
+// the key signature starts past that instead of on top of the clef's bowl.
+const KEY_SIG_START_DX = 38;
 
 /** Accidental glyphs to render for a key signature in a given clef, positioned
  *  left to right starting just after the clef. */
@@ -236,7 +238,17 @@ function keySignatureGlyphs(
 /** Extra header width needed to fit a key signature's accidentals. */
 export function keySignatureWidth(fifths: number): number {
 	if (fifths === 0) return 0;
-	return Math.min(Math.abs(fifths), 7) * KEY_SIG_GLYPH_GAP + 6;
+	return Math.min(Math.abs(fifths), 7) * KEY_SIG_GLYPH_GAP + 8;
+}
+
+/** Horizontal room (px) reserved in a bar that draws a time signature — the
+ *  first bar of the piece and any bar where the metre changes — so the digits
+ *  get their own column instead of the first beat landing on top of them.
+ *  Scales with digit count (12/8 needs more than 3/4). */
+export function timeSigAllowance(ts: [number, number] | null): number {
+	if (!ts) return 0;
+	const digits = Math.max(String(ts[0]).length, String(ts[1]).length);
+	return 10 + digits * 13;
 }
 
 export interface Band {
@@ -281,6 +293,23 @@ export function computeSharedSystems(
 		maxBeatCounts.push(Math.max(1, ...tracks.map((t) => t.measures[mi]?.beats.length ?? 1)));
 	}
 
+	// Time-signature room per measure (first bar, or an explicit metre change)
+	// and forced line breaks. The store applies both to the same bar on every
+	// track, so reading the first track that has the measure is enough.
+	const tsAllowances: number[] = [];
+	const lineBreaks: boolean[] = [];
+	{
+		let prev = score.timeSignature;
+		for (let mi = 0; mi < measureCount; mi++) {
+			const m = tracks.map((t) => t.measures[mi]).find(Boolean);
+			const ts = m?.timeSignature;
+			const shows = mi === 0 || (!!ts && (ts[0] !== prev[0] || ts[1] !== prev[1]));
+			tsAllowances.push(shows ? timeSigAllowance(ts ?? prev) : 0);
+			if (ts) prev = ts;
+			lineBreaks.push(!!m?.lineBreak);
+		}
+	}
+
 	// No artificial minimum here beyond guarding degenerate values — systems
 	// must always fit the real available width so the staff never needs to
 	// scroll horizontally, however narrow the container actually is.
@@ -295,22 +324,26 @@ export function computeSharedSystems(
 	};
 	for (let mi = 0; mi < measureCount; mi++) {
 		const showHeader = row.length === 0;
-		const w = intrinsicMeasureWidth(maxBeatCounts[mi], showHeader, headerWidth);
-		if (row.length > 0 && rowWidth + w > avail) flush();
+		const w = intrinsicMeasureWidth(maxBeatCounts[mi], showHeader, headerWidth) + tsAllowances[mi];
+		if (row.length > 0 && (lineBreaks[mi] || rowWidth + w > avail)) flush();
 		row.push(mi);
 		rowWidth += intrinsicMeasureWidth(maxBeatCounts[mi], row.length === 1, headerWidth);
+		rowWidth += tsAllowances[mi];
 	}
 	flush();
 
-	// Every bar in a system gets the SAME width (equal distribution), so bars read
-	// as an even grid instead of the first (header) bar ballooning wider than the
-	// rest. The row fills the width between the two symmetric side insets; the
-	// header/clef is drawn inside the first bar's equal box.
+	// Bars share the row's leftover width equally AFTER each bar's fixed symbol
+	// allowance (clef/key header on the first bar, time-signature digits where
+	// they draw). Symbol-carrying bars therefore get more total width, so their
+	// notes keep the same inner room as every other bar instead of being
+	// squeezed by the symbols.
 	const measureWidths: number[] = new Array(measureCount).fill(0);
 	const usableW = avail - 2 * METRICS.systemSideInset;
 	for (const sys of systems) {
-		const w = sys.length > 0 ? usableW / sys.length : usableW;
-		for (const mi of sys) measureWidths[mi] = w;
+		const extras = sys.map((mi, i) => (i === 0 ? headerWidth : 0) + tsAllowances[mi]);
+		const totalExtra = extras.reduce((s, e) => s + e, 0);
+		const share = Math.max(40, (usableW - totalExtra) / Math.max(1, sys.length));
+		sys.forEach((mi, i) => (measureWidths[mi] = share + extras[i]));
 	}
 	return { systems, measureWidths };
 }
@@ -355,6 +388,21 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 	}
 	const systemHeight = y + METRICS.systemGap;
 
+	// Which measures draw a time signature (the first bar, or an explicit metre
+	// change) and the px room those digits need. Precomputed globally — before
+	// system packing — so packing, width distribution and rendering all agree.
+	const tsShown: ([number, number] | null)[] = [];
+	{
+		let prev = score.timeSignature;
+		for (let mi = 0; mi < track.measures.length; mi++) {
+			const ts = track.measures[mi].timeSignature;
+			const shows = mi === 0 || (!!ts && (ts[0] !== prev[0] || ts[1] !== prev[1]));
+			tsShown.push(shows ? (ts ?? prev) : null);
+			if (ts) prev = ts;
+		}
+	}
+	const tsPad = tsShown.map(timeSigAllowance);
+
 	// Pack measures into systems greedily by width — unless a shared
 	// breakdown was supplied (multi-track view), in which case every track
 	// uses the exact same system groupings and measure widths so their bars
@@ -379,33 +427,37 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 		for (let mi = 0; mi < track.measures.length; mi++) {
 			const beatCount = track.measures[mi].beats.length;
 			const showHeader = row.length === 0;
-			const w = intrinsicMeasureWidth(beatCount, showHeader, headerWidth);
-			if (row.length > 0 && rowWidth + w > avail) flush();
+			const w = intrinsicMeasureWidth(beatCount, showHeader, headerWidth) + tsPad[mi];
+			if (row.length > 0 && (track.measures[mi].lineBreak || rowWidth + w > avail)) flush();
 			row.push(mi);
-			rowWidth += intrinsicMeasureWidth(beatCount, row.length === 1, headerWidth);
+			rowWidth += intrinsicMeasureWidth(beatCount, row.length === 1, headerWidth) + tsPad[mi];
 		}
 		flush();
 	}
 
-	// Build each system's geometry. Every bar in the row is given the SAME
-	// width so the barlines form an even grid; the row spans the width between
-	// two equal side insets, keeping the staff horizontally symmetric.
+	// Build each system's geometry. Bars share the row's leftover width equally
+	// AFTER each bar's fixed symbol allowance (clef/key header on the first bar,
+	// time-signature digits where drawn), so a symbol-carrying bar gets more
+	// total width and its notes keep the same inner room as every other bar.
+	// The row spans the width between two equal side insets, keeping the staff
+	// horizontally symmetric.
 	function buildSystem(measureIndexes: number[], _justify: boolean): LaidSystem {
 		const usableWidth = Math.max(100, avail) - 2 * METRICS.systemSideInset;
-		const equalWidth =
-			measureIndexes.length > 0 ? usableWidth / measureIndexes.length : usableWidth;
+		const extras = measureIndexes.map((mi, i) => (i === 0 ? headerWidth : 0) + tsPad[mi]);
+		const totalExtra = extras.reduce((s, e) => s + e, 0);
+		const share = Math.max(40, (usableWidth - totalExtra) / Math.max(1, measureIndexes.length));
 
 		let mx = METRICS.systemSideInset;
-		let prevTimeSig: [number, number] = score.timeSignature;
 		const measures: LaidMeasure[] = measureIndexes.map((mi, i) => {
 			const measure = track.measures[mi];
 			const showHeader = i === 0;
 			const headerW = showHeader ? headerWidth : 0;
-			const width = opts.shared ? opts.shared.measureWidths[mi] : equalWidth;
-			const innerStart = mx + headerW + METRICS.measurePadStart;
+			const width = opts.shared ? opts.shared.measureWidths[mi] : share + extras[i];
+			const symbolW = headerW + tsPad[mi];
+			const innerStart = mx + symbolW + METRICS.measurePadStart;
 			const innerWidth = Math.max(
 				16,
-				width - headerW - METRICS.measurePadStart - METRICS.measurePadEnd
+				width - symbolW - METRICS.measurePadStart - METRICS.measurePadEnd
 			);
 			const fill = analyzeMeasure(measure, score.timeSignature);
 
@@ -509,13 +561,6 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 			const beats = layVoice(measure.beats, hasV2 ? 1 : null);
 			const voice2 = hasV2 ? layVoice(measure.voice2!, -1) : undefined;
 
-			const showTs =
-				mi === 0 ||
-				(measure.timeSignature &&
-					(measure.timeSignature[0] !== prevTimeSig[0] ||
-						measure.timeSignature[1] !== prevTimeSig[1]));
-			if (measure.timeSignature) prevTimeSig = measure.timeSignature;
-
 			const sectionIdx = sortedSections.findIndex((s) => s.measure === mi);
 			const section = sectionIdx >= 0 ? sortedSections[sectionIdx] : null;
 
@@ -528,7 +573,7 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 				voice2,
 				overflow: fill.overflow,
 				showHeader,
-				timeSignature: showTs ? (measure.timeSignature ?? score.timeSignature) : null,
+				timeSignature: tsShown[mi],
 				barline: measure.barline ?? null,
 				repeatStart: !!measure.repeatStart,
 				repeatEnd: !!measure.repeatEnd,

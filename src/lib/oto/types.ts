@@ -264,6 +264,12 @@ export interface OtoMeasure {
 	segno?: boolean;
 	/** Coda mark at the start of this measure. */
 	coda?: boolean;
+	/** Locked bar: content edits (notes, beats, clearing, deleting) are rejected
+	 *  until unlocked, so a finished bar can't be changed accidentally. */
+	locked?: boolean;
+	/** Force this bar to start a new system (line) in the score layout,
+	 *  regardless of how many bars would otherwise fit on the previous line. */
+	lineBreak?: boolean;
 	/** Voice 1 (primary). Always present. */
 	beats: OtoBeat[];
 	/**

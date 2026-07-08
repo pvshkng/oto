@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { layoutTrack, type LaidBeat } from './layout';
+import { layoutTrack, timeSigAllowance, type LaidBeat } from './layout';
 import { accidentalGlyph } from './glyphs';
 import { makeScore, makeTrack } from '$lib/oto/format';
 import type { OtoBeat, OtoMeasure, DurationValue, TrackKind } from '$lib/oto/types';
@@ -398,6 +398,61 @@ describe('notehead clusters', () => {
 			}
 		]);
 		expect(beats[0].notes.every((n) => n.headXOffset === 0)).toBe(true);
+	});
+});
+
+describe('symbol room (header / time signature)', () => {
+	const fourBeats = () => ({
+		beats: [beat(4, [note(0, 0)]), beat(4, [note(0, 0)]), beat(4, [note(0, 0)])]
+	});
+
+	it('shows the time signature on the first bar and on a mid-song change only', () => {
+		const layout = layTrack([
+			fourBeats(),
+			fourBeats(),
+			{ ...fourBeats(), timeSignature: [3, 4] },
+			fourBeats()
+		]);
+		const ms = layout.systems[0].measures;
+		expect(ms[0].timeSignature).toEqual([4, 4]);
+		expect(ms[1].timeSignature).toBeNull();
+		expect(ms[2].timeSignature).toEqual([3, 4]);
+		expect(ms[3].timeSignature).toBeNull();
+	});
+
+	it('gives a bar drawing symbols extra width, keeping inner note room equal', () => {
+		const layout = layTrack([fourBeats(), fourBeats(), { ...fourBeats(), timeSignature: [3, 4] }]);
+		const ms = layout.systems[0].measures;
+		// First bar carries clef header + time signature; third carries a ts change.
+		expect(ms[0].width).toBeGreaterThan(ms[1].width);
+		expect(ms[2].width).toBeGreaterThan(ms[1].width);
+		expect(ms[2].width - ms[1].width).toBeCloseTo(timeSigAllowance([3, 4]), 5);
+	});
+
+	it('starts a mid-song time-signature bar’s first beat past the digits', () => {
+		const layout = layTrack([fourBeats(), { ...fourBeats(), timeSignature: [3, 4] }]);
+		const m = layout.systems[0].measures[1];
+		expect(m.beats[0].x - m.x).toBeGreaterThanOrEqual(timeSigAllowance([3, 4]));
+	});
+
+	it('reserves wider allowance for two-digit time signatures', () => {
+		expect(timeSigAllowance([12, 8])).toBeGreaterThan(timeSigAllowance([3, 4]));
+		expect(timeSigAllowance(null)).toBe(0);
+	});
+});
+
+describe('forced line breaks', () => {
+	it('starts a lineBreak bar on a new system even when everything would fit one line', () => {
+		const measures: OtoMeasure[] = [
+			{ beats: [beat(4, [note(0, 0)])] },
+			{ beats: [beat(4, [note(0, 0)])] },
+			{ beats: [beat(4, [note(0, 0)])], lineBreak: true },
+			{ beats: [beat(4, [note(0, 0)])] }
+		];
+		const layout = layTrack(measures);
+		expect(layout.systems).toHaveLength(2);
+		expect(layout.systems[0].measures.map((m) => m.index)).toEqual([0, 1]);
+		expect(layout.systems[1].measures.map((m) => m.index)).toEqual([2, 3]);
 	});
 });
 

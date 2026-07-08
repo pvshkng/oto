@@ -329,59 +329,6 @@
 		>
 			<Metronome class="size-5" />
 		</Button>
-		<!-- Playback speed: shows icon + multiplier, sunk while active. Clicking
-		     always opens the popover (toggling off happens inside it, so a press
-		     never accidentally disables the speed override). -->
-		<Popover.Root>
-			<Popover.Trigger
-				class={cn(
-					buttonVariants({ variant: 'outline', size: 'sm' }),
-					'h-9 gap-1 rounded-none border-l-0 px-2 tabular-nums',
-					store.playbackSpeedOn && 'sunk'
-				)}
-				title="Playback speed"
-				aria-label="Playback speed"
-				aria-pressed={store.playbackSpeedOn}
-			>
-				<Speedometer class="size-5" />
-				{Math.round(store.playbackSpeed * 100)}%
-			</Popover.Trigger>
-			<Popover.Content side="top" align="center" class="w-60 p-3">
-				<div class="mb-2 flex items-center justify-between">
-					<span class="text-xs font-semibold">Playback speed</span>
-					<button
-						class={cn(
-							'rounded-md border px-2 py-0.5 text-[11px] font-semibold [background-image:none!important]',
-							store.playbackSpeedOn
-								? 'sunk text-foreground'
-								: 'text-muted-foreground hover:text-foreground'
-						)}
-						title={store.playbackSpeedOn ? 'Disable speed override' : 'Enable speed override'}
-						aria-pressed={store.playbackSpeedOn}
-						onclick={() => setSpeedOn(!store.playbackSpeedOn)}
-					>
-						{store.playbackSpeedOn ? 'On' : 'Off'}
-					</button>
-				</div>
-				<div class="flex items-center gap-2">
-					<input
-						type="range"
-						min="0.5"
-						max="1.5"
-						step="0.05"
-						aria-label="Playback speed"
-						title="Playback speed"
-						class={cn(MIXER_FADER_CLASS, 'min-w-0 flex-1')}
-						value={store.playbackSpeed}
-						aria-valuetext={`${Math.round(store.playbackSpeed * 100)} percent`}
-						oninput={(e) => setSpeed(e.currentTarget.valueAsNumber)}
-					/>
-					<span class="text-muted-foreground w-10 shrink-0 text-right text-[11px] tabular-nums"
-						>{Math.round(store.playbackSpeed * 100)}%</span
-					>
-				</div>
-			</Popover.Content>
-		</Popover.Root>
 		<Button
 			variant="outline"
 			size="icon"
@@ -408,6 +355,60 @@
 			{store.score.tempo}<span class="text-muted-foreground text-[10px] font-semibold">bpm</span>
 		</Button>
 	</div>
+
+	<!-- Playback speed: standalone button showing icon + multiplier, sunk while
+	     active. Clicking always opens the popover (toggling off happens inside
+	     it, so a press never accidentally disables the speed override). -->
+	<Popover.Root>
+		<Popover.Trigger
+			class={cn(
+				buttonVariants({ variant: 'outline', size: 'sm' }),
+				'h-9 shrink-0 gap-1 px-2 tabular-nums',
+				store.playbackSpeedOn && 'sunk'
+			)}
+			title="Playback speed"
+			aria-label="Playback speed"
+			aria-pressed={store.playbackSpeedOn}
+		>
+			<Speedometer class="size-5" />
+			{Math.round(store.playbackSpeed * 100)}%
+		</Popover.Trigger>
+		<Popover.Content side="top" align="center" class="w-60 p-3">
+			<div class="mb-2 flex items-center justify-between">
+				<span class="text-xs font-semibold">Playback speed</span>
+				<button
+					class={cn(
+						'rounded-md border px-2 py-0.5 text-[11px] font-semibold [background-image:none!important]',
+						store.playbackSpeedOn
+							? 'sunk text-foreground'
+							: 'text-muted-foreground hover:text-foreground'
+					)}
+					title={store.playbackSpeedOn ? 'Disable speed override' : 'Enable speed override'}
+					aria-pressed={store.playbackSpeedOn}
+					onclick={() => setSpeedOn(!store.playbackSpeedOn)}
+				>
+					{store.playbackSpeedOn ? 'On' : 'Off'}
+				</button>
+			</div>
+			<div class="flex items-center gap-2">
+				<input
+					type="range"
+					min="0.5"
+					max="1.5"
+					step="0.05"
+					aria-label="Playback speed"
+					title="Playback speed"
+					class={cn(MIXER_FADER_CLASS, 'min-w-0 flex-1')}
+					value={store.playbackSpeed}
+					aria-valuetext={`${Math.round(store.playbackSpeed * 100)} percent`}
+					oninput={(e) => setSpeed(e.currentTarget.valueAsNumber)}
+				/>
+				<span class="text-muted-foreground w-10 shrink-0 text-right text-[11px] tabular-nums"
+					>{Math.round(store.playbackSpeed * 100)}%</span
+				>
+			</div>
+		</Popover.Content>
+	</Popover.Root>
 
 	<!-- Song settings pushed to the far right, split off from the song-control
 	     buttons on the left (ml-auto opens the gap when there's room; the strip

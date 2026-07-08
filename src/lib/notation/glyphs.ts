@@ -24,6 +24,7 @@ export const GLYPH = {
 	flag32ndUp: cp(0xe244),
 	flag8thDown: cp(0xe241),
 	flag16thDown: cp(0xe243),
+	flag32ndDown: cp(0xe245),
 	accidentalSharp: cp(0xe262),
 	accidentalFlat: cp(0xe260),
 	accidentalNatural: cp(0xe261),
@@ -118,6 +119,20 @@ export function durationGlyph(d: DurationValue): string {
 
 /** Bravura augmentation (dot) glyph, for the dotted-note button. */
 export const AUGMENTATION_DOT = GLYPH.augmentationDot;
+
+/**
+ * Flag glyph for an unbeamed short note (1 = eighth, 2 = sixteenth, 3+ =
+ * thirty-second), matching the stem direction. SMuFL flag glyphs anchor at the
+ * stem tip — up flags ink downward from the baseline, down flags ink upward —
+ * so draw them with the text baseline exactly at the stem end and no extra
+ * baseline shifting, or the flag detaches from the stem.
+ */
+export function flagGlyph(beams: number, stemDir: 1 | -1): string {
+	if (stemDir === 1) {
+		return beams === 1 ? GLYPH.flag8thUp : beams === 2 ? GLYPH.flag16thUp : GLYPH.flag32ndUp;
+	}
+	return beams === 1 ? GLYPH.flag8thDown : beams === 2 ? GLYPH.flag16thDown : GLYPH.flag32ndDown;
+}
 
 export function restGlyph(d: DurationValue): string {
 	switch (d) {

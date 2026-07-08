@@ -5,6 +5,7 @@
 // directly (they're deep-reactive `$state`) and call methods to mutate.
 
 import { SvelteSet } from 'svelte/reactivity';
+import { toast } from 'svelte-sonner';
 import {
 	makeScore,
 	makeTrack,
@@ -1118,6 +1119,25 @@ export class ScoreStore {
 		return this.focusedTrackIds.size === 0 || this.focusedTrackIds.has(id);
 	}
 
+	/** Explicitly show/hide one track in the score area (the tracks-panel
+	 *  visibility popover). Multi view: edits the focused set — an empty set
+	 *  means "all visible", so the first hide materialises the full set before
+	 *  removing; the last visible track can never be hidden. Single view: only
+	 *  one track is ever visible, so picking a track focuses it. */
+	setTrackVisible(id: string, visible: boolean) {
+		if (!this.score.tracks.some((t) => t.id === id)) return;
+		if (this.trackViewMode === 'single') {
+			if (visible) this.focusedTrackId = id;
+			return;
+		}
+		const next = new SvelteSet(
+			this.focusedTrackIds.size ? this.focusedTrackIds : this.score.tracks.map((t) => t.id)
+		);
+		if (visible) next.add(id);
+		else if (next.size > 1) next.delete(id);
+		this.focusedTrackIds = next;
+	}
+
 	/** True if the given track index is currently focused (Eye button pressed). */
 	isTrackFocused(index: number): boolean {
 		const t = this.score.tracks[index];
@@ -1221,6 +1241,7 @@ export class ScoreStore {
 	}
 
 	removeMeasureFromAll(measureIndex: number) {
+		if (this.#rejectLockedEdit(measureIndex)) return;
 		this.commit(() => {
 			for (const t of this.score.tracks) {
 				if (t.measures.length > 1) t.measures.splice(measureIndex, 1);
@@ -1253,6 +1274,7 @@ export class ScoreStore {
 
 	/** Clear every note in a bar (back to a single rest) on every track. */
 	clearMeasureAt(measureIndex: number) {
+		if (this.#rejectLockedEdit(measureIndex)) return;
 		this.commit(() => {
 			for (const t of this.score.tracks) {
 				const m = t.measures[measureIndex];
@@ -1525,6 +1547,7 @@ export class ScoreStore {
 	 * user manually inserting beats ("auto-grow").
 	 */
 	setFretAtCursor(fret: number) {
+		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const beats = this.editBeats();
 			const beat = beats[this.cursor.beat];
@@ -1571,6 +1594,7 @@ export class ScoreStore {
 	}
 
 	deleteNoteAtCursor() {
+		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const measure = this.track.measures[this.cursor.measure];
 			if (!measure) return;
@@ -1627,7 +1651,7 @@ export class ScoreStore {
 			if (!track) return;
 			for (let mi = b.startMeasure; mi <= b.endMeasure; mi++) {
 				const measure = track.measures[mi];
-				if (!measure) continue;
+				if (!measure || measure.locked) continue;
 				const firstBeat = mi === b.startMeasure ? b.startBeat : 0;
 				const lastBeat = mi === b.endMeasure ? b.endBeat : measure.beats.length - 1;
 				// Splice from end → start so indices stay valid.
@@ -1688,6 +1712,7 @@ export class ScoreStore {
 			this.deleteNotesInSelection();
 		} else {
 			// No beat-range selection: cut the entire beat (all notes), not just cursor string
+			if (this.#rejectLockedEdit()) return;
 			this.commit(() => {
 				const measure = this.track.measures[this.cursor.measure];
 				if (!measure) return;
@@ -1707,6 +1732,7 @@ export class ScoreStore {
 
 	pasteClipboard() {
 		if (!this.clipboard || this.clipboard.length === 0) return;
+		if (this.#rejectLockedEdit()) return;
 		const barGroups = this.clipboard;
 		// Guard: first group must have at least one beat
 		if (!barGroups[0] || barGroups[0].length === 0) return;
@@ -1735,7 +1761,7 @@ export class ScoreStore {
 					}
 				}
 				const targetMeasure = this.track.measures[targetIndex];
-				if (!targetMeasure) continue;
+				if (!targetMeasure || targetMeasure.locked) continue;
 				for (let i = 0; i < group.length; i++) {
 					targetMeasure.beats.splice(i, 0, JSON.parse(JSON.stringify(group[i])));
 				}
@@ -1746,6 +1772,7 @@ export class ScoreStore {
 	}
 
 	setBeatDuration(duration: DurationValue, dotted: boolean) {
+		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const beat = this.currentBeatRef();
 			if (!beat) return;
@@ -1756,6 +1783,7 @@ export class ScoreStore {
 
 	/** Insert a new beat after the cursor with the active duration, move into it. */
 	insertBeat() {
+		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const beats = this.editBeats();
 			beats.splice(this.cursor.beat + 1, 0, this.#newBeat());
@@ -1765,6 +1793,7 @@ export class ScoreStore {
 
 	/** Insert a new beat *before* the cursor, pushing the current beat right. */
 	insertBeatBefore() {
+		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const beats = this.editBeats();
 			beats.splice(this.cursor.beat, 0, this.#newBeat());
@@ -1777,6 +1806,7 @@ export class ScoreStore {
 	}
 
 	deleteBeat() {
+		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const measure = this.track.measures[this.cursor.measure];
 			if (this.cursor.voice === 1) {
@@ -1801,6 +1831,7 @@ export class ScoreStore {
 	}
 
 	toggleTechnique(tech: Technique) {
+		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const beat = this.currentBeatRef();
 			if (!beat) return;
@@ -1823,6 +1854,7 @@ export class ScoreStore {
 	}
 
 	setBend(semitones: number) {
+		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const beat = this.currentBeatRef();
 			const note = beat?.notes.find((n) => n.string === this.cursor.string);
@@ -1834,6 +1866,7 @@ export class ScoreStore {
 
 	/** Tie the note under the cursor to the next beat's note on the same string. */
 	toggleNoteTie() {
+		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const beat = this.currentBeatRef();
 			const note = beat?.notes.find((n) => n.string === this.cursor.string);
@@ -1843,6 +1876,7 @@ export class ScoreStore {
 	}
 
 	setSlideTarget(fret: number) {
+		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const beat = this.currentBeatRef();
 			const note = beat?.notes.find((n) => n.string === this.cursor.string);
@@ -1868,6 +1902,7 @@ export class ScoreStore {
 	// a single button per mark covers both set and unset.
 
 	setBeatTuplet(n: TupletValue) {
+		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const beat = this.currentBeatRef();
 			if (!beat) return;
@@ -1876,6 +1911,7 @@ export class ScoreStore {
 	}
 
 	setBeatDynamic(d: Dynamic) {
+		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const beat = this.currentBeatRef();
 			if (!beat) return;
@@ -1884,6 +1920,7 @@ export class ScoreStore {
 	}
 
 	setBeatStrum(dir: StrumDirection) {
+		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const beat = this.currentBeatRef();
 			if (!beat) return;
@@ -1892,6 +1929,7 @@ export class ScoreStore {
 	}
 
 	toggleBeatFermata() {
+		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const beat = this.currentBeatRef();
 			if (!beat) return;
@@ -1900,6 +1938,7 @@ export class ScoreStore {
 	}
 
 	setBeatOttava(o: Ottava) {
+		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const beat = this.currentBeatRef();
 			if (!beat) return;
@@ -1985,6 +2024,38 @@ export class ScoreStore {
 			if (!m) return;
 			m.simile = m.simile ? undefined : true;
 		});
+	}
+
+	// ---- bar lock / forced line break ------------------------------------------
+	//
+	// Both are structural (applied to the same bar on every track, like a
+	// time-signature change): a lock protects the whole bar column from content
+	// edits, and a line break must move every track's layout together so the
+	// multi-track view stays aligned.
+
+	/** True when the bar at `measureIndex` (active track) is locked. */
+	isMeasureLocked(measureIndex: number): boolean {
+		return !!this.track.measures[measureIndex]?.locked;
+	}
+
+	/** Guard for content edits: true (and surfaces a toast) when the target bar
+	 *  is locked, so callers can bail out before mutating anything. */
+	#rejectLockedEdit(measureIndex = this.cursor.measure): boolean {
+		if (!this.isMeasureLocked(measureIndex)) return false;
+		toast.warning(`Bar ${measureIndex + 1} is locked`, { id: 'locked-bar' });
+		return true;
+	}
+
+	/** Lock/unlock a bar. Locked bars reject content edits until unlocked. */
+	toggleMeasureLocked(measureIndex: number) {
+		const next = this.track.measures[measureIndex]?.locked ? undefined : true;
+		this.commit(() => this.#eachTrackMeasure(measureIndex, (m) => (m.locked = next)));
+	}
+
+	/** Force/unforce this bar to start a new line in the score layout. */
+	toggleMeasureLineBreak(measureIndex: number) {
+		const next = this.track.measures[measureIndex]?.lineBreak ? undefined : true;
+		this.commit(() => this.#eachTrackMeasure(measureIndex, (m) => (m.lineBreak = next)));
 	}
 }
 

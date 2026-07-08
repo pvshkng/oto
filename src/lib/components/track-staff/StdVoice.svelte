@@ -7,6 +7,7 @@
 		restGlyph,
 		accidentalGlyph,
 		dynamicGlyph,
+		flagGlyph,
 		tupletGlyphs
 	} from '$lib/notation/glyphs';
 	import { midiToNote } from '$lib/oto/pitch';
@@ -194,15 +195,14 @@
 				class="stroke-[#18181b] [stroke-width:1.4]"
 			/>
 			{#if beat.beams > 0}
+				<!-- Flag baseline sits exactly at the stem tip (SMuFL flags anchor
+				     there), with the direction-matched glyph — an up flag hung on a
+				     down stem (or a baseline shift) leaves the flag floating off the
+				     stem. -->
 				<text
 					x={stemX(beat)}
 					y={beat.stemDir === 1 ? beat.stdStemTop : beat.stdStemBottom}
-					class="{BRAVURA} text-[26px] [dominant-baseline:middle]"
-					>{beat.beams === 1
-						? GLYPH.flag8thUp
-						: beat.beams === 2
-							? GLYPH.flag16thUp
-							: GLYPH.flag32ndUp}</text
+					class="{BRAVURA} text-[26px]">{flagGlyph(beat.beams, beat.stemDir)}</text
 				>
 			{/if}
 		{/if}

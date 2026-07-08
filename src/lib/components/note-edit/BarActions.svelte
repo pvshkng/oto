@@ -11,11 +11,16 @@
 	import Copy from 'phosphor-svelte/lib/Copy';
 	import Eraser from 'phosphor-svelte/lib/Eraser';
 	import Trash from 'phosphor-svelte/lib/Trash';
+	import LockKey from 'phosphor-svelte/lib/LockKey';
+	import LockKeyOpen from 'phosphor-svelte/lib/LockKeyOpen';
+	import ArrowBendDownLeft from 'phosphor-svelte/lib/ArrowBendDownLeft';
 
 	let { dense = false }: { dense?: boolean } = $props();
 
 	const mi = $derived(store.cursor.measure);
 	const onlyOne = $derived(store.track.measures.length <= 1);
+	const locked = $derived(store.isMeasureLocked(mi));
+	const lineBreak = $derived(!!store.currentMeasure?.lineBreak);
 </script>
 
 <button
@@ -43,7 +48,8 @@
 	<Copy class="size-5" />
 </button>
 <button
-	class={ctlStyle({ dense })}
+	class={cn(ctlStyle({ dense }), 'disabled:cursor-not-allowed disabled:opacity-40')}
+	disabled={locked}
 	title="Clear bar"
 	aria-label="Clear bar"
 	onclick={() => store.clearMeasureAt(mi)}
@@ -52,10 +58,32 @@
 </button>
 <button
 	class={cn(ctlStyle({ dense }), 'disabled:cursor-not-allowed disabled:opacity-40')}
-	disabled={onlyOne}
+	disabled={onlyOne || locked}
 	title="Delete bar"
 	aria-label="Delete bar"
 	onclick={() => store.removeMeasureFromAll(mi)}
 >
 	<Trash class="size-5" />
+</button>
+<button
+	class={cn(ctlStyle({ dense }), { sunk: locked })}
+	title={locked ? 'Unlock bar' : 'Lock bar (reject edits)'}
+	aria-label={locked ? 'Unlock bar' : 'Lock bar'}
+	aria-pressed={locked}
+	onclick={() => store.toggleMeasureLocked(mi)}
+>
+	{#if locked}
+		<LockKey class="size-5" />
+	{:else}
+		<LockKeyOpen class="size-5" />
+	{/if}
+</button>
+<button
+	class={cn(ctlStyle({ dense }), { sunk: lineBreak })}
+	title="Force line break (this bar starts a new line)"
+	aria-label="Force line break"
+	aria-pressed={lineBreak}
+	onclick={() => store.toggleMeasureLineBreak(mi)}
+>
+	<ArrowBendDownLeft class="size-5" />
 </button>

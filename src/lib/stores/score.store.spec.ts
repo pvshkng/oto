@@ -357,3 +357,107 @@ describe('ScoreStore sections', () => {
 		expect(s.score.sections).toHaveLength(1);
 	});
 });
+
+describe('ScoreStore bar lock & line break', () => {
+	let s: ScoreStore;
+	beforeEach(() => (s = freshStore()));
+
+	it('toggles the lock on the same bar of every track', () => {
+		s.addTrack();
+		s.setCursor({ track: 0, measure: 1 });
+		s.toggleMeasureLocked(1);
+		expect(s.score.tracks[0].measures[1].locked).toBe(true);
+		expect(s.score.tracks[1].measures[1].locked).toBe(true);
+		s.toggleMeasureLocked(1);
+		expect(s.score.tracks[0].measures[1].locked).toBeUndefined();
+	});
+
+	it('rejects note entry, technique and beat edits on a locked bar', () => {
+		s.setCursor({ measure: 0, beat: 0, string: 0 });
+		s.setFretAtCursor(5);
+		s.toggleMeasureLocked(0);
+		s.setFretAtCursor(9);
+		expect(s.track.measures[0].beats[0].notes).toEqual([{ string: 0, fret: 5 }]);
+		s.toggleTechnique('palm-mute');
+		expect(s.currentNote?.techniques ?? []).not.toContain('palm-mute');
+		const beatCount = s.track.measures[0].beats.length;
+		s.insertBeat();
+		expect(s.track.measures[0].beats.length).toBe(beatCount);
+		s.deleteNoteAtCursor();
+		expect(s.track.measures[0].beats[0].notes).toEqual([{ string: 0, fret: 5 }]);
+	});
+
+	it('rejects clearing and deleting a locked bar, and edits again after unlock', () => {
+		s.setCursor({ measure: 0, beat: 0, string: 0 });
+		s.setFretAtCursor(5);
+		s.toggleMeasureLocked(0);
+		s.clearMeasureAt(0);
+		expect(s.track.measures[0].beats[0].notes).toHaveLength(1);
+		const measureCount = s.track.measures.length;
+		s.removeMeasureFromAll(0);
+		expect(s.track.measures.length).toBe(measureCount);
+		s.toggleMeasureLocked(0);
+		s.clearMeasureAt(0);
+		expect(s.track.measures[0].beats[0].rest).toBe(true);
+	});
+
+	it('skips locked bars when deleting a multi-bar selection', () => {
+		s.setCursor({ track: 0, measure: 0, beat: 0, string: 0 });
+		s.setFretAtCursor(3);
+		s.setCursor({ measure: 1, beat: 0, string: 0 });
+		s.setFretAtCursor(4);
+		s.toggleMeasureLocked(1);
+		s.setCursor({ measure: 0, beat: 0 });
+		s.setSelectionTo(1, 0);
+		s.deleteNotesInSelection();
+		expect(s.track.measures[0].beats[0].rest).toBe(true);
+		expect(s.track.measures[1].beats[0].notes).toEqual([{ string: 0, fret: 4 }]);
+	});
+
+	it('toggles a forced line break on the same bar of every track', () => {
+		s.addTrack();
+		s.setCursor({ track: 0, measure: 2 });
+		s.toggleMeasureLineBreak(2);
+		expect(s.score.tracks[0].measures[2].lineBreak).toBe(true);
+		expect(s.score.tracks[1].measures[2].lineBreak).toBe(true);
+		s.toggleMeasureLineBreak(2);
+		expect(s.score.tracks[0].measures[2].lineBreak).toBeUndefined();
+	});
+});
+
+describe('ScoreStore explicit track visibility', () => {
+	let s: ScoreStore;
+	beforeEach(() => {
+		s = freshStore();
+		s.addTrack();
+		s.addTrack();
+		s.setTrackViewMode('multi');
+	});
+
+	it('hides one track from the all-visible state and shows it again', () => {
+		const [a, b, c] = s.score.tracks.map((t) => t.id);
+		expect(s.isTrackVisible(b)).toBe(true);
+		s.setTrackVisible(b, false);
+		expect(s.isTrackVisible(b)).toBe(false);
+		expect(s.isTrackVisible(a)).toBe(true);
+		expect(s.isTrackVisible(c)).toBe(true);
+		s.setTrackVisible(b, true);
+		expect(s.isTrackVisible(b)).toBe(true);
+	});
+
+	it('never hides the last visible track', () => {
+		const ids = s.score.tracks.map((t) => t.id);
+		s.setTrackVisible(ids[0], false);
+		s.setTrackVisible(ids[1], false);
+		s.setTrackVisible(ids[2], false);
+		expect(ids.some((id) => s.isTrackVisible(id))).toBe(true);
+	});
+
+	it('focuses the picked track in single view', () => {
+		s.setTrackViewMode('single');
+		const target = s.score.tracks[1].id;
+		s.setTrackVisible(target, true);
+		expect(s.focusedTrackId).toBe(target);
+		expect(s.isTrackVisible(target)).toBe(true);
+	});
+});
