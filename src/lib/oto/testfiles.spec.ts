@@ -1,7 +1,7 @@
-// Guards the .oto fixtures in <repo>/test-files: every file must parse with
-// the current format code, and no bar in any fixture may overflow its metre
-// (overflowing beats are skipped on playback, which would make a fixture
-// silently exercise less than it claims to).
+// Guards the .oto fixtures in <repo>/public/test-files: every file must
+// parse with the current format code, and no bar in any fixture may
+// overflow its metre (overflowing beats are skipped on playback, which
+// would make a fixture silently exercise less than it claims to).
 
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { parse, OTO_VERSION } from './format';
 import { analyzeMeasure } from './duration';
 
-const DIR = fileURLToPath(new URL('../../../test-files', import.meta.url));
+const DIR = fileURLToPath(new URL('../../../public/test-files', import.meta.url));
 const files = readdirSync(DIR).filter((f) => f.endsWith('.oto'));
 
 describe('test-files fixtures', () => {

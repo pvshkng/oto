@@ -9,7 +9,7 @@ const config = {
 	kit: {
 		adapter: adapter(),
 		paths: {
-			base: '/oto'
+			base: process.env.BASE_PATH ?? ''
 		}
 	}
 };

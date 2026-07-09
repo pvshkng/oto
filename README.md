@@ -1,8 +1,8 @@
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/pvshkng/oto/main/src/lib/assets/android-chrome-512x512-transparent.png" height="256" width="256">
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/pvshkng/oto/main/src/lib/assets/android-chrome-512x512.png" height="256" width="256">
-    <img alt="Oto logo." src="https://raw.githubusercontent.com/pvshkng/oto/main/src/lib/assets/android-chrome-512x512.png" height="256" width="256">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/pvshkng/oto/main/static/images/android-chrome-512x512-transparent.png" height="256" width="256">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/pvshkng/oto/main/static/images/android-chrome-512x512.png" height="256" width="256">
+    <img alt="Oto logo." src="https://raw.githubusercontent.com/pvshkng/oto/main/static/images/android-chrome-512x512.png" height="256" width="256">
   </picture>
   <h1>Oto</h1>
 </div>

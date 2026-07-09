@@ -8,7 +8,7 @@
 
 	import { loading } from '$lib/stores/loading.svelte';
 	import { fade } from 'svelte/transition';
-	import mark from '$lib/assets/android-chrome-512x512-transparent.png';
+	import { base } from '$app/paths';
 	import Spinner from './Spinner.svelte';
 
 	// `forceActive` keeps the overlay up before the app has finished its
@@ -21,7 +21,7 @@
 {#if loading.active || forceActive}
 	<div class="overlay" role="status" aria-live="polite" transition:fade={{ duration: 200 }}>
 		<div class="panel">
-			<img class="mark" src={mark} alt="oto" />
+			<img class="mark" src="{base}/images/android-chrome-512x512-transparent.png" alt="oto" />
 			<Spinner size={26} label={loading.label} />
 		</div>
 	</div>

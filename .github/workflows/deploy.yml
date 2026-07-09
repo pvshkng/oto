@@ -26,12 +26,8 @@ jobs:
 
       - name: Determine base path
         id: base-path
-        # A custom domain (static/CNAME) serves the site at the domain root,
-        # so BASE_PATH must be empty in that case. Without a custom domain,
-        # GitHub Pages serves project sites from /<repo>/, so BASE_PATH must
-        # match the repo name.
         run: |
-          if [ -f static/CNAME ]; then
+          if [ -f public/CNAME ]; then
             echo "value=" >> "$GITHUB_OUTPUT"
           else
             echo "value=/${{ github.event.repository.name }}" >> "$GITHUB_OUTPUT"
