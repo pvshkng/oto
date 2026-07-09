@@ -297,11 +297,19 @@
 				     Vertical scroll lives on <main> so tall scores pass behind the
 				     dock; HORIZONTAL scroll lives on the inner wrapper instead, so its
 				     scrollbar renders there (above the dock) rather than at <main>'s
-				     bottom edge, which sits hidden behind the dock overlay. -->
+				     bottom edge, which sits hidden behind the dock overlay.
+
+				     scrollbar-gutter is pinned stable because the padding below tracks
+				     the dock height: toggling a bottom panel (tracks / note / keys)
+				     would otherwise flip the scrollbar in or out, changing the score's
+				     width and retriggering a full relayout — and with it the resize
+				     spinner — for a mere panel toggle. The +40 keeps the sheet's bottom
+				     edge scrollable clear of the dock (which floats 16px off the
+				     viewport bottom), so the page background stays visible below it. -->
 				<main
-					class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto [padding:20px_18px_24px] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
+					class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [padding:20px_18px_24px] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
 					bind:this={scoreAreaEl}
-					style="padding-bottom: {desktopDockHeight}px"
+					style="padding-bottom: {desktopDockHeight + 40}px"
 					onscroll={closeContextMenuOnScroll}
 				>
 					<div
@@ -428,10 +436,15 @@
 	     ═══════════════════════════════════════════════════════════════ -->
 		<div class="flex h-screen h-dvh flex-col overflow-hidden bg-bg print:bg-white">
 			<StatusBanner />
+			<!-- scrollbar-gutter stable for the same reason as desktop: the padding
+			     below tracks the dock height, and letting the scrollbar toggle with
+			     it would change the score width and retrigger a relayout (plus the
+			     resize spinner) whenever the edit/mixer panel opens. The +48 keeps
+			     the sheet's bottom edge scrollable clear of the fixed dock card. -->
 			<main
-				class="flex min-h-0 flex-1 justify-center overflow-y-auto [padding:20px_18px_0] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
+				class="flex min-h-0 flex-1 justify-center overflow-y-auto [scrollbar-gutter:stable] [padding:20px_18px_0] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
 				bind:this={scoreAreaEl}
-				style="padding-bottom: {bottomBarHeight + (dockPanel ? dockPanelHeight : 0) + 16}px"
+				style="padding-bottom: {bottomBarHeight + (dockPanel ? dockPanelHeight : 0) + 48}px"
 				onscroll={closeContextMenuOnScroll}
 			>
 				<ScoreArea onHeaderClick={() => (store.songModalOpen = true)} />
