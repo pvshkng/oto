@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { parse, OTO_VERSION } from './format';
 import { analyzeMeasure } from './duration';
 
-const DIR = fileURLToPath(new URL('../../../public/test-files', import.meta.url));
+const DIR = fileURLToPath(new URL('../../../static/test-files', import.meta.url));
 const files = readdirSync(DIR).filter((f) => f.endsWith('.oto'));
 
 describe('test-files fixtures', () => {
