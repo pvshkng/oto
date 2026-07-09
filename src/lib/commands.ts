@@ -455,7 +455,7 @@ export function fileCommands(): Cmd[] {
 			id: 'file-open',
 			label: 'Open / Import',
 			icon: FolderOpen,
-			run: () => void import('$lib/io/files').then((m) => m.openFile())
+			run: () => (store.openFileModalOpen = true)
 		},
 		{
 			id: 'file-close',

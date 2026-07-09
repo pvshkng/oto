@@ -2,7 +2,42 @@
 
 import { store } from '$lib/stores/score.svelte';
 import { audio } from '$lib/audio/engine';
+import { loading } from '$lib/stores/loading.svelte';
 import { importGuitarProBytes, isGuitarProFile } from './guitarpro';
+import { addRecentFile } from './recent-files';
+
+/** Wait two frames so a just-shown loading overlay actually paints before we
+ *  run the heavy synchronous parse/commit that would otherwise block the main
+ *  thread — and the screen — before the overlay ever appears. */
+function nextPaint(): Promise<void> {
+	if (typeof requestAnimationFrame === 'undefined') return Promise.resolve();
+	return new Promise((resolve) =>
+		requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+	);
+}
+
+/**
+ * Shared open pipeline: show the loading overlay, yield a frame so it paints,
+ * fetch/read the file bytes, then parse and commit. Every entry point (recent,
+ * example, browse) routes through here so a slow fetch or a heavy parse always
+ * shows progress instead of a frozen UI.
+ */
+export async function openWithLoading(
+	name: string,
+	produce: () => Promise<string> | string
+): Promise<void> {
+	loading.start(`Opening ${name}`);
+	try {
+		await nextPaint();
+		const json = await produce();
+		// Second yield: the overlay may have only just mounted (recent files
+		// resolve `produce` synchronously), so paint it before the blocking parse.
+		await nextPaint();
+		loadOtoJson(name, json);
+	} finally {
+		loading.finish();
+	}
+}
 
 export function downloadOto() {
 	const json = store.toJSON();
@@ -21,6 +56,15 @@ export function downloadOto() {
 	setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+export function loadOtoJson(name: string, json: string) {
+	store.loadScore(json);
+	// Warm up the audio engine behind the loading screen so playback is
+	// ready the moment the import lands (the user interaction that triggered
+	// the load counts as the user gesture the AudioContext needs).
+	audio.warmup();
+	addRecentFile(name, json);
+}
+
 /** Open a file picker accepting both .oto and Guitar Pro files. */
 export function openFile(): Promise<void> {
 	return new Promise((resolve, reject) => {
@@ -31,17 +75,13 @@ export function openFile(): Promise<void> {
 			const file = input.files?.[0];
 			if (!file) return resolve();
 			try {
-				if (isGuitarProFile(file.name)) {
-					const buf = new Uint8Array(await file.arrayBuffer());
-					const score = await importGuitarProBytes(buf);
-					store.loadScore(JSON.stringify(score));
-				} else {
-					store.loadScore(await file.text());
-				}
-				// Warm up the audio engine behind the loading screen so playback is
-				// ready the moment the import lands (the file-picker interaction
-				// counts as the user gesture the AudioContext needs).
-				audio.warmup();
+				await openWithLoading(file.name, async () => {
+					if (isGuitarProFile(file.name)) {
+						const buf = new Uint8Array(await file.arrayBuffer());
+						return JSON.stringify(await importGuitarProBytes(buf));
+					}
+					return file.text();
+				});
 				resolve();
 			} catch (e) {
 				reject(e);

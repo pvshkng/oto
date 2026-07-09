@@ -12,15 +12,24 @@ class LoadingStore {
 	total = $state(0);
 	/** Files/steps completed so far. */
 	done = $state(0);
-	/** Short status line, e.g. "Loading instruments". */
-	label = $state('Loading instruments');
+	/** Short status line, e.g. "Loading sounds". */
+	label = $state('Loading sounds');
 
 	get progress(): number {
 		return this.total > 0 ? Math.min(1, this.done / this.total) : 0;
 	}
 
+	/** Show the overlay for work with no measurable progress (e.g. parsing an
+	 *  imported file). Resets any prior batch so the bar renders indeterminate. */
+	start(label = 'Loading') {
+		this.total = 0;
+		this.done = 0;
+		this.label = label;
+		this.active = true;
+	}
+
 	/** Open (or extend) the current batch by `count` pending items. */
-	begin(count: number, label = 'Loading instruments') {
+	begin(count: number, label = 'Loading sounds') {
 		if (count <= 0) return;
 		if (!this.active) {
 			this.total = 0;

@@ -150,6 +150,7 @@ export class ScoreStore {
 	 *  bar (measure) controls. Desktop shows both at once and ignores this. */
 	editScope = $state<'note' | 'bar'>('note');
 	songModalOpen = $state(false);
+	openFileModalOpen = $state(false);
 	/** Track-staff right-click menu (any track). Closed on outer scroll. */
 	contextMenuOpen = $state(false);
 

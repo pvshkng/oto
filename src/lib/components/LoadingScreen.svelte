@@ -22,7 +22,7 @@
 	<div class="overlay" role="status" aria-live="polite" transition:fade={{ duration: 200 }}>
 		<div class="panel">
 			<img class="mark" src={mark} alt="oto" />
-			<div class="label">{determinate ? loading.label : 'Loading'}</div>
+			<div class="label">{loading.label}</div>
 			<div class="track">
 				<div
 					class="bar"
