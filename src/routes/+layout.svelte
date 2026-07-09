@@ -1,6 +1,7 @@
 <script lang="ts">
 	import './layout.css';
 	import { beforeNavigate } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { store } from '$lib/stores/score.svelte';
 	import { Toaster } from '$lib/components/ui/sonner/index.js';
 	import GithubRibbon from '$lib/components/GithubRibbon.svelte';
@@ -18,7 +19,7 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href="/favicon.ico" />
+	<link rel="icon" href={resolve('/') + 'favicon.ico'} />
 </svelte:head>
 
 <GithubRibbon />
