@@ -159,6 +159,12 @@ export class ScoreStore {
 	// tempoOpen and addRemoveOpen lift those formerly-local BottomBar states into
 	// the store so the desktop right panel can read them.
 	isDesktop = $state(false);
+	// True while the score is being re-laid-out after a viewport/width change.
+	// Relaying out a large score is a synchronous, main-thread cost, so a
+	// spinner overlay (see +page) covers the brief jank rather than letting the
+	// stale staff sit frozen until the new layout paints. Driven by the width
+	// observer's onBusy signal in ScoreArea.
+	scoreResizing = $state(false);
 	// Whether a score is currently open. When false the welcome/empty state is
 	// shown in place of the editor. Not persisted directly — it's inferred on
 	// load from whether an autosaved score exists, set true by New/Open, and
@@ -205,16 +211,55 @@ export class ScoreStore {
 			this.clampFloatingPanels();
 		}
 		mq.addEventListener('change', (e) => {
-			this.isDesktop = e.matches;
-			if (e.matches) {
-				this.#mixerOpenState = true;
-				this.clampFloatingPanels();
-			} else {
-				this.keyInputOpen = false;
-				this.tempoOpen = false;
-				this.addRemoveOpen = false;
-			}
+			// Crossing the breakpoint swaps the entire desktop⇄mobile layout, which
+			// re-lays-out the whole score — on a long song that's a multi-second,
+			// main-thread-blocking rebuild. Show the spinner FIRST and let it paint
+			// (two frames) before flipping, so the overlay is on screen (and its CSS
+			// spin keeps running on the compositor) throughout the freeze instead of
+			// only appearing after it. The overlay lives outside the layout branches
+			// (see +page) so it survives the swap.
+			this.showRelayout();
+			requestAnimationFrame(() =>
+				requestAnimationFrame(() => {
+					this.isDesktop = e.matches;
+					if (e.matches) {
+						this.#mixerOpenState = true;
+						this.clampFloatingPanels();
+					} else {
+						this.keyInputOpen = false;
+						this.tempoOpen = false;
+						this.addRemoveOpen = false;
+					}
+					// Hide once the new layout has rendered and painted.
+					requestAnimationFrame(() => requestAnimationFrame(() => this.hideRelayoutSoon()));
+				})
+			);
 		});
+	}
+
+	// ---- relayout spinner ---------------------------------------------------
+	// A single flag drives the score-area spinner (see +page). Any source that is
+	// about to trigger a heavy relayout — the width observer or the breakpoint
+	// switch — calls showRelayout(); each calls hideRelayoutSoon() when its work
+	// settles. hideRelayoutSoon is debounced and cancelled by any newer show, so
+	// overlapping sources coalesce into one continuous overlay, and a safety timer
+	// guarantees it never sticks if a hide is somehow missed.
+	#relayoutHideTimer: ReturnType<typeof setTimeout> | undefined;
+	#relayoutSafetyTimer: ReturnType<typeof setTimeout> | undefined;
+
+	showRelayout() {
+		clearTimeout(this.#relayoutHideTimer);
+		clearTimeout(this.#relayoutSafetyTimer);
+		this.scoreResizing = true;
+		this.#relayoutSafetyTimer = setTimeout(() => (this.scoreResizing = false), 6000);
+	}
+
+	hideRelayoutSoon() {
+		clearTimeout(this.#relayoutHideTimer);
+		this.#relayoutHideTimer = setTimeout(() => {
+			clearTimeout(this.#relayoutSafetyTimer);
+			this.scoreResizing = false;
+		}, 80);
 	}
 
 	// ---- desktop panel docking ---------------------------------------------

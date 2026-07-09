@@ -4,6 +4,7 @@
 	// between the two hosts except what happens when the header is clicked
 	// (desktop closes the other right-panel modes first; mobile doesn't).
 	import { store } from '$lib/stores/score.svelte';
+	import { observeWidth } from '$lib/resize';
 	import { computeSharedSystems, layoutTrack, type TrackLayout } from '$lib/notation/layout';
 	import { GLYPH } from '$lib/notation/glyphs';
 	import { TUNINGS } from '$lib/oto/pitch';
@@ -25,11 +26,12 @@
 	let tracksWrapperEl: HTMLDivElement | undefined;
 	$effect(() => {
 		if (!tracksWrapperEl) return;
-		const ro = new ResizeObserver((entries) => {
-			tracksWidth = entries[0].contentRect.width;
+		// This wrapper resizes with the viewport in both single- and multi-track
+		// modes, so its busy signal covers every resize episode — enough to drive
+		// the score-area spinner without each TrackStaff reporting separately.
+		return observeWidth(tracksWrapperEl, (w) => (tracksWidth = w), {
+			onBusy: (b) => (b ? store.showRelayout() : store.hideRelayoutSoon())
 		});
-		ro.observe(tracksWrapperEl);
-		return () => ro.disconnect();
 	});
 
 	const visibleTracks = $derived(store.score.tracks.filter((t) => store.isTrackVisible(t.id)));

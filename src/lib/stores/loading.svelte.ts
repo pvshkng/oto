@@ -12,8 +12,8 @@ class LoadingStore {
 	total = $state(0);
 	/** Files/steps completed so far. */
 	done = $state(0);
-	/** Short status line, e.g. "Loading sounds". */
-	label = $state('Loading sounds');
+	/** Short status line, e.g. "Loading". */
+	label = $state('Loading');
 
 	get progress(): number {
 		return this.total > 0 ? Math.min(1, this.done / this.total) : 0;
@@ -29,7 +29,7 @@ class LoadingStore {
 	}
 
 	/** Open (or extend) the current batch by `count` pending items. */
-	begin(count: number, label = 'Loading sounds') {
+	begin(count: number, label = 'Loading') {
 		if (count <= 0) return;
 		if (!this.active) {
 			this.total = 0;

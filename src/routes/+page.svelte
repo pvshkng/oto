@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
+	import { fade } from 'svelte/transition';
 	import { store } from '$lib/stores/score.svelte';
 	import { stopPlayback } from '$lib/audio/playback';
 	import { audioTrack } from '$lib/audio/audio-track.svelte';
@@ -18,6 +19,7 @@
 	import RightPanel from '$lib/components/RightPanel.svelte';
 	import StatusBanner from '$lib/components/StatusBanner.svelte';
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
 	import { audio } from '$lib/audio/engine';
 
 	// Mobile dock panel — mutually exclusive (editMode vs mixerOpen)
@@ -199,6 +201,33 @@
 </svelte:head>
 
 {#if ready}
+	<!-- Spinner shown while a viewport/width change (or a desktop⇄mobile switch)
+	     re-lays-out the score — on a long song that relayout blocks the main
+	     thread for a noticeable beat. Rendered ONCE here, outside the layout
+	     branches below, so it stays mounted (and its CSS spin keeps running on
+	     the compositor) even while the branch swap rebuilds the whole score. It
+	     masks the jank without touching the session. pointer-events-none while
+	     fading, but it does sit above the app so a mid-relayout tap doesn't hit a
+	     half-built layout. -->
+	{#snippet resizeOverlay()}
+		{#if store.scoreResizing}
+			<!-- Appears INSTANTLY (no in-transition): a Svelte fade-in animates
+			     opacity on the main thread, so if the relayout freeze starts right
+			     after the overlay mounts, the fade would stall at ~0 opacity for the
+			     whole freeze — the overlay would be in the DOM but invisible (this is
+			     exactly why big→small used to show nothing). Only the fade-OUT is
+			     kept; it runs after the freeze, when the main thread is free. The
+			     spinner itself is a compositor CSS animation, so it keeps turning
+			     even while the main thread is blocked. -->
+			<div
+				class="fixed inset-0 z-[150] flex items-center justify-center bg-bg/60 backdrop-blur-[1px]"
+				out:fade={{ duration: 140 }}
+			>
+				<Spinner size={30} />
+			</div>
+		{/if}
+	{/snippet}
+
 	{#if store.isDesktop}
 		<!-- ═══════════════════════════════════════════════════════════════
 	     DESKTOP LAYOUT  (≥ 1024 px)
@@ -232,9 +261,12 @@
 		{#snippet splitSeparator()}
 			<!-- z-40 lifts the separator (and its swap button) above the two
 			     backdrop-blurred panels on either side — those establish their own
-			     stacking contexts and would otherwise paint over the button. -->
+			     stacking contexts and would otherwise paint over the button. Carries
+			     the same single translucent+blur surface as the panels it sits
+			     between, so the sliver of dock between them reads as the card (the
+			     dock wrapper itself is transparent now) rather than see-through. -->
 			<div
-				class="group/sep relative z-40 flex w-3 shrink-0 items-stretch justify-center self-stretch"
+				class="group/sep relative z-40 flex w-3 shrink-0 items-stretch justify-center self-stretch bg-background/50 backdrop-blur-md"
 			>
 				<div class="w-px bg-border transition-colors group-hover/sep:bg-foreground/30"></div>
 				<button
@@ -328,12 +360,15 @@
 			     Floated off the edges (inset margins) so it reads as a card and,
 			     crucially, so the score's right-hand vertical scrollbar stays
 			     uncovered — the dock used to span the full width and hide it. The
-			     card carries its own translucent surface so any gap between stacked
-			     panels reads as the dock, not see-through to the score. Capped in
-			     height so a tall stack (tracks + note + keys) can't outgrow the
-			     viewport — inner regions scroll instead. -->
+			     wrapper itself is transparent — every docked panel (tracks / note /
+			     keys / bottom bar) carries its own single translucent+blur surface,
+			     exactly like the mobile dock, so the dock isn't double-tinted (a
+			     second 50% layer under the panels made it read opaque on desktop
+			     while mobile stayed properly see-through). Capped in height so a tall
+			     stack (tracks + note + keys) can't outgrow the viewport — inner
+			     regions scroll instead. -->
 			<div
-				class="absolute inset-x-4 bottom-4 z-20 flex max-h-[calc(100dvh-5rem)] shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-background/50 shadow-[0_6px_24px_rgba(0,0,0,0.14)] backdrop-blur-md print:hidden"
+				class="absolute inset-x-4 bottom-4 z-20 flex max-h-[calc(100dvh-5rem)] shrink-0 flex-col overflow-hidden rounded-lg border border-border shadow-[0_6px_24px_rgba(0,0,0,0.14)] print:hidden"
 				bind:clientHeight={desktopDockHeight}
 			>
 				<!-- Tracks Panel (toggleable on desktop) -->
@@ -428,6 +463,8 @@
 			<SongModal />
 		</div>
 	{/if}
+
+	{@render resizeOverlay()}
 {/if}
 
 <OpenFileModal />

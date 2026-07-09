@@ -1,41 +1,28 @@
 <script lang="ts">
 	// Minimal, monochromatic loading overlay shown while instrument sounds (and
 	// imported files) load. Matches the app's neutral palette — no colour, just
-	// ink-on-paper and a thin determinate progress bar — so it reads as part of
-	// the same surface rather than a separate splash.
+	// the app mark, a spinning indicator and a short label — so it reads as part
+	// of the same surface rather than a separate splash. No progress bar: the
+	// work is quick enough that a spinner reads cleaner than a jumpy determinate
+	// bar.
 
 	import { loading } from '$lib/stores/loading.svelte';
 	import { fade } from 'svelte/transition';
 	import mark from '$lib/assets/android-chrome-512x512-transparent.png';
+	import Spinner from './Spinner.svelte';
 
 	// `forceActive` keeps the overlay up before the app has finished its
 	// initial load (score restore + layout detection + sample warm-up), even
 	// if `loading.active` hasn't flipped on yet — so the very first paint is
 	// the loading screen, not a flash of an empty/default score.
 	let { forceActive = false }: { forceActive?: boolean } = $props();
-
-	const pct = $derived(Math.round(loading.progress * 100));
-	const determinate = $derived(loading.total > 0);
 </script>
 
 {#if loading.active || forceActive}
 	<div class="overlay" role="status" aria-live="polite" transition:fade={{ duration: 200 }}>
 		<div class="panel">
 			<img class="mark" src={mark} alt="oto" />
-			<div class="label">{loading.label}</div>
-			<div class="track">
-				<div
-					class="bar"
-					style="width:{determinate ? pct : 100}%"
-					class:indeterminate={!determinate}
-				></div>
-			</div>
-			{#if determinate}
-				<div class="meta">
-					<span class="tabular">{pct}%</span>
-					<span class="dim">{loading.done} / {loading.total}</span>
-				</div>
-			{/if}
+			<Spinner size={26} label={loading.label} />
 		</div>
 	</div>
 {/if}
@@ -55,63 +42,12 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 14px;
+		gap: 18px;
 		width: 100%;
 		max-width: 280px;
 	}
 	.mark {
 		width: 150px;
 		height: 150px;
-	}
-	.label {
-		font-size: 12px;
-		font-weight: 500;
-		color: var(--text-muted);
-		letter-spacing: 0.02em;
-	}
-	.track {
-		position: relative;
-		width: 100%;
-		height: 3px;
-		border-radius: var(--r-pill);
-		background: var(--panel-2);
-		overflow: hidden;
-	}
-	.bar {
-		position: absolute;
-		inset: 0 auto 0 0;
-		height: 100%;
-		border-radius: var(--r-pill);
-		background: var(--ink);
-		transition: width 0.18s ease-out;
-	}
-	.bar.indeterminate {
-		opacity: 0.35;
-		animation: pulse 1.1s ease-in-out infinite;
-	}
-	@keyframes pulse {
-		0%,
-		100% {
-			opacity: 0.2;
-		}
-		50% {
-			opacity: 0.45;
-		}
-	}
-	.meta {
-		display: flex;
-		align-items: baseline;
-		gap: 8px;
-		font-size: 11px;
-		color: var(--text-muted);
-	}
-	.tabular {
-		font-variant-numeric: tabular-nums;
-		font-weight: 600;
-		color: var(--ink-soft);
-	}
-	.dim {
-		font-variant-numeric: tabular-nums;
-		color: var(--faint);
 	}
 </style>

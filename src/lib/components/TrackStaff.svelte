@@ -4,6 +4,7 @@
 	// selection. Layout geometry comes from notation/layout.ts.
 
 	import { store } from '$lib/stores/score.svelte';
+	import { observeWidth } from '$lib/resize';
 	import {
 		layoutTrack,
 		computeSharedSystems,
@@ -199,11 +200,7 @@
 
 	$effect(() => {
 		if (!container) return;
-		const ro = new ResizeObserver((entries) => {
-			containerWidth = entries[0].contentRect.width;
-		});
-		ro.observe(container);
-		return () => ro.disconnect();
+		return observeWidth(container, (w) => (containerWidth = w));
 	});
 
 	const drag = createDragSelect({
