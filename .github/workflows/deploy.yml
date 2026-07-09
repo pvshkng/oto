@@ -24,9 +24,22 @@ jobs:
 
       - run: bun install
 
+      - name: Determine base path
+        id: base-path
+        # A custom domain (static/CNAME) serves the site at the domain root,
+        # so BASE_PATH must be empty in that case. Without a custom domain,
+        # GitHub Pages serves project sites from /<repo>/, so BASE_PATH must
+        # match the repo name.
+        run: |
+          if [ -f static/CNAME ]; then
+            echo "value=" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=/${{ github.event.repository.name }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build
         env:
-          BASE_PATH: /${{ github.event.repository.name }}
+          BASE_PATH: ${{ steps.base-path.outputs.value }}
         run: bun run build
 
       - uses: actions/configure-pages@v5

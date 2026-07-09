@@ -8,8 +8,9 @@ const config = {
 	preprocess: vitePreprocess(),
 	kit: {
 		adapter: adapter(),
-		// GitHub Pages serves project sites from /<repo>/, so the base path is
-		// set via env at build time (see .github/workflows/deploy.yml) and left
+		// GitHub Pages serves project sites from /<repo>/, but a custom domain
+		// (static/CNAME) serves from the root instead. BASE_PATH is set
+		// accordingly at build time (see .github/workflows/deploy.yml) and left
 		// empty for local dev/preview.
 		paths: { base: process.env.BASE_PATH ?? '' }
 	}
