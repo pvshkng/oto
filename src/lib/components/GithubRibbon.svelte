@@ -12,7 +12,7 @@
 	rel="noopener noreferrer"
 	title="View source on GitHub"
 	aria-label="View source on GitHub"
-	class="fixed top-0 left-0 z-30 flex size-11 items-start justify-start pt-1.5 pl-1.5 transition-[filter] hover:brightness-125"
+	class="fixed top-0 left-0 z-30 flex size-11 items-start justify-start pt-1.5 pl-1.5 transition-[filter] hover:brightness-125 print:hidden"
 >
 	<!-- Corner triangle via border trick rather than clip-path: some engines
 	     (WebKit) drop clip-path on fixed-position elements once a sibling

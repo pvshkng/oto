@@ -27,7 +27,8 @@
 		trackIndex,
 		onlySystemIndex,
 		sharedOverride,
-		layoutOverride
+		layoutOverride,
+		showLabel
 	}: {
 		trackIndex: number;
 		/** Multi-track (interleaved) view: render only this one system (row),
@@ -44,6 +45,10 @@
 		 *  track); without this every instance would lay out the whole track
 		 *  again just to render its one row. */
 		layoutOverride?: TrackLayout;
+		/** Force the vertical track-name label on/off. Defaults to on whenever a
+		 *  single system is rendered (the interleaved multi-track view); the page
+		 *  view's single-track mode also renders per-system but needs no label. */
+		showLabel?: boolean;
 	} = $props();
 
 	const ctxNote = $derived(store.currentNote);
@@ -89,7 +94,7 @@
 	// every rendered row in the interleaved multi-track view (each row is a
 	// separate instance there), since otherwise a row's track wouldn't be
 	// identifiable once tracks alternate line by line.
-	const showTrackLabel = $derived(onlySystemIndex != null);
+	const showTrackLabel = $derived(showLabel ?? onlySystemIndex != null);
 
 	const isActiveTrack = $derived(store.cursor.track === trackIndex);
 

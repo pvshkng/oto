@@ -363,7 +363,7 @@
 				     and scrolls. Either way the magnifiers stay at the end, and being
 				     zero-width they never widen the timeline (track rows stay aligned). -->
 				<div class="sticky right-0 z-20 ml-auto w-0 shrink-0 self-stretch">
-					<div class="bg-background absolute top-0 right-0 flex h-full items-center pl-0 px-2">
+					<div class="bg-transparent absolute top-0 right-0 flex h-full items-center pl-0 px-2">
 						<div class="flex shrink-0 items-stretch">
 							<button
 								class={cn(

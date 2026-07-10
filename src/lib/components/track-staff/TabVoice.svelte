@@ -34,9 +34,11 @@
 	const BEND_TEXT = '[font:600_8px_ui-sans-serif,sans-serif] fill-[#71717a] [text-anchor:start]';
 	const BEND_ARROW = 'fill-none stroke-[#52525b] [stroke-width:1.3] [marker-end:none]';
 	const BEND_HEAD = 'fill-none stroke-[#52525b] [stroke-width:1.3] [stroke-linejoin:round]';
-	const BG_CURSOR = 'fill-[rgba(24,24,27,0.16)] [rx:3]';
-	const BG_SEL = 'fill-[rgba(24,24,27,0.07)] [rx:3]';
-	const BG_PLAY = 'fill-[rgba(24,24,27,0.28)] [rx:3]';
+	// Editing/playback highlights are screen-only chrome — print:hidden keeps
+	// them out of the exported PDF.
+	const BG_CURSOR = 'fill-[rgba(24,24,27,0.16)] [rx:3] print:hidden';
+	const BG_SEL = 'fill-[rgba(24,24,27,0.07)] [rx:3] print:hidden';
+	const BG_PLAY = 'fill-[rgba(24,24,27,0.28)] [rx:3] print:hidden';
 	const BRAVURA = "[font-family:'Bravura',serif] fill-[#18181b]";
 	const MARK_LINE = 'stroke-[#52525b] [stroke-width:1.1] fill-none';
 	const STRUM = 'stroke-[#3f3f46] [stroke-width:1.5] fill-none';
@@ -106,7 +108,7 @@
 				y={14 + store.cursor.string * METRICS.tabLineGap - 6}
 				width="18"
 				height="12"
-				class="fill-[rgba(24,24,27,0.14)] [rx:2]"
+				class="fill-[rgba(24,24,27,0.14)] [rx:2] print:hidden"
 			/>
 		{/if}
 	{:else if vIdx === 0 && inSelection(measureIndex, beat.index, trackIndex)}

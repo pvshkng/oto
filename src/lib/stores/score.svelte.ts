@@ -110,6 +110,7 @@ interface StoredPrefs {
 	playbackSpeed?: number;
 	panelLayout?: Partial<Record<PanelId, Partial<PanelLayout>>>;
 	bottomSplitSwap?: boolean;
+	pageView?: boolean;
 }
 
 export interface Selection {
@@ -532,6 +533,7 @@ export class ScoreStore {
 	#countInOn = $state(false);
 	#playbackSpeedOn = $state(false);
 	#playbackSpeed = $state(1);
+	#pageView = $state(false);
 
 	get metronomeOn(): boolean {
 		return this.#metronomeOn;
@@ -586,6 +588,15 @@ export class ScoreStore {
 	/** The speed the engine should actually play at (1 while speed is off). */
 	get effectivePlaybackSpeed(): number {
 		return this.#playbackSpeedOn ? this.#playbackSpeed : 1;
+	}
+	/** Page view: lay the score out as A4 pages (with page breaks and numbered
+	 *  footers) instead of one continuous sheet. Also what PDF export prints. */
+	get pageView(): boolean {
+		return this.#pageView;
+	}
+	set pageView(v: boolean) {
+		this.#pageView = v;
+		this.#persistPrefs();
 	}
 	/** Set when the audio engine failed to start (e.g. blocked autoplay), so the
 	 *  UI can surface a clear, actionable message instead of silent no-sound. */
@@ -707,6 +718,7 @@ export class ScoreStore {
 				this.#normalizePanelDocks();
 			}
 			if (typeof p.bottomSplitSwap === 'boolean') this.bottomSplitSwap = p.bottomSplitSwap;
+			if (typeof p.pageView === 'boolean') this.#pageView = p.pageView;
 		} catch {
 			/* keep defaults */
 		}
@@ -724,7 +736,8 @@ export class ScoreStore {
 				playbackSpeedOn: this.#playbackSpeedOn,
 				playbackSpeed: this.#playbackSpeed,
 				panelLayout: $state.snapshot(this.panelLayout),
-				bottomSplitSwap: this.bottomSplitSwap
+				bottomSplitSwap: this.bottomSplitSwap,
+				pageView: this.#pageView
 			};
 			localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
 		} catch {

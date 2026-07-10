@@ -41,9 +41,11 @@
 	} = $props();
 
 	const BRAVURA = "[font-family:'Bravura',serif] fill-[#18181b]";
-	const BG_CURSOR = 'fill-[rgba(24,24,27,0.16)] [rx:3]';
-	const BG_SEL = 'fill-[rgba(24,24,27,0.07)] [rx:3]';
-	const BG_PLAY = 'fill-[rgba(24,24,27,0.28)] [rx:3]';
+	// Editing/playback highlights are screen-only chrome — print:hidden keeps
+	// them out of the exported PDF.
+	const BG_CURSOR = 'fill-[rgba(24,24,27,0.16)] [rx:3] print:hidden';
+	const BG_SEL = 'fill-[rgba(24,24,27,0.07)] [rx:3] print:hidden';
+	const BG_PLAY = 'fill-[rgba(24,24,27,0.28)] [rx:3] print:hidden';
 	const MARK_LINE = 'stroke-[#52525b] [stroke-width:1.1] fill-none';
 
 	// Below-staff line for dynamics; above-staff strip for fermata/tuplets/8va.

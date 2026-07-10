@@ -98,7 +98,23 @@ export const openOtoFile = openFile;
  * Export to PDF. We rely on the browser's print-to-PDF on a print-styled view:
  * a dedicated stylesheet (in app) hides the chrome and lays the score out on
  * paper. This keeps the vector SVG crisp in the resulting PDF.
+ *
+ * The score is always printed in page view — the A4 pagination is what puts
+ * each page's systems on its own sheet (a continuous sheet would be clipped
+ * to a single page by the app shell). If the user is in continuous view we
+ * flip to page view just for the print dialog, then flip back.
  */
-export function exportPdf() {
-	window.print();
+export async function exportPdf() {
+	const wasPageView = store.pageView;
+	if (!wasPageView) {
+		store.pageView = true;
+		// Let the paginated layout render and paint before the print dialog
+		// snapshots the document.
+		await nextPaint();
+	}
+	try {
+		window.print();
+	} finally {
+		if (!wasPageView) store.pageView = false;
+	}
 }

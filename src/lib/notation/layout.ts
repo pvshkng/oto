@@ -42,8 +42,10 @@ export const METRICS = {
 	staffLineGap: 8, // standard staff line spacing
 	stdTopPad: 24, // vertical padding above the top staff line within the standard band
 	tabLineGap: 11, // tab string spacing
-	beatMinWidth: 30,
-	beatPadding: 22,
+	beatWidthBase: 14,
+	beatWidthScale: 30,
+	beatAdvanceMin: 22,
+	measureMinInner: 40,
 	measurePadStart: 14,
 	measurePadEnd: 10,
 	// Equal blank margin kept on BOTH sides of every system so the staff is
@@ -315,16 +317,23 @@ export interface Band {
 	height: number;
 }
 
-function intrinsicMeasureWidth(
-	beatCount: number,
-	showHeader: boolean,
-	headerWidth: number
-): number {
-	const w =
-		METRICS.measurePadStart +
-		Math.max(1, beatCount) * (METRICS.beatMinWidth + METRICS.beatPadding) +
-		METRICS.measurePadEnd;
-	return w + (showHeader ? headerWidth : 0);
+function naturalBeatWidth(frac: number): number {
+	return METRICS.beatWidthBase + METRICS.beatWidthScale * Math.sqrt(Math.max(0, frac));
+}
+
+function naturalMeasureInner(measure: OtoMeasure | undefined): number {
+	if (!measure) return METRICS.measureMinInner;
+	const voiceInner = (beats: OtoMeasure['beats']) =>
+		beats.reduce((s, b) => s + naturalBeatWidth(beatFraction(b)), 0);
+	const inner = Math.max(
+		voiceInner(measure.beats),
+		measure.voice2?.length ? voiceInner(measure.voice2) : 0
+	);
+	return Math.max(METRICS.measureMinInner, inner);
+}
+
+function naturalMeasureWidth(inner: number, showHeader: boolean, headerWidth: number): number {
+	return METRICS.measurePadStart + inner + METRICS.measurePadEnd + (showHeader ? headerWidth : 0);
 }
 
 /**
@@ -347,9 +356,11 @@ export function computeSharedSystems(
 ): SharedSystems {
 	const headerWidth = METRICS.headerWidth + keySignatureWidth(score.keySignature ?? 0);
 	const measureCount = Math.max(0, ...tracks.map((t) => t.measures.length));
-	const maxBeatCounts: number[] = [];
+	const naturalInners: number[] = [];
 	for (let mi = 0; mi < measureCount; mi++) {
-		maxBeatCounts.push(Math.max(1, ...tracks.map((t) => t.measures[mi]?.beats.length ?? 1)));
+		naturalInners.push(
+			Math.max(METRICS.measureMinInner, ...tracks.map((t) => naturalMeasureInner(t.measures[mi])))
+		);
 	}
 
 	// Time-signature room per measure (first bar, or an explicit metre change)
@@ -373,6 +384,7 @@ export function computeSharedSystems(
 	// must always fit the real available width so the staff never needs to
 	// scroll horizontally, however narrow the container actually is.
 	const avail = Math.max(100, containerWidth);
+	const usableW = avail - 2 * METRICS.systemSideInset;
 	const systems: number[][] = [];
 	let row: number[] = [];
 	let rowWidth = 0;
@@ -383,26 +395,26 @@ export function computeSharedSystems(
 	};
 	for (let mi = 0; mi < measureCount; mi++) {
 		const showHeader = row.length === 0;
-		const w = intrinsicMeasureWidth(maxBeatCounts[mi], showHeader, headerWidth) + tsAllowances[mi];
-		if (row.length > 0 && (lineBreaks[mi] || rowWidth + w > avail)) flush();
+		const w = naturalMeasureWidth(naturalInners[mi], showHeader, headerWidth) + tsAllowances[mi];
+		if (row.length > 0 && (lineBreaks[mi] || rowWidth + w > usableW)) flush();
 		row.push(mi);
-		rowWidth += intrinsicMeasureWidth(maxBeatCounts[mi], row.length === 1, headerWidth);
+		rowWidth += naturalMeasureWidth(naturalInners[mi], row.length === 1, headerWidth);
 		rowWidth += tsAllowances[mi];
 	}
 	flush();
 
-	// Bars share the row's leftover width equally AFTER each bar's fixed symbol
-	// allowance (clef/key header on the first bar, time-signature digits where
-	// they draw). Symbol-carrying bars therefore get more total width, so their
-	// notes keep the same inner room as every other bar instead of being
-	// squeezed by the symbols.
+	// Bars share the row's leftover width in proportion to their content
+	// (denser bars get more room) AFTER each bar's fixed symbol allowance
+	// (clef/key header on the first bar, time-signature digits where they
+	// draw), so symbols never squeeze a bar's notes.
 	const measureWidths: number[] = new Array(measureCount).fill(0);
-	const usableW = avail - 2 * METRICS.systemSideInset;
+	const pads = METRICS.measurePadStart + METRICS.measurePadEnd;
 	for (const sys of systems) {
 		const extras = sys.map((mi, i) => (i === 0 ? headerWidth : 0) + tsAllowances[mi]);
-		const totalExtra = extras.reduce((s, e) => s + e, 0);
-		const share = Math.max(40, (usableW - totalExtra) / Math.max(1, sys.length));
-		sys.forEach((mi, i) => (measureWidths[mi] = share + extras[i]));
+		const fixed = extras.reduce((s, e) => s + e, 0) + pads * sys.length;
+		const totalInner = sys.reduce((s, mi) => s + naturalInners[mi], 0);
+		const stretch = Math.max(0.5, (usableW - fixed) / Math.max(1, totalInner));
+		sys.forEach((mi, i) => (measureWidths[mi] = extras[i] + pads + naturalInners[mi] * stretch));
 	}
 	return { systems, measureWidths };
 }
@@ -471,6 +483,8 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 	// minimum beyond guarding degenerate values: systems must always fit the
 	// real available width so the staff never needs to scroll horizontally.
 	const avail = Math.max(100, opts.containerWidth);
+	const usableW = avail - 2 * METRICS.systemSideInset;
+	const naturalInners = track.measures.map((m) => naturalMeasureInner(m));
 	const systems: LaidSystem[] = [];
 	if (opts.shared) {
 		for (const measureIndexes of opts.shared.systems) {
@@ -486,34 +500,37 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 			rowWidth = 0;
 		};
 		for (let mi = 0; mi < track.measures.length; mi++) {
-			const beatCount = track.measures[mi].beats.length;
 			const showHeader = row.length === 0;
-			const w = intrinsicMeasureWidth(beatCount, showHeader, headerWidth) + tsPad[mi];
-			if (row.length > 0 && (track.measures[mi].lineBreak || rowWidth + w > avail)) flush();
+			const w = naturalMeasureWidth(naturalInners[mi], showHeader, headerWidth) + tsPad[mi];
+			if (row.length > 0 && (track.measures[mi].lineBreak || rowWidth + w > usableW)) flush();
 			row.push(mi);
-			rowWidth += intrinsicMeasureWidth(beatCount, row.length === 1, headerWidth) + tsPad[mi];
+			rowWidth += naturalMeasureWidth(naturalInners[mi], row.length === 1, headerWidth) + tsPad[mi];
 		}
 		flush();
 	}
 
-	// Build each system's geometry. Bars share the row's leftover width equally
-	// AFTER each bar's fixed symbol allowance (clef/key header on the first bar,
-	// time-signature digits where drawn), so a symbol-carrying bar gets more
-	// total width and its notes keep the same inner room as every other bar.
-	// The row spans the width between two equal side insets, keeping the staff
-	// horizontally symmetric.
+	// Build each system's geometry. Bars share the row's leftover width in
+	// proportion to their content (denser bars get more room) AFTER each bar's
+	// fixed symbol allowance (clef/key header on the first bar, time-signature
+	// digits where drawn), so a symbol-carrying bar gets more total width and
+	// its notes keep the same inner room as every other bar. The row spans the
+	// width between two equal side insets, keeping the staff horizontally
+	// symmetric.
 	function buildSystem(measureIndexes: number[], _justify: boolean): LaidSystem {
-		const usableWidth = Math.max(100, avail) - 2 * METRICS.systemSideInset;
 		const extras = measureIndexes.map((mi, i) => (i === 0 ? headerWidth : 0) + tsPad[mi]);
-		const totalExtra = extras.reduce((s, e) => s + e, 0);
-		const share = Math.max(40, (usableWidth - totalExtra) / Math.max(1, measureIndexes.length));
+		const pads = METRICS.measurePadStart + METRICS.measurePadEnd;
+		const fixed = extras.reduce((s, e) => s + e, 0) + pads * measureIndexes.length;
+		const totalInner = measureIndexes.reduce((s, mi) => s + naturalInners[mi], 0);
+		const stretch = Math.max(0.5, (usableW - fixed) / Math.max(1, totalInner));
 
 		let mx = METRICS.systemSideInset;
 		const measures: LaidMeasure[] = measureIndexes.map((mi, i) => {
 			const measure = track.measures[mi];
 			const showHeader = i === 0;
 			const headerW = showHeader ? headerWidth : 0;
-			const width = opts.shared ? opts.shared.measureWidths[mi] : share + extras[i];
+			const width = opts.shared
+				? opts.shared.measureWidths[mi]
+				: extras[i] + pads + naturalInners[mi] * stretch;
 			const symbolW = headerW + tsPad[mi];
 			const innerStart = mx + symbolW + METRICS.measurePadStart;
 			const innerWidth = Math.max(
@@ -527,11 +544,53 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 			const ts = measure.timeSignature ?? score.timeSignature;
 			const beatUnit = 1 / ts[1];
 
+			const hasV2 = !!(measure.voice2 && measure.voice2.length);
+			const onsetsOf = (vbeats: typeof measure.beats) => {
+				let acc = 0;
+				return vbeats.map((b) => {
+					const o = acc;
+					acc += beatFraction(b);
+					return o;
+				});
+			};
+			const v1Total = measure.beats.reduce((s, b) => s + beatFraction(b), 0);
+			const v2Total = hasV2 ? measure.voice2!.reduce((s, b) => s + beatFraction(b), 0) : 0;
+			const totalFrac = Math.max(v1Total, v2Total) || 1;
+			const columns: number[] = [];
+			for (const o of [
+				...onsetsOf(measure.beats),
+				...(hasV2 ? onsetsOf(measure.voice2!) : [])
+			].sort((a, b) => a - b)) {
+				if (!columns.length || o - columns[columns.length - 1] > 1e-6) columns.push(o);
+			}
+			if (!columns.length) columns.push(0);
+			const colCount = columns.length;
+			const flex = innerWidth - colCount * METRICS.beatAdvanceMin;
+			const colX: number[] = [];
+			let cx = innerStart + 8;
+			for (let k = 0; k < colCount; k++) {
+				colX.push(cx);
+				const segFrac = (k + 1 < colCount ? columns[k + 1] : totalFrac) - columns[k];
+				cx +=
+					flex >= 0 ? METRICS.beatAdvanceMin + (segFrac / totalFrac) * flex : innerWidth / colCount;
+			}
+			const bounds = [...columns, Math.max(totalFrac, columns[colCount - 1] + 1e-9)];
+			const colXEnds = [...colX, cx];
+			const xAt = (f: number): number => {
+				if (f <= bounds[0]) return colXEnds[0];
+				for (let k = 0; k < colCount; k++) {
+					if (f < bounds[k + 1] - 1e-6) {
+						const span = bounds[k + 1] - bounds[k];
+						return colXEnds[k] + ((f - bounds[k]) / span) * (colXEnds[k + 1] - colXEnds[k]);
+					}
+				}
+				return colXEnds[colCount];
+			};
+
 			// Lay one voice's beats along the measure's inner width, positioned
-			// proportionally to duration. `forcedDir` pins stem direction for the
+			// on the shared onset grid. `forcedDir` pins stem direction for the
 			// two-voice case (voice 1 up, voice 2 down).
 			const layVoice = (vbeats: typeof measure.beats, forcedDir: 1 | -1 | null): LaidBeat[] => {
-				const totalFrac = vbeats.reduce((s, b) => s + beatFraction(b), 0) || 1;
 				// Per-voice, per-measure accidental memory so a sharped/flatted pitch
 				// isn't re-marked and a later natural cancels it. Falls back to the
 				// key signature's own alteration (by letter, across all octaves) when
@@ -540,8 +599,8 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 				let acc = 0;
 				const laid = vbeats.map((beat, bi): LaidBeat => {
 					const frac = beatFraction(beat);
-					const bx = innerStart + (acc / totalFrac) * innerWidth + 8;
-					const bw = (frac / totalFrac) * innerWidth;
+					const bx = xAt(acc);
+					const bw = xAt(acc + frac) - bx;
 					const startFrac = acc;
 					acc += frac;
 
@@ -618,7 +677,6 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 				return laid;
 			};
 
-			const hasV2 = !!(measure.voice2 && measure.voice2.length);
 			const beats = layVoice(measure.beats, hasV2 ? 1 : null);
 			const voice2 = hasV2 ? layVoice(measure.voice2!, -1) : undefined;
 

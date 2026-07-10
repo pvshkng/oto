@@ -219,8 +219,11 @@
 			     kept; it runs after the freeze, when the main thread is free. The
 			     spinner itself is a compositor CSS animation, so it keeps turning
 			     even while the main thread is blocked. -->
+			<!-- print:hidden: fixed overlays repeat on every printed sheet, so a
+			     relayout that's still settling when the print dialog snapshots the
+			     page would stamp a spinner onto each PDF page. -->
 			<div
-				class="fixed inset-0 z-[150] flex items-center justify-center bg-bg/60 backdrop-blur-[1px]"
+				class="fixed inset-0 z-[150] flex items-center justify-center bg-bg/60 backdrop-blur-[1px] print:hidden"
 				out:fade={{ duration: 140 }}
 			>
 				<Spinner size={30} />
@@ -280,14 +283,16 @@
 			</div>
 		{/snippet}
 
-		<div class="relative flex h-screen h-dvh flex-col overflow-hidden bg-bg print:bg-white">
+		<div
+			class="print-unclip relative flex h-screen h-dvh flex-col overflow-hidden bg-bg print:bg-white"
+		>
 			<StatusBanner />
 
 			<!-- Score area with the left/right panels floated on top of it.
 			     The panels are NOT flow siblings of the score anymore — they're
 			     absolute overlays, so opening one no longer shrinks the staff; it
 			     just floats in front of it. -->
-			<div class="relative flex min-h-0 flex-1 flex-row overflow-hidden">
+			<div class="print-unclip relative flex min-h-0 flex-1 flex-row overflow-hidden">
 				<!-- Score area. The bottom dock (tracks/key-input/bottom bar) is an
 				     absolutely-positioned overlay, not a flow sibling — so the score
 				     keeps scrolling underneath it and shows through its backdrop
@@ -307,13 +312,13 @@
 				     edge scrollable clear of the dock (which floats 16px off the
 				     viewport bottom), so the page background stays visible below it. -->
 				<main
-					class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [padding:20px_18px_24px] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
+					class="print-unclip min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [padding:20px_18px_24px] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
 					bind:this={scoreAreaEl}
 					style="padding-bottom: {desktopDockHeight + 40}px"
 					onscroll={closeContextMenuOnScroll}
 				>
 					<div
-						class="flex [justify-content:safe_center] overflow-x-auto"
+						class="print-unclip flex [justify-content:safe_center] overflow-x-auto"
 						onscroll={closeContextMenuOnScroll}
 					>
 						<ScoreArea onHeaderClick={() => store.togglePanel('song')} />
@@ -329,7 +334,7 @@
 				     beneath; only the card itself opts back into pointer events. -->
 				{#if leftSlot}
 					<div
-						class="pointer-events-none absolute inset-y-0 left-0 z-30 p-4"
+						class="pointer-events-none absolute inset-y-0 left-0 z-30 p-4 print:hidden"
 						style="width:{slotWidth(leftSlot)}; padding-bottom:{desktopDockHeight + 32}px"
 					>
 						{@render slotPanel(leftSlot, 'left')}
@@ -339,7 +344,7 @@
 				<!-- Right edge slot: same floating-overlay treatment (see left slot). -->
 				{#if rightSlot}
 					<div
-						class="pointer-events-none absolute inset-y-0 right-0 z-30 p-4"
+						class="pointer-events-none absolute inset-y-0 right-0 z-30 p-4 print:hidden"
 						style="width:{slotWidth(rightSlot)}; padding-bottom:{desktopDockHeight + 32}px"
 					>
 						{@render slotPanel(rightSlot, 'right')}
@@ -426,7 +431,9 @@
 			<!-- Floating panels: free-floating, draggable windows outside every slot,
 			     so any number of them can be open alongside the docked ones. -->
 			{#each floatPanels as id (id)}
-				{@render slotPanel(id, 'float')}
+				<div class="contents print:hidden">
+					{@render slotPanel(id, 'float')}
+				</div>
 			{/each}
 		</div>
 	{:else}
@@ -434,15 +441,18 @@
 	     MOBILE LAYOUT  (< 1024 px)
 	     Fixed-bottom dock with slide-up note editor or tracks panel.
 	     ═══════════════════════════════════════════════════════════════ -->
-		<div class="flex h-screen h-dvh flex-col overflow-hidden bg-bg print:bg-white">
+		<div class="print-unclip flex h-screen h-dvh flex-col overflow-hidden bg-bg print:bg-white">
 			<StatusBanner />
 			<!-- scrollbar-gutter stable for the same reason as desktop: the padding
 			     below tracks the dock height, and letting the scrollbar toggle with
 			     it would change the score width and retrigger a relayout (plus the
 			     resize spinner) whenever the edit/mixer panel opens. The +48 keeps
 			     the sheet's bottom edge scrollable clear of the fixed dock card. -->
+			<!-- safe center + overflow-x-auto: page view's fixed-width A4 sheets can
+			     be wider than a phone screen; plain justify-center would clip their
+			     left edge unreachably, safe center + scroll keeps it reachable. -->
 			<main
-				class="flex min-h-0 flex-1 justify-center overflow-y-auto [scrollbar-gutter:stable] [padding:20px_18px_0] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
+				class="print-unclip flex min-h-0 flex-1 [justify-content:safe_center] overflow-x-auto overflow-y-auto [scrollbar-gutter:stable] [padding:20px_18px_0] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
 				bind:this={scoreAreaEl}
 				style="padding-bottom: {bottomBarHeight + (dockPanel ? dockPanelHeight : 0) + 48}px"
 				onscroll={closeContextMenuOnScroll}

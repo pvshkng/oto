@@ -232,3 +232,60 @@ button:not(:disabled):active {
 .sunk:has(+ .sunk) {
 	border-right-color: var(--panel-2) !important;
 }
+
+/*
+ * Print / PDF export. exportPdf() switches the score into page view (A4 pages,
+ * see ScoreArea) before calling window.print(), so printing is a matter of
+ * putting each .a4-page on its own physical sheet:
+ *
+ *  - @page removes the browser's default margins; the pages carry their own.
+ *  - .print-unclip flattens the app shell around the score: on screen those
+ *    wrappers are fixed-height flex containers with overflow hidden/scroll
+ *    (some with inline padding), which would clip the whole score to a single
+ *    viewport-sized page. It also switches them to block display, since
+ *    break-after is unreliable for flex items.
+ *  - .a4-page is remapped from its 96dpi pixel size to true millimetres
+ *    (296mm, a hair under A4's 297mm, so rounding never spills a page onto an
+ *    extra sheet) and forces a page break after itself.
+ *  - Fixed overlays (toasts, dialogs, popovers) never belong on paper.
+ */
+@media print {
+	@page {
+		size: A4 portrait;
+		margin: 0;
+	}
+	html,
+	body {
+		height: auto !important;
+		overflow: visible !important;
+		background: #fff !important;
+	}
+	.print-unclip {
+		display: block !important;
+		overflow: visible !important;
+		height: auto !important;
+		max-height: none !important;
+		padding: 0 !important;
+	}
+	.print-pages {
+		display: block !important;
+	}
+	.a4-page {
+		width: 210mm !important;
+		height: 296mm !important;
+		margin: 0 auto !important;
+		border: none !important;
+		border-radius: 0 !important;
+		box-shadow: none !important;
+		break-after: page;
+	}
+	.a4-page:last-child {
+		break-after: auto;
+	}
+	[data-sonner-toaster],
+	[data-slot='dialog-overlay'],
+	[data-slot='dialog-content'],
+	[data-slot='popover-content'] {
+		display: none !important;
+	}
+}
