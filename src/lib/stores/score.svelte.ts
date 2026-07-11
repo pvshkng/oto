@@ -153,6 +153,10 @@ export class ScoreStore {
 	editScope = $state<'note' | 'bar'>('note');
 	songModalOpen = $state(false);
 	openFileModalOpen = $state(false);
+	/** Mobile-only prompt shown when exporting a PDF from continuous view: it
+	 *  asks the user to switch to page view first, since mobile can't flip and
+	 *  print in the same tick (see exportPdf). */
+	pdfExportModalOpen = $state(false);
 	/** Track-staff right-click menu (any track). Closed on outer scroll. */
 	contextMenuOpen = $state(false);
 

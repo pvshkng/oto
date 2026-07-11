@@ -94,52 +94,27 @@ export function openFile(): Promise<void> {
 /** Backwards-compatible alias. */
 export const openOtoFile = openFile;
 
-// A4 at CSS 96dpi is 794px wide (see ScoreArea's PAGE_W). Printing forces the
-// document to this width so a full paper's worth of staff fits per sheet.
-const PAGE_W_PX = 794;
-
-/**
- * Widen the layout viewport to the A4 page width for the duration of `fn`,
- * then restore it. On mobile the viewport meta is `width=device-width` (a
- * ~390px phone), and the print engine lays out — and scales — the PDF against
- * that narrow width, so a full-width staff gets squeezed and its lines wrap as
- * if the screen were the paper. Pinning the viewport to the real page width
- * makes the browser render the print at full paper width instead. Desktop
- * already prints wide, so it's left untouched.
- */
-async function withPrintViewport(fn: () => void): Promise<void> {
-	const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
-	if (!meta || store.isDesktop) {
-		fn();
-		return;
-	}
-	const prev = meta.content;
-	meta.content = `width=${PAGE_W_PX}`;
-	// Let the widened layout settle (reflow + paint) before the print dialog
-	// snapshots the document.
-	await nextPaint();
-	try {
-		fn();
-	} finally {
-		meta.content = prev;
-	}
-}
-
 /**
  * Export to PDF. We rely on the browser's print-to-PDF on a print-styled view:
  * a dedicated stylesheet (in app) hides the chrome and lays the score out on
  * paper. This keeps the vector SVG crisp in the resulting PDF.
  *
- * The score is always printed in page view — the A4 pagination is what puts
- * each page's systems on its own sheet (a continuous sheet would be clipped
- * to a single page by the app shell). If the user is in continuous view we
- * flip to page view just for the print dialog, then flip back.
+ * The score must be printed in page view — the A4 pagination is what puts each
+ * page's systems on its own sheet (a continuous sheet would be clipped to a
+ * single page by the app shell).
  *
- * On mobile we also pin the layout viewport to the A4 page width so the print
- * renders at full paper width instead of the phone's narrow one (see
- * withPrintViewport).
+ * Desktop can flip to page view transparently for the print dialog and flip
+ * back afterward. Mobile can't: window.print() there is non-blocking, so the
+ * finally below would revert page view before the browser snapshots the DOM,
+ * printing the continuous (narrow, wrapped) layout. So when a mobile user
+ * exports from continuous view we hand off to PdfExportModal, which asks them
+ * to switch to page view first and then drives the print once they're in it.
  */
 export async function exportPdf() {
+	if (!store.isDesktop && !store.pageView) {
+		store.pdfExportModalOpen = true;
+		return;
+	}
 	const wasPageView = store.pageView;
 	if (!wasPageView) {
 		store.pageView = true;
@@ -148,8 +123,18 @@ export async function exportPdf() {
 		await nextPaint();
 	}
 	try {
-		await withPrintViewport(() => window.print());
+		window.print();
 	} finally {
 		if (!wasPageView) store.pageView = false;
 	}
+}
+
+/**
+ * Print the score as-is, without touching page view. Used by the mobile
+ * export prompt once the user has switched to page view themselves — we must
+ * not flip page view back afterward (mobile's print is async), so the score
+ * stays paginated while the browser captures it.
+ */
+export function printCurrentView() {
+	window.print();
 }
