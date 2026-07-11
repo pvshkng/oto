@@ -22,6 +22,12 @@
 //            `lineBreak` (bar starts a new system in the layout). Both optional
 //            on disk, so v5 documents load unchanged and are upgraded on the
 //            next save.
+//   v6 → v7  Note `tied` moved from the tie's origin ("tie to next note") to
+//            its destination (the continuation note, Guitar Pro style), which
+//            also lets a tie reach back across rests and barlines. `parse()`
+//            shifts each older flag one beat forward on the same string
+//            (dropping flags with no target — exactly the ties v6 never drew),
+//            so v6 documents render identically and upgrade on the next save.
 
 import { TUNINGS } from './pitch';
 import { isDynamic, isOttava, isStrumDirection, isTechnique, isTupletValue } from './types';
@@ -36,7 +42,7 @@ import type {
 	TrackKind
 } from './types';
 
-export const OTO_VERSION = 6;
+export const OTO_VERSION = 7;
 
 let idCounter = 0;
 export function uid(prefix = 'id'): string {
@@ -167,6 +173,8 @@ export function parse(text: string): OtoScore {
 		throw new OtoParseError('Document has no tracks.');
 
 	const tracks = (d.tracks as unknown[]).map((t) => normaliseTrack(t));
+	const version = typeof d.version === 'number' ? d.version : 0;
+	if (version < 7) for (const t of tracks) migrateOriginTies(t);
 	return makeScore({
 		title: typeof d.title === 'string' ? d.title : 'Untitled Score',
 		artist: typeof d.artist === 'string' ? d.artist : 'Unknown Artist',
@@ -262,6 +270,33 @@ function normaliseSection(s: unknown): Section {
 		measure: typeof o.measure === 'number' ? Math.max(0, Math.floor(o.measure)) : 0,
 		label: typeof o.label === 'string' ? o.label : ''
 	};
+}
+
+/** v6 → v7 tie migration: shift each origin-marked `tied` flag one beat
+ *  forward to the same string's note (across the barline from a bar's last
+ *  beat), which is where the destination-based model keeps it. Flags with no
+ *  such target are dropped — v6 never drew those ties either. */
+function migrateOriginTies(track: OtoTrack) {
+	const voices: OtoBeat[][] = [];
+	for (const pick of [(m: OtoMeasure) => m.beats, (m: OtoMeasure) => m.voice2]) {
+		const flat: OtoBeat[] = [];
+		for (const m of track.measures) {
+			const v = pick(m);
+			if (v) flat.push(...v);
+		}
+		voices.push(flat);
+	}
+	for (const beats of voices) {
+		const wasTied = beats.map((b) => b.notes.map((n) => !!n.tied));
+		for (const b of beats) for (const n of b.notes) n.tied = undefined;
+		for (let i = 0; i < beats.length - 1; i++) {
+			beats[i].notes.forEach((n, k) => {
+				if (!wasTied[i][k]) return;
+				const target = beats[i + 1].notes.find((t) => t.string === n.string);
+				if (target) target.tied = true;
+			});
+		}
+	}
 }
 
 function normaliseMeasure(m: unknown): OtoMeasure {

@@ -457,12 +457,12 @@ describe('forced line breaks', () => {
 });
 
 describe('ties', () => {
-	it('links a tied note to the matching string in the next beat', () => {
+	it('links a tied note back to the matching string in the previous beat', () => {
 		const beats = lay([
 			{
 				beats: [
-					beat(4, [note(0, 5, { tied: true })]),
 					beat(4, [note(0, 5)]),
+					beat(4, [note(0, 5, { tied: true })]),
 					beat(4, [note(0, 0)]),
 					beat(4, [note(0, 0)])
 				]
@@ -473,26 +473,30 @@ describe('ties', () => {
 		expect(tie!.x2).toBeCloseTo(beats[1].notes[0].x, 5);
 	});
 
-	it('does not create a tie when the next beat lacks the string', () => {
+	it('reaches back across intervening beats that lack the string', () => {
 		const beats = lay([
 			{
 				beats: [
-					beat(4, [note(0, 5, { tied: true })]),
+					beat(4, [note(0, 5)]),
 					beat(4, [note(2, 5)]),
-					beat(4, [note(0, 0)]),
-					beat(4, [note(0, 0)])
+					beat(4, [], { rest: true }),
+					beat(4, [note(0, 5, { tied: true })])
 				]
 			}
 		]);
-		expect(beats[0].notes[0].tie).toBeNull();
+		const tie = beats[0].notes[0].tie;
+		expect(tie).not.toBeNull();
+		expect(tie!.x2).toBeCloseTo(beats[3].notes[0].x, 5);
+		// The other string's note is not an origin for this tie.
+		expect(beats[1].notes[0].tie).toBeNull();
 	});
 
-	it('links a tie across a barline to the next measure (same system)', () => {
+	it('links a tie across a barline to the previous measure (same system)', () => {
 		const track = makeTrack({
 			tuning: TUNING,
 			measures: [
-				{ beats: [beat(2, [note(0, 5)]), beat(2, [note(0, 5, { tied: true })])] },
-				{ beats: [beat(2, [note(0, 5)]), beat(2, [note(0, 5)])] }
+				{ beats: [beat(2, [note(0, 5)]), beat(2, [note(0, 5)])] },
+				{ beats: [beat(2, [note(0, 5, { tied: true })]), beat(2, [note(0, 5)])] }
 			],
 			view: { standard: true, tab: true, rhythm: false }
 		});
@@ -508,6 +512,29 @@ describe('ties', () => {
 		const tie = m0[m0.length - 1].notes[0].tie;
 		expect(tie).not.toBeNull();
 		expect(tie!.x2).toBeCloseTo(m1[0].notes[0].x, 5);
+	});
+
+	it('flags a tie whose origin sits on an earlier system for a stub arc', () => {
+		// Two long bars forced onto separate systems by a tiny container.
+		const track = makeTrack({
+			tuning: TUNING,
+			measures: [
+				{ beats: [beat(1, [note(0, 5)])] },
+				{ beats: [beat(1, [note(0, 5, { tied: true })])] }
+			],
+			view: { standard: true, tab: true, rhythm: false }
+		});
+		const score = makeScore({ tracks: [track] });
+		const layout = layoutTrack(score, track, {
+			containerWidth: 100,
+			showStandard: true,
+			showTab: true,
+			showRhythm: false
+		});
+		expect(layout.systems.length).toBeGreaterThan(1);
+		const dest = layout.systems[1].measures[0].beats[0].notes[0];
+		expect(dest.tieIn).toBe(true);
+		expect(layout.systems[0].measures[0].beats[0].notes[0].tie).toBeNull();
 	});
 });
 

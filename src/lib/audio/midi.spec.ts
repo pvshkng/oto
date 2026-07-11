@@ -227,3 +227,62 @@ describe('compileSong', () => {
 		expect(compiled.measureBeatTicks[0]).toEqual([0, TICKS_PER_QUARTER * 2]);
 	});
 });
+
+describe('tie sustain', () => {
+	type Ev = { channel?: number; type: number; tick: number };
+	// alphaTab's MidiEventType enum: NoteOn = 128, NoteOff = 144 (NOT the raw
+	// MIDI status nibbles, which are the other way around).
+	const NOTE_ON = 128;
+	const NOTE_OFF = 144;
+	const trackNotes = (compiled: Awaited<ReturnType<typeof compileSong>>, type: number) =>
+		(compiled.midi.events as unknown as Ev[]).filter((e) => e.type === type && e.channel === 0);
+
+	it('does not restrike a tied note and sustains the origin through it', async () => {
+		const track = makeTrack({
+			measures: [
+				{
+					beats: [
+						note(0, 5),
+						{ duration: 4, notes: [{ string: 0, fret: 5, tied: true }] },
+						{ duration: 4, notes: [], rest: true },
+						{ duration: 4, notes: [], rest: true }
+					]
+				}
+			]
+		});
+		const score = makeScore({ timeSignature: [4, 4], tracks: [track] });
+		const compiled = await compileSong(score, 'click');
+		const ons = trackNotes(compiled, NOTE_ON);
+		const offs = trackNotes(compiled, NOTE_OFF);
+		expect(ons.length).toBe(1); // the continuation never restrikes
+		expect(ons[0].tick).toBe(0);
+		// Origin rings through both quarters (× the usual 0.95 gate).
+		expect(offs[0].tick).toBe(Math.round(TICKS_PER_QUARTER * 2 * 0.95));
+	});
+
+	it('sustains across rests and the barline to the tied note', async () => {
+		const rest: OtoBeat = { duration: 4, notes: [], rest: true };
+		const track = makeTrack({
+			measures: [
+				{ beats: [note(0, 5), rest, rest, rest] },
+				{ beats: [{ duration: 4, notes: [{ string: 0, fret: 5, tied: true }] }, rest, rest, rest] }
+			]
+		});
+		const score = makeScore({ timeSignature: [4, 4], tracks: [track] });
+		const compiled = await compileSong(score, 'click');
+		const ons = trackNotes(compiled, NOTE_ON);
+		const offs = trackNotes(compiled, NOTE_OFF);
+		expect(ons.length).toBe(1);
+		// From beat 1 of bar 1 through beat 1 of bar 2 = five quarters.
+		expect(offs[0].tick).toBe(Math.round(TICKS_PER_QUARTER * 5 * 0.95));
+	});
+
+	it('plays a dangling tied note (no earlier note on its string) normally', async () => {
+		const track = makeTrack({
+			measures: [{ beats: [{ duration: 4, notes: [{ string: 0, fret: 5, tied: true }] }] }]
+		});
+		const score = makeScore({ timeSignature: [4, 4], tracks: [track] });
+		const compiled = await compileSong(score, 'click');
+		expect(trackNotes(compiled, NOTE_ON).length).toBe(1);
+	});
+});

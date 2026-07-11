@@ -209,7 +209,9 @@ export interface OtoNote {
 	bend?: number;
 	/** For slides: destination fret. */
 	slideTo?: number;
-	/** Tie to the next beat's note on the same string. */
+	/** Tie: this note continues the most recent earlier note on the same string
+	 *  (possibly several beats or bars back) instead of restriking — the origin
+	 *  keeps sounding through this note's duration. Set on the destination. */
 	tied?: boolean;
 }
 

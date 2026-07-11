@@ -1,6 +1,8 @@
 <script lang="ts">
-	// Note-level actions beyond techniques: tie-to-next and delete, shared by
-	// EditPanel and NotePropertiesPanel. Both need a note under the cursor.
+	// Note-level actions beyond techniques: tie and delete, shared by EditPanel
+	// and NotePropertiesPanel. Tie is pressable on the beat AFTER an earlier
+	// note on the cursor's string (even bars back) — it drops a continuation
+	// that sustains that note. Delete needs a note under the cursor.
 	// The tie symbol is the Unicode undertie (‿) — SMuFL/Bravura has no
 	// standalone tie glyph since engraved ties are drawn curves.
 	import { store } from '$lib/stores/score.svelte';
@@ -15,9 +17,9 @@
 
 <button
 	class={cn(fxStyle({ dense }), { sunk: !!note?.tied })}
-	disabled={!note}
-	title="Tie to next note"
-	aria-label="Tie to next note"
+	disabled={!store.canTie}
+	title="Tie note"
+	aria-label="Tie note"
 	aria-pressed={!!note?.tied}
 	onclick={() => store.toggleNoteTie()}
 >

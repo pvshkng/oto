@@ -365,7 +365,8 @@ export function timeSigCommands(): Cmd[] {
 	}));
 }
 
-/** Context-aware note actions, present only when a note is under the cursor. */
+/** Context-aware note actions — most need a note under the cursor; tie only
+ *  needs an earlier note on the cursor's string to continue. */
 export function noteCommands(): Cmd[] {
 	const note = store.currentNote;
 	const items: Cmd[] = [];
@@ -378,11 +379,11 @@ export function noteCommands(): Cmd[] {
 	});
 	items.push({
 		id: 'tie-note',
-		label: 'Tie to next note',
+		label: 'Tie note',
 		icon: MusicNote,
-		keywords: 'tie hold sustain legato',
+		keywords: 'tie hold sustain legato continue',
 		active: !!note?.tied,
-		disabled: !note,
+		disabled: !store.canTie,
 		run: () => store.toggleNoteTie()
 	});
 	items.push({
@@ -560,13 +561,16 @@ export function allCommandGroups(): CmdGroup[] {
 	groups.push({ heading: 'File', items: fileCommands() });
 	groups.push({ heading: 'Transport', items: transportCommands() });
 	groups.push({ heading: 'Edit', items: editCommands() });
+	// Note actions stay listed without a note under the cursor (with their own
+	// disabled flags) — a tie is applied on an EMPTY beat after an earlier note,
+	// so it must be reachable exactly then. Effects still need a note.
 	if (hasNote) {
 		groups.push({
 			heading: 'Note',
 			items: [...noteCommands(), ...durationCommands(), ...effectCommands()]
 		});
 	} else {
-		groups.push({ heading: 'Note', items: durationCommands() });
+		groups.push({ heading: 'Note', items: [...noteCommands(), ...durationCommands()] });
 	}
 	groups.push({
 		heading: 'Beat',

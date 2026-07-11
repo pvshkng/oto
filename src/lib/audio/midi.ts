@@ -171,6 +171,72 @@ function simileSource(track: OtoTrack, mi: number): OtoMeasure | undefined {
 	return track.measures[idx];
 }
 
+/** Identity of one scheduled note, for the tie tables below. */
+function tieKey(ti: number, mi: number, vi: number, bi: number, string: number): string {
+	return `${ti}:${mi}:${vi}:${bi}:${string}`;
+}
+
+interface TieInfo {
+	/** Tied continuation notes — never scheduled (the origin rings through). */
+	skip: Set<string>;
+	/** Tie-chain origin → total sounding length from its onset, in whole-note
+	 *  fractions (through every continuation, gaps included). */
+	sustain: Map<string, number>;
+}
+
+/**
+ * Precompute tie sustains: a note marked `tied` continues the most recent
+ * note on the same string instead of restriking, so that origin must sound
+ * until the last note of the tie chain ends. Walked in score order on a
+ * linear timeline where each measure spans its time-signature capacity —
+ * a tie stretching across a repeat jump keeps its score-order length.
+ */
+function computeTieSustains(score: OtoScore): TieInfo {
+	const skip = new Set<string>();
+	const sustain = new Map<string, number>();
+	const measureCount = Math.max(...score.tracks.map((t) => t.measures.length), 0);
+	const linStart: number[] = [];
+	{
+		let acc = 0;
+		for (let mi = 0; mi < measureCount; mi++) {
+			linStart.push(acc);
+			const ts = score.tracks[0]?.measures[mi]?.timeSignature ?? score.timeSignature;
+			acc += ts[0] / ts[1];
+		}
+	}
+	score.tracks.forEach((track, ti) => {
+		for (const vi of [0, 1]) {
+			// Latest struck (non-tied) note per string — the chain's origin.
+			const chain = new Map<number, { key: string; start: number }>();
+			for (let mi = 0; mi < track.measures.length; mi++) {
+				const measure = track.measures[mi];
+				const content = measure.simile ? (simileSource(track, mi) ?? measure) : measure;
+				const voice = vi === 0 ? content.beats : content.voice2;
+				if (!voice) continue;
+				let local = 0;
+				for (let bi = 0; bi < voice.length; bi++) {
+					const beat = voice[bi];
+					const start = linStart[mi] + local;
+					const frac = beatFraction(beat);
+					for (const note of beat.notes) {
+						const origin = note.tied ? chain.get(note.string) : undefined;
+						if (origin) {
+							skip.add(tieKey(ti, mi, vi, bi, note.string));
+							sustain.set(origin.key, start + frac - origin.start);
+						} else {
+							// A dangling tied note (no earlier note on its string)
+							// schedules like a normal strike.
+							chain.set(note.string, { key: tieKey(ti, mi, vi, bi, note.string), start });
+						}
+					}
+					local += frac;
+				}
+			}
+		}
+	});
+	return { skip, sustain };
+}
+
 /** Channel for each track: drums share the GM percussion channel, pitched
  *  tracks get their own channel until the pool runs out (then they wrap). */
 export function allocateChannels(tracks: OtoTrack[]): Map<string, number> {
@@ -262,6 +328,8 @@ export async function compileSong(
 		}
 	}
 
+	const ties = computeTieSustains(score);
+
 	let cursorTick = 0;
 	let lastTempo = -1;
 	let lastTimeSig = '';
@@ -304,16 +372,16 @@ export async function compileSong(
 		// Schedule each track's voices within this measure independently. A
 		// simile bar sounds the content of the bar it echoes instead of its own.
 		const capacity = timeSig[0] / timeSig[1];
-		for (const track of score.tracks) {
+		for (const [ti, track] of score.tracks.entries()) {
 			const measure = track.measures[mi];
 			if (!measure) continue;
 			const content = measure.simile ? (simileSource(track, mi) ?? measure) : measure;
 			const channel = channels.get(track.id)!;
 			const voices = measureVoices(content);
 			const isPrimary = track === score.tracks[0];
-			for (const voice of voices) {
+			for (const [vi, voice] of voices.entries()) {
 				const cutoff = beatsCutoff(voice, capacity);
-				const isPrimaryVoice = isPrimary && voice === voices[0];
+				const isPrimaryVoice = isPrimary && vi === 0;
 				let localTicks = 0;
 				for (let bi = 0; bi < voice.length; bi++) {
 					if (bi >= cutoff) break; // skip overflow
@@ -345,6 +413,13 @@ export async function compileSong(
 						const strumStep = Math.round(secondsToTicks(0.014, tempo));
 						for (const note of beat.notes) {
 							if (note.techniques?.includes('dead')) continue;
+							const noteId = tieKey(ti, mi, vi, bi, note.string);
+							// Tied continuations never restrike — their origin's note-on
+							// below is stretched to ring through them instead.
+							if (ties.skip.has(noteId)) continue;
+							const sustainFrac = ties.sustain.get(noteId);
+							const soundTicks =
+								sustainFrac !== undefined ? sustainFrac * WHOLE_NOTE_TICKS : durTicks;
 							const strumDelay = strumOrder ? strumOrder.indexOf(note) * strumStep : 0;
 							const key = frettedMidi(track.tuning, note.string, note.fret, {
 								capo: track.capo,
@@ -352,7 +427,7 @@ export async function compileSong(
 							});
 							const noteStart = startTick + strumDelay;
 							let noteLen = Math.round(
-								durTicks * (note.techniques?.includes('staccato') ? 0.4 : 0.95)
+								soundTicks * (note.techniques?.includes('staccato') ? 0.4 : 0.95)
 							);
 							if (palm) {
 								noteLen = Math.min(noteLen, Math.round(secondsToTicks(0.12, tempo)));

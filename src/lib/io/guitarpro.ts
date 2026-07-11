@@ -46,7 +46,7 @@ interface AtNote {
 	isDead?: boolean;
 	isHammerPullOrigin?: boolean;
 	hammerPullDestination?: { fret: number } | null;
-	isTieOrigin?: boolean;
+	isTieDestination?: boolean;
 	vibrato?: number; // 0 = none
 	harmonicType?: number; // 0 = none; 1 = natural, 2+ = artificial/pinch/tap/semi
 	bendType?: number; // 0 = none
@@ -268,7 +268,7 @@ function convertStringedTrack(
 		const bend = bendSemitones(n);
 		if (bend !== undefined) out.bend = bend;
 		if (n.slideTarget) out.slideTo = n.slideTarget.fret;
-		if (n.isTieOrigin) out.tied = true;
+		if (n.isTieDestination) out.tied = true;
 		return out;
 	};
 
@@ -319,7 +319,7 @@ function convertDrumTrack(
 		const techniques = noteTechniques(n, beat);
 		const out: OtoNote = { string, fret: 0 };
 		if (techniques.length) out.techniques = techniques;
-		if (n.isTieOrigin) out.tied = true;
+		if (n.isTieDestination) out.tied = true;
 		return out;
 	};
 

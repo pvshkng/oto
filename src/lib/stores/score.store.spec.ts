@@ -59,6 +59,69 @@ describe('ScoreStore note entry', () => {
 	});
 });
 
+describe('ScoreStore ties', () => {
+	let s: ScoreStore;
+	beforeEach(() => (s = freshStore()));
+
+	it('offers a tie only when an earlier note exists on the cursor string', () => {
+		expect(s.canTie).toBe(false);
+		s.setCursor({ string: 0 });
+		s.setFretAtCursor(5); // auto-grows a trailing beat
+		s.setCursor({ beat: 1 });
+		expect(s.canTie).toBe(true);
+		s.setCursor({ beat: 1, string: 3 }); // other string has no earlier note
+		expect(s.canTie).toBe(false);
+	});
+
+	it('drops a tied continuation of the previous note at the cursor', () => {
+		s.setCursor({ string: 0 });
+		s.setFretAtCursor(5);
+		s.setCursor({ beat: 1 });
+		s.toggleNoteTie();
+		const beat = s.track.measures[0].beats[1];
+		expect(beat.rest).toBe(false);
+		expect(beat.notes).toEqual([{ string: 0, fret: 5, tied: true }]);
+	});
+
+	it('reaches back across beats and barlines to the last note on the string', () => {
+		s.setCursor({ string: 0 });
+		s.setFretAtCursor(7);
+		s.setCursor({ measure: 1, beat: 0 }); // next bar; beats between are rests
+		expect(s.canTie).toBe(true);
+		s.toggleNoteTie();
+		expect(s.track.measures[1].beats[0].notes).toEqual([{ string: 0, fret: 7, tied: true }]);
+	});
+
+	it('untying removes the continuation and restores the rest', () => {
+		s.setCursor({ string: 0 });
+		s.setFretAtCursor(5);
+		s.setCursor({ beat: 1 });
+		s.toggleNoteTie();
+		s.toggleNoteTie();
+		const beat = s.track.measures[0].beats[1];
+		expect(beat.notes.length).toBe(0);
+		expect(beat.rest).toBe(true);
+	});
+
+	it('converts an existing note into a tie, adopting the origin pitch', () => {
+		s.setCursor({ string: 0 });
+		s.setFretAtCursor(5);
+		s.setCursor({ beat: 1 });
+		s.setFretAtCursor(9);
+		s.toggleNoteTie();
+		expect(s.track.measures[0].beats[1].notes).toEqual([{ string: 0, fret: 5, tied: true }]);
+	});
+
+	it('continues a slide at its destination fret', () => {
+		s.setCursor({ string: 0 });
+		s.setFretAtCursor(5);
+		s.setSlideTarget(9);
+		s.setCursor({ beat: 1 });
+		s.toggleNoteTie();
+		expect(s.track.measures[0].beats[1].notes[0].fret).toBe(9);
+	});
+});
+
 describe('ScoreStore selection & loop', () => {
 	let s: ScoreStore;
 	beforeEach(() => (s = freshStore()));

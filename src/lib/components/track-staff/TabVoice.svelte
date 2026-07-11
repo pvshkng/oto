@@ -52,7 +52,7 @@
 	{#each beat.notes as n (n.string)}
 		{@const label = n.techniques.includes('dead')
 			? 'x'
-			: n.techniques.includes('ghost')
+			: n.techniques.includes('ghost') || n.tied
 				? `(${n.fret})`
 				: String(n.fret)}
 		{@const maskW = label.length * 6.5 + 3}
@@ -173,8 +173,10 @@
 	{/if}
 	{#each beat.notes as n (n.string)}
 		{@const isDead = n.techniques.includes('dead')}
-		{@const isGhost = n.techniques.includes('ghost')}
-		{@const fretLabel = isDead ? 'x' : isGhost ? `(${n.fret})` : String(n.fret)}
+		<!-- Tied continuations read like ghost notes in tab: parenthesised fret
+		     under the tie arc, so they aren't mistaken for a restrike. -->
+		{@const inParens = n.techniques.includes('ghost') || !!n.tied}
+		{@const fretLabel = isDead ? 'x' : inParens ? `(${n.fret})` : String(n.fret)}
 		{@const isNoteSelected =
 			store.noteSelection !== null &&
 			store.noteSelection.measure === measureIndex &&
@@ -183,9 +185,9 @@
 			store.noteSelection.strings.has(n.string)}
 		{#if isNoteSelected}
 			<rect
-				x={n.x - (isGhost ? 10 : 6) - 1}
+				x={n.x - (inParens ? 10 : 6) - 1}
 				y={n.tabY - 5}
-				width={isGhost ? 22 : 15}
+				width={inParens ? 22 : 15}
 				height="12"
 				class="fill-[rgba(24,24,27,0.22)] [rx:3]"
 			/>
@@ -291,6 +293,13 @@
 			<path
 				d="M {n.x + 7} {n.tabY - 5} Q {(n.x + n.tie.x2) / 2} {n.tabY - 13} {n.tie.x2 - 7} {n.tie
 					.tabY2 - 5}"
+				class="fill-none stroke-[#18181b] [stroke-width:1.3]"
+			/>
+		{/if}
+		{#if n.tieIn}
+			<!-- Tie whose origin sits on the previous system: short incoming stub. -->
+			<path
+				d="M {n.x - 20} {n.tabY - 11} Q {n.x - 13} {n.tabY - 12} {n.x - 8} {n.tabY - 6}"
 				class="fill-none stroke-[#18181b] [stroke-width:1.3]"
 			/>
 		{/if}

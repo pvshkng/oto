@@ -26,6 +26,7 @@ import type {
 	DurationValue,
 	OtoBeat,
 	OtoMeasure,
+	OtoNote,
 	OtoScore,
 	OtoTrack,
 	Ottava,
@@ -1969,14 +1970,64 @@ export class ScoreStore {
 		});
 	}
 
-	/** Tie the note under the cursor to the next beat's note on the same string. */
+	/** The most recent note on the cursor's string strictly before the cursor
+	 *  beat, scanning back across measures in the active voice — the note a tie
+	 *  applied at the cursor would continue. */
+	private tieOriginAt(): OtoNote | null {
+		const { measure, beat, string, voice } = this.cursor;
+		for (let mi = measure; mi >= 0; mi--) {
+			const m = this.track.measures[mi];
+			const beats = voice === 1 ? m?.voice2 : m?.beats;
+			if (!beats) continue;
+			const start = mi === measure ? Math.min(beat, beats.length) - 1 : beats.length - 1;
+			for (let bi = start; bi >= 0; bi--) {
+				const n = beats[bi].notes.find((x) => x.string === string);
+				if (n) return n;
+			}
+		}
+		return null;
+	}
+
+	/** Whether a tie applies at the cursor: an earlier note exists on the
+	 *  cursor's string to continue, or the note here is already tied (untie). */
+	get canTie(): boolean {
+		return !!this.currentNote?.tied || this.tieOriginAt() !== null;
+	}
+
+	/**
+	 * Toggle a tie at the cursor. A tie continues the most recent note on the
+	 * same string (even several beats or bars back): applying it places a note
+	 * with that pitch marked `tied`, which sustains the earlier note instead of
+	 * restriking it. Toggling a tied note removes it again.
+	 */
 	toggleNoteTie() {
 		if (this.#rejectLockedEdit()) return;
 		this.commit(() => {
 			const beat = this.currentBeatRef();
-			const note = beat?.notes.find((n) => n.string === this.cursor.string);
-			if (!note) return;
-			note.tied = note.tied ? undefined : true;
+			if (!beat) return;
+			const existing = beat.notes.find((n) => n.string === this.cursor.string);
+			if (existing?.tied) {
+				// A tied note is purely a continuation — untying removes it.
+				beat.notes.splice(beat.notes.indexOf(existing), 1);
+				if (beat.notes.length === 0) beat.rest = true;
+				return;
+			}
+			const origin = this.tieOriginAt();
+			if (!origin) return;
+			// Continue the pitch the origin ends on (its slide target, if any).
+			const fret = origin.slideTo ?? origin.fret;
+			if (existing) {
+				existing.fret = fret;
+				existing.tied = true;
+				return;
+			}
+			if (beat.notes.length === 0) {
+				beat.duration = this.activeDuration;
+				beat.dotted = this.activeDotted;
+			}
+			beat.rest = false;
+			beat.notes.push({ string: this.cursor.string, fret, tied: true });
+			beat.notes.sort((a, b) => a.string - b.string);
 		});
 	}
 

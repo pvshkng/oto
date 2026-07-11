@@ -113,6 +113,61 @@ describe('.oto format', () => {
 		expect(s.tracks[0].eq).toEqual({ low: 0, mid: 0, high: 0 });
 	});
 
+	it('migrates v6 origin-marked ties onto the destination note', () => {
+		// v6 marked `tied` on the tie's origin ("tie to next note"); v7 keeps it
+		// on the continuation. The flag shifts one beat forward on the same
+		// string — across the barline from a bar's last beat — and a flag with
+		// no target (v6 never drew those ties) is dropped.
+		const v6 = JSON.stringify({
+			format: 'oto',
+			version: 6,
+			tracks: [
+				{
+					measures: [
+						{
+							beats: [
+								{ duration: 4, notes: [{ string: 0, fret: 5, tied: true }] },
+								{ duration: 4, notes: [{ string: 0, fret: 5 }] },
+								{ duration: 4, notes: [{ string: 1, fret: 2, tied: true }] },
+								{ duration: 4, notes: [{ string: 0, fret: 3, tied: true }] }
+							]
+						},
+						{ beats: [{ duration: 1, notes: [{ string: 0, fret: 3 }] }] }
+					]
+				}
+			]
+		});
+		const s = parse(v6);
+		const [m0, m1] = s.tracks[0].measures;
+		expect(m0.beats[0].notes[0].tied).toBeUndefined();
+		expect(m0.beats[1].notes[0].tied).toBe(true); // shifted from beat 0
+		expect(m0.beats[2].notes[0].tied).toBeUndefined(); // no string-1 note next — dropped
+		expect(m0.beats[3].notes[0].tied).toBeUndefined();
+		expect(m1.beats[0].notes[0].tied).toBe(true); // shifted across the barline
+	});
+
+	it('keeps destination-marked ties as-is for current-version documents', () => {
+		const doc = JSON.stringify({
+			format: 'oto',
+			version: OTO_VERSION,
+			tracks: [
+				{
+					measures: [
+						{
+							beats: [
+								{ duration: 4, notes: [{ string: 0, fret: 5 }] },
+								{ duration: 4, notes: [{ string: 0, fret: 5, tied: true }] }
+							]
+						}
+					]
+				}
+			]
+		});
+		const s = parse(doc);
+		expect(s.tracks[0].measures[0].beats[0].notes[0].tied).toBeUndefined();
+		expect(s.tracks[0].measures[0].beats[1].notes[0].tied).toBe(true);
+	});
+
 	it('coerces an invalid duration to a quarter note', () => {
 		const doc = JSON.stringify({
 			format: 'oto',

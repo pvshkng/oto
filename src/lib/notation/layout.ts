@@ -78,8 +78,12 @@ export interface LaidNote {
 	bend?: number;
 	slideTo?: number;
 	tied?: boolean;
-	/** When this note ties forward, the target notehead's coordinates. */
+	/** When a later note ties back to this one, that notehead's coordinates
+	 *  (the arc is drawn from here to there). */
 	tie: { x2: number; stdY2: number; tabY2: number } | null;
+	/** Tied note whose origin sits on an earlier system — the renderer draws a
+	 *  short incoming stub arc instead of a full origin-to-destination curve. */
+	tieIn?: boolean;
 	ledgerLines: number[]; // y positions of ledger lines
 }
 
@@ -673,7 +677,6 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 				assignBeamGroups(laid, beatUnit);
 				assignStemDirections(laid, forcedDir, middleStep);
 				offsetSecondClusters(laid);
-				assignTies(laid);
 				return laid;
 			};
 
@@ -712,14 +715,12 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 			return laid;
 		});
 
-		// Ties that cross a barline: link a measure's last beat to the next
-		// measure's first beat. Measures in a system share absolute x, so the
-		// tie path renders correctly. (Ties across a system break are dropped.)
-		for (let i = 0; i < measures.length - 1; i++) {
-			linkCrossMeasureTies(measures[i].beats, measures[i + 1].beats);
-			if (measures[i].voice2 && measures[i + 1].voice2)
-				linkCrossMeasureTies(measures[i].voice2!, measures[i + 1].voice2!);
-		}
+		// Ties can span beats and barlines: link each tied note back to its
+		// origin anywhere earlier in the system. Measures in a system share
+		// absolute x, so the arc path renders correctly. (A tie whose origin
+		// sits on an earlier system gets an incoming stub via `tieIn`.)
+		linkTies(measures, 'beats');
+		linkTies(measures, 'voice2');
 
 		return { y: 0, height: systemHeight, measures, width: mx };
 	}
@@ -879,25 +880,28 @@ function offsetSecondClusters(beats: LaidBeat[]) {
 	}
 }
 
-/** Link each tied note to the matching-string notehead in the next beat. */
-function assignTies(beats: LaidBeat[]) {
-	for (let i = 0; i < beats.length - 1; i++) {
-		for (const n of beats[i].notes) {
-			if (!n.tied) continue;
-			const next = beats[i + 1].notes.find((m) => m.string === n.string);
-			if (next) n.tie = { x2: next.x + next.headXOffset, stdY2: next.stdY, tabY2: next.tabY };
-		}
+/**
+ * Link each tied note back to its origin — the most recent note on the same
+ * string, which may sit several beats or measures earlier in the system. The
+ * origin carries the arc's endpoint coordinates; a tied note with no origin
+ * in this system (it starts on a previous line) is flagged `tieIn` so the
+ * renderer draws a short incoming stub instead.
+ */
+function linkTies(measures: LaidMeasure[], voice: 'beats' | 'voice2') {
+	const all: LaidBeat[] = [];
+	for (const m of measures) {
+		const beats = voice === 'beats' ? m.beats : m.voice2;
+		if (beats) all.push(...beats);
 	}
-}
-
-/** Link tied notes in `cur`'s last beat to the matching note in `next`'s first. */
-function linkCrossMeasureTies(cur: LaidBeat[], next: LaidBeat[]) {
-	if (!cur.length || !next.length) return;
-	const last = cur[cur.length - 1];
-	for (const n of last.notes) {
-		if (!n.tied || n.tie) continue;
-		const target = next[0].notes.find((m) => m.string === n.string);
-		if (target)
-			n.tie = { x2: target.x + target.headXOffset, stdY2: target.stdY, tabY2: target.tabY };
+	for (let i = 0; i < all.length; i++) {
+		for (const n of all[i].notes) {
+			if (!n.tied) continue;
+			let origin: LaidNote | undefined;
+			for (let j = i - 1; j >= 0 && !origin; j--) {
+				origin = all[j].notes.find((p) => p.string === n.string);
+			}
+			if (origin) origin.tie = { x2: n.x + n.headXOffset, stdY2: n.stdY, tabY2: n.tabY };
+			else n.tieIn = true;
+		}
 	}
 }

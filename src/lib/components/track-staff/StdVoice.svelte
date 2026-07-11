@@ -264,6 +264,15 @@
 					class="fill-none stroke-[#18181b] [stroke-width:1.3]"
 				/>
 			{/if}
+			{#if n.tieIn}
+				<!-- Tie whose origin sits on the previous system: short incoming stub. -->
+				{@const ud = beat.stemDir === 1 ? 1 : -1}
+				<path
+					d="M {n.x + n.headXOffset - 20} {n.stdY + ud * 9} Q {n.x + n.headXOffset - 13} {n.stdY +
+						ud * 11} {n.x + n.headXOffset - 7} {n.stdY + ud * 3}"
+					class="fill-none stroke-[#18181b] [stroke-width:1.3]"
+				/>
+			{/if}
 		{/each}
 		<!-- Articulations (accent / marcato / tenuto / staccato): one mark per
 		     beat, centred over the chord on the side away from the beam — never
