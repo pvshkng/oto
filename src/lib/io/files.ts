@@ -94,6 +94,37 @@ export function openFile(): Promise<void> {
 /** Backwards-compatible alias. */
 export const openOtoFile = openFile;
 
+// A4 at CSS 96dpi is 794px wide (see ScoreArea's PAGE_W). Printing forces the
+// document to this width so a full paper's worth of staff fits per sheet.
+const PAGE_W_PX = 794;
+
+/**
+ * Widen the layout viewport to the A4 page width for the duration of `fn`,
+ * then restore it. On mobile the viewport meta is `width=device-width` (a
+ * ~390px phone), and the print engine lays out — and scales — the PDF against
+ * that narrow width, so a full-width staff gets squeezed and its lines wrap as
+ * if the screen were the paper. Pinning the viewport to the real page width
+ * makes the browser render the print at full paper width instead. Desktop
+ * already prints wide, so it's left untouched.
+ */
+async function withPrintViewport(fn: () => void): Promise<void> {
+	const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+	if (!meta || store.isDesktop) {
+		fn();
+		return;
+	}
+	const prev = meta.content;
+	meta.content = `width=${PAGE_W_PX}`;
+	// Let the widened layout settle (reflow + paint) before the print dialog
+	// snapshots the document.
+	await nextPaint();
+	try {
+		fn();
+	} finally {
+		meta.content = prev;
+	}
+}
+
 /**
  * Export to PDF. We rely on the browser's print-to-PDF on a print-styled view:
  * a dedicated stylesheet (in app) hides the chrome and lays the score out on
@@ -103,6 +134,10 @@ export const openOtoFile = openFile;
  * each page's systems on its own sheet (a continuous sheet would be clipped
  * to a single page by the app shell). If the user is in continuous view we
  * flip to page view just for the print dialog, then flip back.
+ *
+ * On mobile we also pin the layout viewport to the A4 page width so the print
+ * renders at full paper width instead of the phone's narrow one (see
+ * withPrintViewport).
  */
 export async function exportPdf() {
 	const wasPageView = store.pageView;
@@ -113,7 +148,7 @@ export async function exportPdf() {
 		await nextPaint();
 	}
 	try {
-		window.print();
+		await withPrintViewport(() => window.print());
 	} finally {
 		if (!wasPageView) store.pageView = false;
 	}
