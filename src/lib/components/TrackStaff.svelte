@@ -219,11 +219,11 @@
 	// (thin + thick) to mark the end of the score, like an engraved sheet.
 	const lastMeasureIndex = $derived(track.measures.length - 1);
 
-	// Left grouping bracket: a single vertical spine (with short serifs) that ties
-	// this track's standard/tab/rhythm bands together into one visual unit, the way
-	// an engraved score brackets the staves of one instrument. It spans only this
-	// track's own bands — each track renders its systems as separate <svg>s, so the
-	// bracket can never bridge to a neighbouring track in the multi-track view.
+	// Left grouping bracket: a single vertical spine that ties this track's
+	// standard/tab/rhythm bands together into one visual unit, the way an engraved
+	// score brackets the staves of one instrument. It spans only this track's own
+	// bands — each track renders its systems as separate <svg>s, so the bracket can
+	// never bridge to a neighbouring track in the multi-track view.
 	// `top`/`bottom` are in system space (the same space the bands are offset in).
 	const bracket = $derived.by(() => {
 		const b = layout.bands;
@@ -294,10 +294,8 @@
 						<!-- Left grouping bracket for this track's bands. Drawn first so the
 						     bands' hit rects stay on top and keep receiving clicks. -->
 						{#if bracket && system.measures[0]}
-							{@const bx = system.measures[0].x}
+							{@const bx = system.measures[0].x + (system.measures[0].showHeader ? 4 : 0)}
 							<line x1={bx} y1={bracket.top} x2={bx} y2={bracket.bottom} class={BRACKET} />
-							<line x1={bx} y1={bracket.top} x2={bx + 4} y2={bracket.top} class={BRACKET} />
-							<line x1={bx} y1={bracket.bottom} x2={bx + 4} y2={bracket.bottom} class={BRACKET} />
 						{/if}
 						{#each system.measures as measure, mIdx (measure.index)}
 							<!-- x where a begin-repeat sign sits: at the bar's start, or just
