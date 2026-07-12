@@ -30,22 +30,21 @@
 </script>
 
 <Dialog.Root bind:open={store.pdfExportModalOpen}>
-	<Dialog.Content class="max-w-sm gap-4">
-		<Dialog.Header>
+	<Dialog.Content floating class="max-w-md gap-4 p-0">
+		<Dialog.Header class="p-4 pb-0">
 			<Dialog.Title>Export PDF</Dialog.Title>
 			<Dialog.Description>
-				On a phone the score has to be in <strong>page view</strong> to export cleanly — otherwise the
-				staff wraps to the narrow screen width and the PDF comes out broken across short lines. Switch
-				to page view, then your browser's PDF export screen will open.
+				Page view is needed for a clean PDF. Otherwise the staff wraps to the screen width and
+				breaks across short lines.
 			</Dialog.Description>
 		</Dialog.Header>
 
-		<Dialog.Footer class="flex-row justify-end gap-2">
+		<div class="flex flex-row justify-end gap-2 p-4 pt-0">
 			<Dialog.Close class={buttonVariants({ variant: 'outline' })}>Cancel</Dialog.Close>
 			<Button onclick={switchAndExport}>
 				<FilePdf class="size-4" />
 				Switch &amp; export
 			</Button>
-		</Dialog.Footer>
+		</div>
 	</Dialog.Content>
 </Dialog.Root>

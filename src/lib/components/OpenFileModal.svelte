@@ -78,11 +78,7 @@
 </script>
 
 <Dialog.Root bind:open={store.openFileModalOpen}>
-	<Dialog.Content
-		overlayClass="bg-transparent"
-		class="max-w-md gap-4 p-0"
-		onOpenAutoFocus={(e) => e.preventDefault()}
-	>
+	<Dialog.Content floating class="max-w-md gap-4 p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
 		<Dialog.Header class="p-4 pb-0">
 			<Dialog.Title>Open / Import</Dialog.Title>
 			<Dialog.Description>

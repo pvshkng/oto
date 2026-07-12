@@ -10,21 +10,26 @@
 		class: className,
 		portalProps,
 		showCloseButton = true,
+		floating = false,
 		overlayClass,
 		children,
 		...restProps
 	}: DialogPrimitive.ContentProps & {
 		portalProps?: DialogPrimitive.PortalProps;
 		showCloseButton?: boolean;
+		/** The shared "floating" mobile-dialog look: suppress the overlay dimmer so
+		 *  the app stays visible behind the backdrop-blurred panel. Prefer this over
+		 *  repeating `overlayClass="bg-transparent"` on every mobile dialog. */
+		floating?: boolean;
 		/** Override the overlay's dimmer — e.g. `bg-transparent` for palettes that
-		 *  shouldn't darken the app behind them. */
+		 *  shouldn't darken the app behind them. Wins over `floating` when set. */
 		overlayClass?: string;
 		children: Snippet;
 	} = $props();
 </script>
 
 <DialogPrimitive.Portal {...portalProps}>
-	<DialogOverlay class={overlayClass} />
+	<DialogOverlay class={overlayClass ?? (floating ? 'bg-transparent' : undefined)} />
 	<DialogPrimitive.Content
 		bind:ref
 		data-slot="dialog-content"
