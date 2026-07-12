@@ -219,10 +219,40 @@
 	// (thin + thick) to mark the end of the score, like an engraved sheet.
 	const lastMeasureIndex = $derived(track.measures.length - 1);
 
+	// Left grouping bracket: a single vertical spine (with short serifs) that ties
+	// this track's standard/tab/rhythm bands together into one visual unit, the way
+	// an engraved score brackets the staves of one instrument. It spans only this
+	// track's own bands — each track renders its systems as separate <svg>s, so the
+	// bracket can never bridge to a neighbouring track in the multi-track view.
+	// `top`/`bottom` are in system space (the same space the bands are offset in).
+	const bracket = $derived.by(() => {
+		const b = layout.bands;
+		const tops: number[] = [];
+		const bottoms: number[] = [];
+		if (b.standard) {
+			tops.push(b.standard.offsetY + METRICS.stdTopPad + METRICS.staffLineGap);
+			bottoms.push(b.standard.offsetY + METRICS.stdTopPad + 5 * METRICS.staffLineGap);
+		}
+		if (b.rhythm) {
+			// Rhythm is a single line; give the bracket a little symmetric reach so
+			// it reads as a band rather than pinching to a point.
+			const mid = b.rhythm.offsetY + b.rhythm.height / 2;
+			tops.push(mid - 8);
+			bottoms.push(mid + 8);
+		}
+		if (b.tab) {
+			tops.push(b.tab.offsetY + 14);
+			bottoms.push(b.tab.offsetY + 14 + (track.tuning.length - 1) * METRICS.tabLineGap);
+		}
+		if (!tops.length) return null;
+		return { top: Math.min(...tops), bottom: Math.max(...bottoms) };
+	});
+
 	const BRAVURA = "[font-family:'Bravura',serif] fill-[#18181b]";
 	const HIT_AREA = 'fill-transparent [pointer-events:all] touch-manipulation';
 	const STAFF_LINE = 'stroke-[#d4d4d8] [stroke-width:1]';
 	const BARLINE = 'stroke-[#3f3f46] [stroke-width:1.4]';
+	const BRACKET = 'stroke-[#3f3f46] [stroke-width:2.4] [stroke-linecap:round] pointer-events-none';
 	const BARLINE_THICK = 'stroke-[#3f3f46] [stroke-width:4]';
 	const STEM = 'stroke-[#18181b] [stroke-width:1.4]';
 	const BEAM = 'stroke-[#18181b] [stroke-width:3.4] [stroke-linecap:butt]';
@@ -261,6 +291,14 @@
 						height={system.height}
 						role="presentation"
 					>
+						<!-- Left grouping bracket for this track's bands. Drawn first so the
+						     bands' hit rects stay on top and keep receiving clicks. -->
+						{#if bracket && system.measures[0]}
+							{@const bx = system.measures[0].x}
+							<line x1={bx} y1={bracket.top} x2={bx} y2={bracket.bottom} class={BRACKET} />
+							<line x1={bx} y1={bracket.top} x2={bx + 4} y2={bracket.top} class={BRACKET} />
+							<line x1={bx} y1={bracket.bottom} x2={bx + 4} y2={bracket.bottom} class={BRACKET} />
+						{/if}
 						{#each system.measures as measure, mIdx (measure.index)}
 							<!-- x where a begin-repeat sign sits: at the bar's start, or just
 							     after the clef/key header (and any time signature) on the
