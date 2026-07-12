@@ -12,7 +12,7 @@
 
 <Dialog.Root bind:open>
 	<Dialog.Content
-		overlayClass="bg-transparent"
+		floating
 		class="grid max-h-[85vh] max-w-md grid-rows-[auto_minmax(0,1fr)_auto] gap-0 p-0"
 		onOpenAutoFocus={(e) => e.preventDefault()}
 	>
