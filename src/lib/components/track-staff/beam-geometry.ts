@@ -32,14 +32,39 @@ export function letRingSpans(beats: LaidBeat[]): { x1: number; x2: number }[] {
 	return spans;
 }
 
+export function spanTop(beats: LaidBeat[], from: number, to: number): number {
+	let top = Infinity;
+	for (let i = from; i <= to; i++) {
+		if (beats[i].rest) continue;
+		top = Math.min(top, beats[i].stdStemTop, beats[i].noteTop - 6);
+	}
+	return top;
+}
+
+export function spanBottom(beats: LaidBeat[], from: number, to: number): number {
+	let bottom = -Infinity;
+	for (let i = from; i <= to; i++) {
+		if (beats[i].rest) continue;
+		bottom = Math.max(bottom, beats[i].stdStemBottom, beats[i].noteBottom + 6);
+	}
+	return bottom;
+}
+
 // Runs of consecutive beats sharing the same tuplet size → one bracket + number.
-export function tupletSpans(beats: LaidBeat[]): { x1: number; x2: number; n: number }[] {
-	const spans: { x1: number; x2: number; n: number }[] = [];
+export function tupletSpans(
+	beats: LaidBeat[]
+): { x1: number; x2: number; n: number; top: number }[] {
+	const spans: { x1: number; x2: number; n: number; top: number }[] = [];
 	let start = -1;
 	for (let i = 0; i <= beats.length; i++) {
 		const n = i < beats.length ? beats[i].tuplet : null;
 		if (start >= 0 && (n === null || n !== beats[start].tuplet)) {
-			spans.push({ x1: beats[start].x, x2: beats[i - 1].x, n: beats[start].tuplet! });
+			spans.push({
+				x1: beats[start].x,
+				x2: beats[i - 1].x,
+				n: beats[start].tuplet!,
+				top: spanTop(beats, start, i - 1)
+			});
 			start = -1;
 		}
 		if (n !== null && start < 0) start = i;
@@ -48,15 +73,31 @@ export function tupletSpans(beats: LaidBeat[]): { x1: number; x2: number; n: num
 }
 
 // Runs of consecutive beats sharing the same octave sign → one dashed span.
-export function ottavaSpans(
-	beats: LaidBeat[]
-): { x1: number; x2: number; ottava: NonNullable<LaidBeat['ottava']> }[] {
-	const spans: { x1: number; x2: number; ottava: NonNullable<LaidBeat['ottava']> }[] = [];
+export function ottavaSpans(beats: LaidBeat[]): {
+	x1: number;
+	x2: number;
+	ottava: NonNullable<LaidBeat['ottava']>;
+	top: number;
+	bottom: number;
+}[] {
+	const spans: {
+		x1: number;
+		x2: number;
+		ottava: NonNullable<LaidBeat['ottava']>;
+		top: number;
+		bottom: number;
+	}[] = [];
 	let start = -1;
 	for (let i = 0; i <= beats.length; i++) {
 		const o = i < beats.length ? beats[i].ottava : null;
 		if (start >= 0 && (o === null || o !== beats[start].ottava)) {
-			spans.push({ x1: beats[start].x, x2: beats[i - 1].x, ottava: beats[start].ottava! });
+			spans.push({
+				x1: beats[start].x,
+				x2: beats[i - 1].x,
+				ottava: beats[start].ottava!,
+				top: spanTop(beats, start, i - 1),
+				bottom: spanBottom(beats, start, i - 1)
+			});
 			start = -1;
 		}
 		if (o !== null && start < 0) start = i;

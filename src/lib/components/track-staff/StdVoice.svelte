@@ -54,7 +54,7 @@
 
 <!-- Tuplet brackets: one per run of same-size tuplet beats, above the staff. -->
 {#each tupletSpans(beats) as span (span.x1)}
-	{@const y = 10}
+	{@const y = Math.min(10, span.top - 8)}
 	<path d="M {span.x1 - 5} {y + 4} V {y} H {span.x2 + 5} V {y + 4}" class={MARK_LINE} />
 	<rect x={(span.x1 + span.x2) / 2 - 5} y={y - 5} width="10" height="9" class="fill-paper" />
 	<text x={(span.x1 + span.x2) / 2} y={y + 4} class="{BRAVURA} text-[13px] [text-anchor:middle]"
@@ -64,7 +64,7 @@
 <!-- Octave signs: italic label + dashed extent over (8va/15ma) or under (8vb/15mb). -->
 {#each ottavaSpans(beats) as span (span.x1)}
 	{@const above = span.ottava === '8va' || span.ottava === '15ma'}
-	{@const y = above ? 5 : bandHeight - 6}
+	{@const y = above ? Math.min(5, span.top - 7) : Math.max(bandHeight - 6, span.bottom + 9)}
 	<text
 		x={span.x1 - 8}
 		y={y + 3}
@@ -142,11 +142,17 @@
 		<rect x={beat.x - 9} y="2" width="18" height={bandHeight - 4} class={BG_SEL} />
 	{/if}
 	{#if beat.fermata}
-		<text x={beat.x - 6} y={13} class="{BRAVURA} text-[20px]">{GLYPH.fermataAbove}</text>
+		<text
+			x={beat.x - 6}
+			y={beat.rest ? 13 : Math.min(13, beat.stdStemTop - 4)}
+			class="{BRAVURA} text-[20px]">{GLYPH.fermataAbove}</text
+		>
 	{/if}
 	{#if beat.dynamic}
-		<text x={beat.x} y={staffBottom + 22} class="{BRAVURA} text-[18px] [text-anchor:middle]"
-			>{dynamicGlyph(beat.dynamic)}</text
+		<text
+			x={beat.x}
+			y={beat.rest ? staffBottom + 22 : Math.max(staffBottom + 22, beat.stdStemBottom + 16)}
+			class="{BRAVURA} text-[18px] [text-anchor:middle]">{dynamicGlyph(beat.dynamic)}</text
 		>
 	{/if}
 	{#if beat.rest}

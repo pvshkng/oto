@@ -622,7 +622,7 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 						// double bass) so the staff doesn't need a thicket of ledger
 						// lines; the tab/audio paths keep using the real `midi` above.
 						const { step, accidentalHint } = midiToStaffStep(
-							midi + notationOctaveShift(track.kind),
+							midi + notationOctaveShift(track.kind) + ottavaWrittenShift(beat.ottava),
 							preferFlat
 						);
 						const tabY = bands.tab ? n.string * METRICS.tabLineGap + 14 : 0;
@@ -753,6 +753,21 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
  */
 function notationOctaveShift(kind: TrackKind): number {
 	return kind === 'guitar' || kind === 'bass' ? 12 : 0;
+}
+
+function ottavaWrittenShift(ottava: Ottava | null | undefined): number {
+	switch (ottava) {
+		case '8va':
+			return -12;
+		case '15ma':
+			return -24;
+		case '8vb':
+			return 12;
+		case '15mb':
+			return 24;
+		default:
+			return 0;
+	}
 }
 
 /** Standard-staff y for a diatonic step (C4 = 0), in the given clef. */
