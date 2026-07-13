@@ -12,7 +12,7 @@
 
 import type * as at from '@coderline/alphatab';
 import { frettedMidi } from '$lib/oto/pitch';
-import { beatFraction, beatsCutoff } from '$lib/oto/duration';
+import { beatFraction, beatsCutoff, isGraceBeat } from '$lib/oto/duration';
 import {
 	DYNAMIC_VELOCITY,
 	measureVoices,
@@ -253,7 +253,9 @@ function computeTieSustains(score: OtoScore): TieInfo {
 							chain.set(note.string, { key: tieKey(ti, mi, vi, bi, note.string), start });
 						}
 					}
-					local += frac;
+					// Grace beats don't advance the count, so notes after one keep
+					// their real onsets (matching the playback grid above).
+					local += isGraceBeat(beat) ? 0 : frac;
 				}
 			}
 		}
@@ -445,8 +447,19 @@ export async function compileSong(
 				for (let bi = 0; bi < voice.length; bi++) {
 					if (bi >= cutoff) break; // skip overflow
 					const beat = voice[bi];
-					const durTicks = beatFraction(beat) * WHOLE_NOTE_TICKS;
-					const startTick = Math.round(measureStart + localTicks);
+					// Grace beats borrow their time instead of taking a share of the
+					// bar: they don't advance the grid (`gridTicks` = 0) and sound as a
+					// quick ornament tucked just before the beat they lead into, so the
+					// following note stays exactly on the count.
+					const grace = isGraceBeat(beat);
+					const gridTicks = grace ? 0 : beatFraction(beat) * WHOLE_NOTE_TICKS;
+					const durTicks = grace
+						? Math.min(beatFraction(beat), 1 / 8) * WHOLE_NOTE_TICKS
+						: gridTicks;
+					const gridStart = measureStart + localTicks;
+					const startTick = Math.round(
+						grace ? Math.max(measureStart, gridStart - durTicks) : gridStart
+					);
 					if (isPrimaryVoice) {
 						if (firstPass) measureBeatTicks[mi].push(startTick);
 						// Simile content may have more beats than the bar's own
@@ -552,7 +565,7 @@ export async function compileSong(
 							}
 						}
 					}
-					localTicks += durTicks;
+					localTicks += gridTicks;
 				}
 			}
 		}

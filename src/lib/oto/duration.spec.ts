@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
 	analyzeMeasure,
 	beatsCutoff,
+	beatCountFraction,
+	isGraceBeat,
 	measureCapacity,
 	overflowCutoff,
 	beatFraction,
@@ -11,6 +13,10 @@ import type { DurationValue, OtoBeat, OtoMeasure, TupletValue } from './types';
 
 function beat(duration: DurationValue, dotted = false): OtoBeat {
 	return { duration, dotted, notes: [{ string: 0, fret: 0 }] };
+}
+
+function graceBeat(duration: DurationValue = 8): OtoBeat {
+	return { duration, notes: [{ string: 0, fret: 0, techniques: ['grace'] }] };
 }
 
 function tupletBeat(duration: DurationValue, tuplet: TupletValue): OtoBeat {
@@ -53,6 +59,40 @@ describe('tuplet math', () => {
 			(1 / 8) * 1.5 * (2 / 3),
 			12
 		);
+	});
+});
+
+describe('grace notes do not count toward the bar', () => {
+	it('recognises a grace beat only when every sounding note is a grace note', () => {
+		expect(isGraceBeat(graceBeat())).toBe(true);
+		expect(isGraceBeat(beat(8))).toBe(false);
+		// A rest is never a grace beat, even if flagged.
+		expect(isGraceBeat({ duration: 8, rest: true, notes: [] })).toBe(false);
+		// Mixed chord (one plain note) still counts as a real beat.
+		expect(
+			isGraceBeat({
+				duration: 8,
+				notes: [
+					{ string: 0, fret: 0, techniques: ['grace'] },
+					{ string: 1, fret: 2 }
+				]
+			})
+		).toBe(false);
+	});
+
+	it('contributes zero to the count-fraction while keeping its notated value', () => {
+		const g = graceBeat(8);
+		expect(beatFraction(g)).toBeCloseTo(1 / 8, 12);
+		expect(beatCountFraction(g)).toBe(0);
+	});
+
+	it('a full 4/4 bar stays full — not overfull — after adding a grace note', () => {
+		const measure: OtoMeasure = { beats: [beat(4), graceBeat(), beat(4), beat(4), beat(4)] };
+		const fill = analyzeMeasure(measure, [4, 4]);
+		expect(fill.overflow).toBe(false);
+		expect(fill.underfilled).toBe(false);
+		// Nothing is dropped: the grace beat is skipped by the count, not the four quarters.
+		expect(overflowCutoff(measure, [4, 4])).toBe(measure.beats.length);
 	});
 });
 

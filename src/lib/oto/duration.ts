@@ -23,6 +23,17 @@ export function tupletFactor(n: TupletValue): number {
 	return m / n;
 }
 
+/**
+ * A grace beat is an ornament (acciaccatura/appoggiatura) that borrows its time
+ * from a neighbour rather than occupying the bar's count. It's identified by
+ * every sounding note carrying the `grace` technique. Rests and empty beats are
+ * never grace beats.
+ */
+export function isGraceBeat(beat: OtoBeat): boolean {
+	if (beat.rest || !beat.notes.length) return false;
+	return beat.notes.every((n) => n.techniques?.includes('grace'));
+}
+
 /** Fraction of a whole note that a beat occupies (accounts for dotting + tuplets). */
 export function beatFraction(beat: OtoBeat): number {
 	let frac = 1 / beat.duration;
@@ -31,15 +42,25 @@ export function beatFraction(beat: OtoBeat): number {
 	return frac;
 }
 
+/**
+ * Fraction a beat contributes to the bar's *count* — the rhythmic subdivision
+ * that must fit the time signature. Identical to {@link beatFraction} except
+ * grace beats contribute 0: they never take up a share of the bar, so adding
+ * one never forces other notes out to keep the metre intact.
+ */
+export function beatCountFraction(beat: OtoBeat): number {
+	return isGraceBeat(beat) ? 0 : beatFraction(beat);
+}
+
 /** Capacity of a measure as a fraction of a whole note. */
 export function measureCapacity(timeSignature: [number, number]): number {
 	const [num, den] = timeSignature;
 	return num / den;
 }
 
-/** Summed fraction of a single voice (beat list). */
+/** Summed count-fraction of a single voice (beat list). Grace beats don't count. */
 export function beatsFilled(beats: OtoBeat[]): number {
-	return beats.reduce((sum, b) => sum + beatFraction(b), 0);
+	return beats.reduce((sum, b) => sum + beatCountFraction(b), 0);
 }
 
 /** Filled fraction of a measure = its longest voice. */
@@ -75,6 +96,9 @@ export function analyzeMeasure(measure: OtoMeasure, defaultTimeSig: [number, num
 export function beatsCutoff(beats: OtoBeat[], capacity: number): number {
 	let acc = 0;
 	for (let i = 0; i < beats.length; i++) {
+		// A grace beat borrows its time from a neighbour, so it neither advances
+		// the count nor can itself be the beat that overflows the bar.
+		if (isGraceBeat(beats[i])) continue;
 		acc += beatFraction(beats[i]);
 		if (acc > capacity + 1e-9) return i;
 	}
