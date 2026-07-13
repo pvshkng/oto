@@ -228,6 +228,74 @@ describe('compileSong', () => {
 	});
 });
 
+describe('harmonics', () => {
+	type NoteOn = { channel?: number; type: number; noteKey: number };
+	type ProgramChange = { channel?: number; type: number; program: number };
+	const NOTE_ON = 128;
+	const PROGRAM_CHANGE = 192;
+	// Standard tuning: string 1 (index 1) is B3 = MIDI 59.
+	const OPEN_B = 59;
+
+	it('sounds a natural harmonic at its node interval above the open string', async () => {
+		const track = makeTrack({
+			measures: [
+				{
+					beats: [
+						{ duration: 4, notes: [{ string: 1, fret: 12, techniques: ['harmonic'] }] },
+						{ duration: 4, notes: [{ string: 1, fret: 7, techniques: ['harmonic'] }] },
+						{ duration: 4, notes: [{ string: 1, fret: 5, techniques: ['harmonic'] }] },
+						{ duration: 4, notes: [{ string: 1, fret: 12 }] } // plain fretted note
+					]
+				}
+			]
+		});
+		const score = makeScore({ timeSignature: [4, 4], tracks: [track] });
+		const compiled = await compileSong(score, 'click');
+		const harmonicChannel = compiled.harmonicChannels.get(track.id)!;
+		expect(harmonicChannel).not.toBe(compiled.channels.get(track.id));
+
+		const events = compiled.midi.events as unknown as NoteOn[];
+		const harmonicOns = events.filter((e) => e.type === NOTE_ON && e.channel === harmonicChannel);
+		// Node 12 = octave, node 7 = octave+fifth, node 5 = two octaves — all
+		// above the OPEN string, not the fretted pitch.
+		expect(harmonicOns.map((e) => e.noteKey)).toEqual([OPEN_B + 12, OPEN_B + 19, OPEN_B + 24]);
+		// The plain note stays on the track channel at its fretted pitch.
+		const mainOns = events.filter((e) => e.type === NOTE_ON && e.channel === 0);
+		expect(mainOns.map((e) => e.noteKey)).toEqual([OPEN_B + 12]);
+		// The companion channel carries the GM Guitar Harmonics program.
+		const programs = compiled.midi.events as unknown as ProgramChange[];
+		const harmonicProgram = programs.find(
+			(e) => e.type === PROGRAM_CHANGE && e.channel === harmonicChannel
+		);
+		expect(harmonicProgram?.program).toBe(31);
+	});
+
+	it('sounds an artificial harmonic an octave above the fretted pitch', async () => {
+		const track = makeTrack({
+			measures: [
+				{
+					beats: [
+						{ duration: 4, notes: [{ string: 1, fret: 5, techniques: ['artificial-harmonic'] }] }
+					]
+				}
+			]
+		});
+		const score = makeScore({ timeSignature: [4, 4], tracks: [track] });
+		const compiled = await compileSong(score, 'click');
+		const harmonicChannel = compiled.harmonicChannels.get(track.id)!;
+		const events = compiled.midi.events as unknown as NoteOn[];
+		const ons = events.filter((e) => e.type === NOTE_ON && e.channel === harmonicChannel);
+		expect(ons.map((e) => e.noteKey)).toEqual([OPEN_B + 5 + 12]);
+	});
+
+	it('allocates no harmonic channel for tracks without harmonic notes', async () => {
+		const track = makeTrack({ measures: [{ beats: [note(0, 5)] }] });
+		const score = makeScore({ timeSignature: [4, 4], tracks: [track] });
+		const compiled = await compileSong(score, 'click');
+		expect(compiled.harmonicChannels.size).toBe(0);
+	});
+});
+
 describe('tie sustain', () => {
 	type Ev = { channel?: number; type: number; tick: number };
 	// alphaTab's MidiEventType enum: NoteOn = 128, NoteOff = 144 (NOT the raw

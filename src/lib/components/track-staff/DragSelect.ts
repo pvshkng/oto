@@ -72,7 +72,7 @@ export function createDragSelect(opts: DragSelectOptions) {
 		for (const svgEl of svgEls) {
 			const rect = svgEl.getBoundingClientRect();
 			if (clientY < rect.top || clientY > rect.bottom) continue;
-			const tabOffsetY = rect.top + layout.bands.tab.offsetY + 14;
+			const tabOffsetY = rect.top + layout.bands.tab.offsetY + layout.tabTop;
 			const localY = clientY - tabOffsetY;
 			const string = Math.round(localY / METRICS.tabLineGap);
 			return Math.max(0, Math.min(track.tuning.length - 1, string));

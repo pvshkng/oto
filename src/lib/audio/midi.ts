@@ -68,6 +68,26 @@ const GM_PROGRAMS: Record<string, number> = {
 	piano: 0 // Acoustic Grand Piano
 };
 
+/** GM "Guitar Harmonics" — the timbre harmonic notes are voiced with, on a
+ *  companion channel so the track's own program is never touched mid-song. */
+const GM_GUITAR_HARMONICS = 31;
+
+// Natural harmonics: the tabbed fret is the node the string is touched at, and
+// the note that rings is a fixed interval above the OPEN string — not the
+// fretted pitch. Node → semitones above open; unlisted nodes fall back to the
+// octave harmonic.
+const NATURAL_HARMONIC_SEMITONES: Record<number, number> = {
+	12: 12, // octave
+	7: 19, // octave + fifth
+	19: 19,
+	5: 24, // two octaves
+	24: 24,
+	4: 28, // two octaves + major third
+	9: 28,
+	16: 28,
+	3: 31 // two octaves + fifth
+};
+
 /** Timbre of each metronome click variant: a GM program + the key to strike. */
 const METRONOME_VOICES: Record<MetronomeSound, { program: number; key: number }> = {
 	click: { program: 115, key: 88 }, // Woodblock, high — classic click
@@ -89,6 +109,10 @@ export interface CompiledSong {
 	midi: at.midi.MidiFile;
 	/** Track id → MIDI channel the track's notes were written to. */
 	channels: Map<string, number>;
+	/** Track id → companion channel carrying the GM Guitar Harmonics program,
+	 *  for tracks that contain harmonic notes. The engine mirrors the track's
+	 *  volume/mute/solo onto it. */
+	harmonicChannels: Map<string, number>;
 	/** One entry per played beat of the primary track/voice (repeat passes
 	 *  included), sorted by tick — drives the moving playhead. */
 	beatTicks: BeatTick[];
@@ -253,6 +277,32 @@ export function allocateChannels(tracks: OtoTrack[]): Map<string, number> {
 	return channels;
 }
 
+/** Companion Guitar-Harmonics channel for each pitched track that plays any
+ *  harmonic note, drawn from the channels the main allocation left unused.
+ *  When the pool is exhausted a track falls back to its own channel — the
+ *  harmonic still sounds at the right pitch, just in the track's timbre. */
+export function allocateHarmonicChannels(
+	tracks: OtoTrack[],
+	channels: Map<string, number>
+): Map<string, number> {
+	const used = new Set(channels.values());
+	const free = TRACK_CHANNELS.filter((c) => !used.has(c));
+	const harmonicChannels = new Map<string, number>();
+	for (const track of tracks) {
+		if (track.instrument === 'drums') continue;
+		const hasHarmonic = track.measures.some((m) =>
+			[...m.beats, ...(m.voice2 ?? [])].some((b) =>
+				b.notes.some(
+					(n) => n.techniques?.includes('harmonic') || n.techniques?.includes('artificial-harmonic')
+				)
+			)
+		);
+		if (!hasHarmonic) continue;
+		harmonicChannels.set(track.id, free.shift() ?? channels.get(track.id)!);
+	}
+	return harmonicChannels;
+}
+
 /** Standard per-channel setup: pan, pitch-bend range (RPN 0 → 16 semitones)
  *  and the instrument program. Volume is intentionally NOT baked in — the
  *  engine drives it live via alphaSynth's channel mix API so faders stay
@@ -299,6 +349,15 @@ export async function compileSong(
 		configured.add(channel);
 		const program = channel === PERCUSSION_CHANNEL ? 0 : (GM_PROGRAMS[track.instrument] ?? 27);
 		setupChannel(alphaTab, handler, channel, program, track.pan ?? 0);
+	}
+	const harmonicChannels = allocateHarmonicChannels(score.tracks, channels);
+	for (const track of score.tracks) {
+		const channel = harmonicChannels.get(track.id);
+		// A pool-exhausted fallback maps to the track's own (already configured)
+		// channel — leave its program alone.
+		if (channel === undefined || configured.has(channel)) continue;
+		configured.add(channel);
+		setupChannel(alphaTab, handler, channel, GM_GUITAR_HARMONICS, track.pan ?? 0);
 	}
 	{
 		const voice = METRONOME_VOICES[metronomeSound];
@@ -421,10 +480,27 @@ export async function compileSong(
 							const soundTicks =
 								sustainFrac !== undefined ? sustainFrac * WHOLE_NOTE_TICKS : durTicks;
 							const strumDelay = strumOrder ? strumOrder.indexOf(note) * strumStep : 0;
-							const key = frettedMidi(track.tuning, note.string, note.fret, {
+							let key = frettedMidi(track.tuning, note.string, note.fret, {
 								capo: track.capo,
 								transpose: track.transpose
 							});
+							// Harmonics ring at their true sounding pitch, voiced on the
+							// track's Guitar-Harmonics companion channel: a natural harmonic
+							// sounds a node interval above the open string (the tab fret is
+							// the touch point, not a stopped note); an artificial harmonic
+							// chimes an octave above the fretted pitch.
+							let noteChannel = channel;
+							if (note.techniques?.includes('harmonic')) {
+								key =
+									frettedMidi(track.tuning, note.string, 0, {
+										capo: track.capo,
+										transpose: track.transpose
+									}) + (NATURAL_HARMONIC_SEMITONES[note.fret] ?? 12);
+								noteChannel = harmonicChannels.get(track.id) ?? channel;
+							} else if (note.techniques?.includes('artificial-harmonic')) {
+								key += 12;
+								noteChannel = harmonicChannels.get(track.id) ?? channel;
+							}
 							const noteStart = startTick + strumDelay;
 							let noteLen = Math.round(
 								soundTicks * (note.techniques?.includes('staccato') ? 0.4 : 0.95)
@@ -447,7 +523,7 @@ export async function compileSong(
 									)
 								)
 							);
-							handler.addNote(0, noteStart, noteLen, key, velocity, channel);
+							handler.addNote(0, noteStart, noteLen, key, velocity, noteChannel);
 
 							// Pitch effects, expressed as channel pitch-bend automation. One
 							// channel per track means a bend rides the whole channel — same
@@ -465,7 +541,7 @@ export async function compileSong(
 								note.techniques?.includes('wide-vibrato') ||
 								note.techniques?.includes('trill');
 							if (slideToKey !== undefined || bendSemis || vibrato) {
-								writePitchAutomation(handler, channel, {
+								writePitchAutomation(handler, noteChannel, {
 									startTick: noteStart,
 									durTicks: noteLen,
 									tempo,
@@ -496,6 +572,7 @@ export async function compileSong(
 	return {
 		midi,
 		channels,
+		harmonicChannels,
 		beatTicks,
 		measureTicks,
 		measureBeatTicks,

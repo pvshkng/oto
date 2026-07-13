@@ -108,7 +108,7 @@ export const EFFECT_SECTIONS: { title: string; items: EffectUi[] }[] = [
 	{
 		title: 'Harmonics',
 		items: [
-			{ tech: 'harmonic', label: 'Nat. Harmonic', sym: '◇' },
+			{ tech: 'harmonic', label: 'Nat. Harmonic', sym: '<>' },
 			{ tech: 'artificial-harmonic', label: 'Art. Harmonic', sym: 'AH' }
 		]
 	},

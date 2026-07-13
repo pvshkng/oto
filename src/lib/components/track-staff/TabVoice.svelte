@@ -13,6 +13,7 @@
 		measureIndex,
 		vIdx,
 		bandHeight,
+		tabTop,
 		isActiveTrack,
 		trackIndex,
 		showMarks = false
@@ -21,12 +22,23 @@
 		measureIndex: number;
 		vIdx: number;
 		bandHeight: number;
+		/** y of the top string line within the band (see layout's `tabTop`). */
+		tabTop: number;
 		isActiveTrack: boolean;
 		trackIndex: number;
 		/** Draw fermata/dynamics/tuplet marks here — only when the standard band
 		 *  (their usual home) is hidden, so they aren't drawn twice. */
 		showMarks?: boolean;
 	} = $props();
+
+	/** Fret text for one tab note. Natural harmonics read as `<12>` inline
+	 *  (instead of a mark above the number, which collides in crowded bars);
+	 *  ghost/tied wrap whatever the base label is in parens. */
+	function fretText(n: { fret: number; tied?: unknown; techniques: string[] }): string {
+		if (n.techniques.includes('dead')) return 'x';
+		const base = n.techniques.includes('harmonic') ? `<${n.fret}>` : String(n.fret);
+		return n.techniques.includes('ghost') || n.tied ? `(${base})` : base;
+	}
 
 	const FX = '[font:600_8px_ui-sans-serif,sans-serif] fill-[#71717a] [text-anchor:middle]';
 	// Bend value label: left-anchored so it sits to the RIGHT of the bend
@@ -50,11 +62,7 @@
      snugly to the label so the mask hides only the line behind the digits. -->
 {#each beats as beat (beat.index)}
 	{#each beat.notes as n (n.string)}
-		{@const label = n.techniques.includes('dead')
-			? 'x'
-			: n.techniques.includes('ghost') || n.tied
-				? `(${n.fret})`
-				: String(n.fret)}
+		{@const label = fretText(n)}
 		{@const maskW = label.length * 6.5 + 3}
 		<rect x={n.x - maskW / 2} y={n.tabY - 4.5} width={maskW} height="9" class="fill-paper" />
 	{/each}
@@ -73,6 +81,9 @@
 {/if}
 
 {#each letRingSpans(beats) as span (span.x1)}
+	<!-- Drawn in the extra headroom layout reserves above the top string line
+	     whenever the track uses let-ring (see layout's `tabTop`), so the label
+	     and dashed line sit clear of fret numbers and per-note marks (◇, T…). -->
 	<!-- "let ring" label + dashed extent. The dashed line always begins after
 	     the label text (lineStart) and is clamped so it can never run back to
 	     the left and overlap the words, no matter how short or how near the
@@ -97,7 +108,7 @@
 		class="stroke-[#a1a1aa] [stroke-width:1] [stroke-dasharray:3_2]"
 	/>
 {/each}
-{#each beats as beat (beat.index)}
+{#each beats as beat, bi (beat.index)}
 	{#if vIdx === 0 && isPlayingBeat(measureIndex, beat.index)}
 		<rect x={beat.x - 9} y="6" width="18" height={bandHeight - 12} class={BG_PLAY} />
 	{:else if isCursorBeat(measureIndex, beat.index, vIdx, isActiveTrack)}
@@ -105,7 +116,7 @@
 		{#if isActiveTrack}
 			<rect
 				x={beat.x - 9}
-				y={14 + store.cursor.string * METRICS.tabLineGap - 6}
+				y={tabTop + store.cursor.string * METRICS.tabLineGap - 6}
 				width="18"
 				height="12"
 				class="fill-[rgba(24,24,27,0.14)] [rx:2] print:hidden"
@@ -175,8 +186,8 @@
 		{@const isDead = n.techniques.includes('dead')}
 		<!-- Tied continuations read like ghost notes in tab: parenthesised fret
 		     under the tie arc, so they aren't mistaken for a restrike. -->
-		{@const inParens = n.techniques.includes('ghost') || !!n.tied}
-		{@const fretLabel = isDead ? 'x' : inParens ? `(${n.fret})` : String(n.fret)}
+		{@const fretLabel = fretText(n)}
+		{@const labelW = fretLabel.length * 6.5 + 3}
 		{@const isNoteSelected =
 			store.noteSelection !== null &&
 			store.noteSelection.measure === measureIndex &&
@@ -185,9 +196,9 @@
 			store.noteSelection.strings.has(n.string)}
 		{#if isNoteSelected}
 			<rect
-				x={n.x - (inParens ? 10 : 6) - 1}
+				x={n.x - labelW / 2 - 1}
 				y={n.tabY - 5}
-				width={inParens ? 22 : 15}
+				width={labelW + 2}
 				height="12"
 				class="fill-[rgba(24,24,27,0.22)] [rx:3]"
 			/>
@@ -197,9 +208,6 @@
 		>
 		{#if n.techniques.includes('palm-mute')}
 			<text x={n.x} y={n.tabY - 9} class={FX}>P.M.</text>
-		{/if}
-		{#if n.techniques.includes('harmonic')}
-			<text x={n.x} y={n.tabY - 9} class={FX}>◇</text>
 		{/if}
 		{#if n.techniques.includes('artificial-harmonic')}
 			<text x={n.x} y={n.tabY - 18} class={FX}>A.H.</text>
@@ -275,10 +283,20 @@
 			<text x={n.x + 24} y={n.tabY - 13} class={BEND_TEXT}>br</text>
 		{/if}
 		{#if n.techniques.includes('slide') && n.slideTo !== undefined}
+			<!-- Slide stroke ends short of the next beat's fret label (whose width
+			     depends on its digits/parens) instead of running a fixed length,
+			     so it never strikes through the destination number. -->
+			{@const nextBeat = beats[bi + 1]}
+			{@const nextNote = nextBeat?.notes.find((m) => m.string === n.string)}
+			{@const nextLabel = nextNote ? fretText(nextNote) : null}
+			{@const nextClear = nextBeat
+				? nextBeat.x - (nextLabel ? (nextLabel.length * 6.5 + 3) / 2 + 2 : 9)
+				: Infinity}
+			{@const slideEnd = Math.max(n.x + 13, Math.min(n.x + 24, nextClear))}
 			<line
 				x1={n.x + 8}
 				y1={n.tabY + (n.slideTo > n.fret ? 3 : -3)}
-				x2={n.x + 24}
+				x2={slideEnd}
 				y2={n.tabY + (n.slideTo > n.fret ? -3 : 3)}
 				class="stroke-[#52525b] [stroke-width:1.6]"
 			/>

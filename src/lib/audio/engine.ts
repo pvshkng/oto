@@ -81,6 +81,8 @@ export class AudioEngine {
 
 	/** Channel map + beat table of the currently loaded song. */
 	private channels = new Map<string, number>();
+	/** Track id → companion Guitar-Harmonics channel; mirrors the track's mix. */
+	private harmonicChannels = new Map<string, number>();
 	private beatTicks: CompiledSong['beatTicks'] = [];
 	private lastBeatIndex = -1;
 	/** Tracks passed to the current/last play() call — read by syncAllTracks
@@ -263,10 +265,21 @@ export class AudioEngine {
 		const synth = this.synth;
 		const channel = this.channels.get(track.id);
 		if (!synth || channel === undefined) return;
-		synth.setChannelVolume(channel, Math.max(0, Math.min(1, track.volume ?? 1)));
-		synth.setChannelMute(channel, track.muted);
-		synth.setChannelSolo(channel, track.soloed);
+		for (const ch of this.trackChannels(track.id)) {
+			synth.setChannelVolume(ch, Math.max(0, Math.min(1, track.volume ?? 1)));
+			synth.setChannelMute(ch, track.muted);
+			synth.setChannelSolo(ch, track.soloed);
+		}
 		this.syncMetronomeSolo(this.currentTracks);
+	}
+
+	/** A track's main channel plus its harmonic companion (when it has one) —
+	 *  every live mix change must hit both so harmonics follow the fader. */
+	private trackChannels(trackId: string): number[] {
+		const main = this.channels.get(trackId);
+		if (main === undefined) return [];
+		const harmonic = this.harmonicChannels.get(trackId);
+		return harmonic !== undefined && harmonic !== main ? [main, harmonic] : [main];
 	}
 
 	/**
@@ -283,11 +296,11 @@ export class AudioEngine {
 		// has no channel for the audio, so we enforce it here by muting them all.
 		const audioSolo = store.score.audio?.soloed ?? false;
 		for (const t of tracks) {
-			const channel = this.channels.get(t.id);
-			if (channel === undefined) continue;
-			synth.setChannelVolume(channel, Math.max(0, Math.min(1, t.volume ?? 1)));
-			synth.setChannelMute(channel, t.muted || audioSolo);
-			synth.setChannelSolo(channel, t.soloed);
+			for (const channel of this.trackChannels(t.id)) {
+				synth.setChannelVolume(channel, Math.max(0, Math.min(1, t.volume ?? 1)));
+				synth.setChannelMute(channel, t.muted || audioSolo);
+				synth.setChannelSolo(channel, t.soloed);
+			}
 		}
 		this.syncMetronomeSolo(tracks);
 	}
@@ -349,6 +362,7 @@ export class AudioEngine {
 		const alphaTab = this.alphaTab!;
 
 		this.channels = compiled.channels;
+		this.harmonicChannels = compiled.harmonicChannels;
 		this.beatTicks = compiled.beatTicks;
 		this.lastBeatIndex = -1;
 		this.onBeatMarker = opts.onBeatMarker;

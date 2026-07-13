@@ -186,6 +186,9 @@ export interface TrackLayout {
 	totalHeight: number;
 	stringCount: number;
 	bands: { standard: Band | null; tab: Band | null; rhythm: Band | null };
+	/** y of the tab band's top string line within the band (extra headroom is
+	 *  reserved above it when the track uses "let ring"). */
+	tabTop: number;
 	/** Which clef the standard staff is drawn in for this track. */
 	clef: Clef;
 	/** Key-signature accidental glyphs to draw after the clef, at the start of
@@ -435,7 +438,17 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 	const headerWidth = METRICS.headerWidth + keySigWidth;
 	// top pad + 5 line-gaps (top line to bottom line) + bottom ledger room
 	const standardHeight = METRICS.stdTopPad + METRICS.staffLineGap * 5 + 36;
-	const tabHeight = (stringCount - 1) * METRICS.tabLineGap + 28;
+	// A "let ring" span draws its label + dashed line across the top of the tab
+	// band, in the same strip the per-note marks (harmonic ◇, tap T, tie arcs)
+	// already occupy — so when the track uses let-ring anywhere, the band gets
+	// extra headroom and the string lines shift down out of the way.
+	const hasLetRing = track.measures.some((m) =>
+		[...m.beats, ...(m.voice2 ?? [])].some((b) =>
+			b.notes.some((n) => n.techniques?.includes('let-ring'))
+		)
+	);
+	const tabTop = 14 + (hasLetRing ? 12 : 0);
+	const tabHeight = tabTop + (stringCount - 1) * METRICS.tabLineGap + 14;
 	const rhythmHeight = 30;
 
 	// Sections lettered A–Z by position (index in the measure-sorted list),
@@ -625,7 +638,7 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 							midi + notationOctaveShift(track.kind) + ottavaWrittenShift(beat.ottava),
 							preferFlat
 						);
-						const tabY = bands.tab ? n.string * METRICS.tabLineGap + 14 : 0;
+						const tabY = bands.tab ? n.string * METRICS.tabLineGap + tabTop : 0;
 						const stdY = standardNoteY(step, clef);
 						const keyDefault = keyLetterDefaults.get(letterClassOf(step)) ?? null;
 						return {
@@ -737,6 +750,7 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 		totalHeight: yy + 8,
 		stringCount,
 		bands,
+		tabTop,
 		clef,
 		keySigGlyphs,
 		keySigWidth

@@ -121,7 +121,7 @@
 
 		let string = store.cursor.string;
 		if (band === 'tab' && layout.bands.tab) {
-			const localY = py - layout.bands.tab.offsetY - 14;
+			const localY = py - layout.bands.tab.offsetY - layout.tabTop;
 			string = Math.max(
 				0,
 				Math.min(track.tuning.length - 1, Math.round(localY / METRICS.tabLineGap))
@@ -241,8 +241,8 @@
 			bottoms.push(mid + 8);
 		}
 		if (b.tab) {
-			tops.push(b.tab.offsetY + 14);
-			bottoms.push(b.tab.offsetY + 14 + (track.tuning.length - 1) * METRICS.tabLineGap);
+			tops.push(b.tab.offsetY + layout.tabTop);
+			bottoms.push(b.tab.offsetY + layout.tabTop + (track.tuning.length - 1) * METRICS.tabLineGap);
 		}
 		if (!tops.length) return null;
 		return { top: Math.min(...tops), bottom: Math.max(...bottoms) };
@@ -523,8 +523,8 @@
 							<!-- ===== Tablature band ===== -->
 							{#if layout.bands.tab}
 								{@const band = layout.bands.tab}
-								{@const tabTop = 14}
-								{@const tabBottom = 14 + (track.tuning.length - 1) * METRICS.tabLineGap}
+								{@const tabTop = layout.tabTop}
+								{@const tabBottom = layout.tabTop + (track.tuning.length - 1) * METRICS.tabLineGap}
 								{@const tabMid = (tabTop + tabBottom) / 2}
 								<g
 									transform="translate(0,{band.offsetY})"
@@ -553,18 +553,18 @@
 									{#each track.tuning as _, i (i)}
 										<line
 											x1={measure.x + (measure.showHeader ? 4 : 0)}
-											y1={14 + i * METRICS.tabLineGap}
+											y1={tabTop + i * METRICS.tabLineGap}
 											x2={measure.x + measure.width}
-											y2={14 + i * METRICS.tabLineGap}
+											y2={tabTop + i * METRICS.tabLineGap}
 											class={STAFF_LINE}
 										/>
 									{/each}
 									<!-- Opening barline flush with the (inset) string lines. -->
 									<line
 										x1={measure.x + (measure.showHeader ? 4 : 0)}
-										y1={14}
+										y1={tabTop}
 										x2={measure.x + (measure.showHeader ? 4 : 0)}
-										y2={14 + (track.tuning.length - 1) * METRICS.tabLineGap}
+										y2={tabTop + (track.tuning.length - 1) * METRICS.tabLineGap}
 										class={BARLINE}
 									/>
 									{#if measure.repeatStart}
@@ -672,7 +672,7 @@
 									{#if measure.showHeader}
 										<text
 											x={measure.x + 8}
-											y={14 + ((track.tuning.length - 1) * METRICS.tabLineGap) / 2 + 4}
+											y={tabTop + ((track.tuning.length - 1) * METRICS.tabLineGap) / 2 + 4}
 											class="[font:700_9px_ui-sans-serif,sans-serif] fill-[#a1a1aa] tracking-[1px]"
 											>TAB</text
 										>
@@ -683,6 +683,7 @@
 										measureIndex={measure.index}
 										vIdx={0}
 										bandHeight={band.height}
+										{tabTop}
 										{isActiveTrack}
 										{trackIndex}
 										showMarks={!layout.bands.standard}
@@ -693,6 +694,7 @@
 											measureIndex={measure.index}
 											vIdx={1}
 											bandHeight={band.height}
+											{tabTop}
 											{isActiveTrack}
 											{trackIndex}
 											showMarks={!layout.bands.standard}
