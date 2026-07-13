@@ -8,6 +8,15 @@
 // synth's context is tuned for output latency and would gain nothing from
 // having a live capture branch grafted onto it.
 //
+// Levels: getUserMedia runs with the speech DSP (AGC etc.) disabled, so raw
+// capture level varies wildly across devices — phone mics are near-silent at
+// arm's length, desktop mics often run hot. Detection therefore never looks at
+// absolute amplitude: each window that clears a low noise floor is
+// renormalised to TARGET_RMS (software AGC), and a correlation-confidence
+// gate rejects windows with no real periodicity, however loud. The optional
+// user `gain` only scales the noise-floor gate (a sensitivity control) and is
+// persisted across sessions.
+//
 // Permission handling: before prompting we consult the Permissions API (where
 // supported) so an already-denied mic short-circuits to the `denied` state
 // instead of a getUserMedia call that instantly rejects. We also subscribe to
@@ -36,20 +45,33 @@ const DETECT_INTERVAL_MS = 33;
 /** Keep showing the last note this long after the signal fades, so the readout
  *  doesn't flicker between plucks. */
 const HOLD_MS = 750;
-/** RMS floor below which the input counts as silence. */
-const MIN_RMS = 0.01;
+/** Post-gain RMS floor below which the input counts as silence. Deliberately
+ *  low: with autoGainControl disabled, phone mics a metre from an acoustic
+ *  guitar sit around 0.002–0.005 RMS. Loud broadband noise passing this gate
+ *  is rejected by the correlation-confidence check instead. */
+export const NOISE_FLOOR = 0.0015;
+/** Every window that clears the noise floor is renormalised to this RMS
+ *  before detection (software AGC), so a whisper-quiet phone mic and a hot
+ *  desktop input hit the detector at the same working level. */
+const TARGET_RMS = 0.25;
+/** Minimum normalised autocorrelation peak to accept a pitch. Periodic
+ *  signals score near 1; broadband room noise scores well under 0.5, so this
+ *  keeps a hot mic's ambient noise from reading as random notes. */
+const MIN_CONFIDENCE = 0.8;
+/** User "mic volume" multiplier bounds; scales the input before the silence
+ *  gate, i.e. it is a sensitivity control. */
+const MIN_GAIN = 0.25;
+const MAX_GAIN = 8;
+const GAIN_KEY = 'oto.tunerGain';
 
 /**
  * Time-domain autocorrelation with silence-trim and parabolic peak
- * interpolation (the widely used "ACF2+" approach). Returns the fundamental in
- * Hz, or -1 when the window holds no confident pitch.
+ * interpolation (the widely used "ACF2+" approach), plus a normalised-peak
+ * confidence gate. Expects input already normalised to TARGET_RMS. Returns
+ * the fundamental in Hz, or -1 when the window holds no confident pitch.
  */
-function autoCorrelate(input: Float32Array, sampleRate: number): number {
+export function autoCorrelate(input: Float32Array, sampleRate: number): number {
 	let size = input.length;
-	let rms = 0;
-	for (let i = 0; i < size; i++) rms += input[i] * input[i];
-	rms = Math.sqrt(rms / size);
-	if (rms < MIN_RMS) return -1;
 
 	// Trim the leading/trailing low-amplitude tails: correlating mostly-silence
 	// biases the peak search toward spurious long lags.
@@ -92,6 +114,14 @@ function autoCorrelate(input: Float32Array, sampleRate: number): number {
 	}
 	if (maxpos <= 0) return -1;
 
+	// Confidence: the peak relative to zero-lag energy, compensated for the
+	// shorter overlap at longer lags (c[lag] sums size−lag products). A truly
+	// periodic signal scores ~1 here; noise has no strong repeat and scores
+	// low, whatever its level — this is what keeps a loud room quiet on the
+	// readout.
+	const confidence = (maxval / c[0]) * (size / (size - maxpos));
+	if (confidence < MIN_CONFIDENCE) return -1;
+
 	// Parabolic interpolation around the peak for sub-sample lag precision —
 	// at 44.1 kHz a whole-sample lag step near 330 Hz is ~2.5 cents, too coarse.
 	let t0 = maxpos;
@@ -118,6 +148,11 @@ class TunerController {
 	/** Deviation from that note in cents (−50…+50). */
 	cents = $state(0);
 
+	/** User mic-volume multiplier (sensitivity). 1 = as captured. */
+	gain = $state(1);
+	/** Post-gain input level (RMS, instant attack / fast decay) for the meter. */
+	level = $state(0);
+
 	#stream: MediaStream | null = null;
 	#ctx: AudioContext | null = null;
 	#analyser: AnalyserNode | null = null;
@@ -126,6 +161,25 @@ class TunerController {
 	#lastDetect = 0;
 	#lastHeard = 0;
 	#permStatus: PermissionStatus | null = null;
+
+	constructor() {
+		if (typeof localStorage !== 'undefined') {
+			const saved = Number(localStorage.getItem(GAIN_KEY));
+			if (Number.isFinite(saved) && saved > 0) {
+				this.gain = Math.min(MAX_GAIN, Math.max(MIN_GAIN, saved));
+			}
+		}
+	}
+
+	/** Set the mic-volume multiplier (clamped) and persist it. */
+	setGain(g: number) {
+		this.gain = Math.min(MAX_GAIN, Math.max(MIN_GAIN, g));
+		try {
+			localStorage.setItem(GAIN_KEY, String(this.gain));
+		} catch {
+			// Persistence is best-effort (private browsing, quota).
+		}
+	}
 
 	/** Open the microphone and begin pitch detection. Safe to call again while
 	 *  already running (no-op) or after a denial (retries the prompt). */
@@ -214,6 +268,7 @@ class TunerController {
 		this.freq = 0;
 		this.midi = -1;
 		this.cents = 0;
+		this.level = 0;
 		this.status = 'idle';
 	}
 
@@ -249,7 +304,24 @@ class TunerController {
 		this.#lastDetect = now;
 
 		this.#analyser.getFloatTimeDomainData(this.#buf);
-		const f = autoCorrelate(this.#buf, this.#ctx.sampleRate);
+		const buf = this.#buf;
+		let rms = 0;
+		for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
+		rms = Math.sqrt(rms / buf.length);
+		const heard = rms * this.gain;
+		// Instant attack, quick decay — reads like a meter, not a flicker.
+		this.level = Math.max(heard, this.level * 0.7);
+
+		let f = -1;
+		if (heard >= NOISE_FLOOR) {
+			// Software AGC: renormalise the window to a fixed working level so
+			// detection is independent of how hot or quiet the device's mic is.
+			// (The user gain deliberately isn't part of the scale — it only moves
+			// the silence gate above, acting as a sensitivity control.)
+			const k = TARGET_RMS / rms;
+			for (let i = 0; i < buf.length; i++) buf[i] *= k;
+			f = autoCorrelate(buf, this.#ctx.sampleRate);
+		}
 		if (f >= MIN_FREQ && f <= MAX_FREQ) {
 			this.#lastHeard = now;
 			this.freq = f;

@@ -4,9 +4,12 @@
 	// triggers the permission prompt on first use) and unmounting releases the
 	// microphone, so the mic is only live while the tuner is on screen.
 	import { onMount } from 'svelte';
-	import { tuner } from '$lib/audio/tuner.svelte';
+	import { tuner, NOISE_FLOOR } from '$lib/audio/tuner.svelte';
 	import { midiToPitchClass } from '$lib/oto/pitch';
+	import * as Popover from '$lib/components/ui/popover';
+	import { MIXER_FADER_CLASS } from './tracks-panel/mixer-fader';
 	import Spinner from './Spinner.svelte';
+	import Faders from 'phosphor-svelte/lib/Faders';
 	import MicrophoneSlash from 'phosphor-svelte/lib/MicrophoneSlash';
 	import Warning from 'phosphor-svelte/lib/Warning';
 
@@ -14,6 +17,13 @@
 		void tuner.start();
 		return () => tuner.stop();
 	});
+
+	let micOpen = $state(false);
+	/** Input level on a dB scale for the meter: −60 dB…0 dB → 0…100%. */
+	const levelPct = $derived(
+		tuner.level > 0 ? Math.max(0, Math.min(100, (20 * Math.log10(tuner.level) + 60) / 0.6)) : 0
+	);
+	const hasSignal = $derived(tuner.level >= NOISE_FLOOR);
 
 	const hasPitch = $derived(tuner.status === 'listening' && tuner.midi >= 0);
 	const pitchClass = $derived(hasPitch ? midiToPitchClass(tuner.midi) : '');
@@ -26,7 +36,7 @@
 	const TICKS = [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40, 50];
 </script>
 
-<div class="flex flex-col gap-3 p-4">
+<div class="relative flex flex-col gap-3 p-4">
 	{#if tuner.status === 'denied'}
 		<div class="flex flex-col items-center gap-2 py-4 text-center">
 			<MicrophoneSlash class="size-6 text-text-muted" />
@@ -69,6 +79,46 @@
 		</div>
 	{:else}
 		<!-- listening (or the brief idle before start settles) -->
+		<Popover.Root bind:open={micOpen}>
+			<Popover.Trigger
+				class="absolute top-1.5 right-1.5 cursor-pointer rounded-md bg-transparent [background-image:none!important] p-1.5 text-text-muted hover:bg-panel-2 hover:text-ink"
+				title="Mic volume"
+				aria-label="Mic volume"
+			>
+				<Faders class="size-4" />
+			</Popover.Trigger>
+			<!-- z-[70]: must clear the floating tuner window itself (panels stack at 50–60). -->
+			<Popover.Content side="bottom" align="end" class="z-[70] w-56 p-3">
+				<div class="mb-2 flex items-center justify-between">
+					<span class="text-xs font-semibold">Mic volume</span>
+					<span class="text-[11px] text-text-muted tabular-nums"
+						>{Math.round(tuner.gain * 100)}%</span
+					>
+				</div>
+				<input
+					type="range"
+					min="-2"
+					max="3"
+					step="0.05"
+					aria-label="Mic volume"
+					class="{MIXER_FADER_CLASS} w-full"
+					value={Math.log2(tuner.gain)}
+					aria-valuetext={`${Math.round(tuner.gain * 100)} percent`}
+					oninput={(e) => tuner.setGain(2 ** e.currentTarget.valueAsNumber)}
+				/>
+				<div class="mt-3 flex items-center gap-2">
+					<span class="text-[11px] text-text-muted">Level</span>
+					<div class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-panel-2">
+						<div
+							class="h-full rounded-full transition-[width] duration-75 {hasSignal
+								? 'bg-emerald-600'
+								: 'bg-border-strong'}"
+							style="width: {levelPct}%"
+						></div>
+					</div>
+				</div>
+			</Popover.Content>
+		</Popover.Root>
 		<div class="flex h-20 items-end justify-center">
 			{#if hasPitch}
 				<span
