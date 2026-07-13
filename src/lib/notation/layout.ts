@@ -328,10 +328,31 @@ function naturalBeatWidth(frac: number): number {
 	return METRICS.beatWidthBase + METRICS.beatWidthScale * Math.sqrt(Math.max(0, frac));
 }
 
+/** Ink width (px) of a beat's widest tab fret label. Mirrors TabVoice's
+ *  fretText/mask sizing (label.length * 6.5 + 3): harmonics read as `<12>`
+ *  and ghost/tied notes wrap in parens, so those labels need real horizontal
+ *  room or neighbouring beats' numbers collide. 0 for rests. */
+function tabLabelWidth(beat: OtoMeasure['beats'][number]): number {
+	let w = 0;
+	for (const n of beat.notes ?? []) {
+		let len: number;
+		if (n.techniques?.includes('dead')) len = 1;
+		else {
+			len = String(n.fret).length + (n.techniques?.includes('harmonic') ? 2 : 0);
+			if (n.techniques?.includes('ghost') || n.tied) len += 2;
+		}
+		w = Math.max(w, len * 6.5 + 3);
+	}
+	return w;
+}
+
 function naturalMeasureInner(measure: OtoMeasure | undefined): number {
 	if (!measure) return METRICS.measureMinInner;
 	const voiceInner = (beats: OtoMeasure['beats']) =>
-		beats.reduce((s, b) => s + naturalBeatWidth(beatFraction(b)), 0);
+		beats.reduce(
+			(s, b) => s + Math.max(naturalBeatWidth(beatFraction(b)), tabLabelWidth(b) + 6),
+			0
+		);
 	const inner = Math.max(
 		voiceInner(measure.beats),
 		measure.voice2?.length ? voiceInner(measure.voice2) : 0
@@ -562,34 +583,55 @@ export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOption
 			const beatUnit = 1 / ts[1];
 
 			const hasV2 = !!(measure.voice2 && measure.voice2.length);
+			// Onset + widest fret label per beat, so columns holding wide labels
+			// (`<12>`, `(12)`…) can claim extra horizontal room below.
 			const onsetsOf = (vbeats: typeof measure.beats) => {
 				let acc = 0;
 				return vbeats.map((b) => {
-					const o = acc;
+					const e = { o: acc, w: tabLabelWidth(b) };
 					acc += beatFraction(b);
-					return o;
+					return e;
 				});
 			};
 			const v1Total = measure.beats.reduce((s, b) => s + beatFraction(b), 0);
 			const v2Total = hasV2 ? measure.voice2!.reduce((s, b) => s + beatFraction(b), 0) : 0;
 			const totalFrac = Math.max(v1Total, v2Total) || 1;
 			const columns: number[] = [];
-			for (const o of [
+			const colLabelW: number[] = [];
+			for (const { o, w } of [
 				...onsetsOf(measure.beats),
 				...(hasV2 ? onsetsOf(measure.voice2!) : [])
-			].sort((a, b) => a - b)) {
-				if (!columns.length || o - columns[columns.length - 1] > 1e-6) columns.push(o);
+			].sort((a, b) => a.o - b.o)) {
+				if (!columns.length || o - columns[columns.length - 1] > 1e-6) {
+					columns.push(o);
+					colLabelW.push(w);
+				} else {
+					colLabelW[colLabelW.length - 1] = Math.max(colLabelW[colLabelW.length - 1], w);
+				}
 			}
-			if (!columns.length) columns.push(0);
+			if (!columns.length) {
+				columns.push(0);
+				colLabelW.push(0);
+			}
 			const colCount = columns.length;
-			const flex = innerWidth - colCount * METRICS.beatAdvanceMin;
+			// Per-column minimum advance: at least beatAdvanceMin, and at least
+			// enough that this column's centre-anchored label clears the next
+			// one's (half of each, plus a gap). The last column clears the
+			// barline with its own half-width instead.
+			const minAdv = colLabelW.map((w, k) =>
+				Math.max(METRICS.beatAdvanceMin, w / 2 + (k + 1 < colCount ? colLabelW[k + 1] / 2 : 0) + 6)
+			);
+			const minTotal = minAdv.reduce((s, a) => s + a, 0);
+			const flex = innerWidth - minTotal;
 			const colX: number[] = [];
 			let cx = innerStart + 8;
 			for (let k = 0; k < colCount; k++) {
 				colX.push(cx);
 				const segFrac = (k + 1 < colCount ? columns[k + 1] : totalFrac) - columns[k];
 				cx +=
-					flex >= 0 ? METRICS.beatAdvanceMin + (segFrac / totalFrac) * flex : innerWidth / colCount;
+					flex >= 0
+						? minAdv[k] + (segFrac / totalFrac) * flex
+						: (minAdv[k] / minTotal) * innerWidth;
 			}
 			const bounds = [...columns, Math.max(totalFrac, columns[colCount - 1] + 1e-9)];
 			const colXEnds = [...colX, cx];
