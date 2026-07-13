@@ -53,8 +53,9 @@ export type Dock = 'left' | 'right' | 'bottom' | 'float';
 
 /** The desktop panels that can be freely docked/undocked and remember their
  *  placement. `song`/`track`/`tempo`/`addRemove` all render through RightPanel
- *  (one open at a time) but each remembers its own dock independently. */
-export type PanelId = 'note' | 'keys' | 'song' | 'track' | 'tempo' | 'addRemove';
+ *  (one open at a time) but each remembers its own dock independently. `tuner`
+ *  is float-only on desktop and a modal on mobile. */
+export type PanelId = 'note' | 'keys' | 'song' | 'track' | 'tempo' | 'addRemove' | 'tuner';
 
 /** Persisted placement for one panel: which edge it's docked to (or `float`),
  *  plus the last floating-window offset so it reopens where the user left it. */
@@ -76,7 +77,10 @@ const PANEL_ALLOWED: Record<PanelId, Dock[]> = {
 	song: ['left', 'right', 'float'],
 	track: ['left', 'right', 'float'],
 	tempo: ['left', 'right', 'float'],
-	addRemove: ['left', 'right', 'float']
+	addRemove: ['left', 'right', 'float'],
+	// The tuner is a compact readout widget — always a small floating window on
+	// desktop (mobile shows it as a modal instead).
+	tuner: ['float']
 };
 
 const PANEL_DEFAULT_DOCK: Record<PanelId, Dock> = {
@@ -85,14 +89,15 @@ const PANEL_DEFAULT_DOCK: Record<PanelId, Dock> = {
 	song: 'right',
 	track: 'right',
 	tempo: 'right',
-	addRemove: 'right'
+	addRemove: 'right',
+	tuner: 'float'
 };
 
 const PANEL_IDS = Object.keys(PANEL_ALLOWED) as PanelId[];
 
 /** Tie-break order when normalizing a legacy layout that somehow put two panels
  *  on the same edge — the first listed keeps the slot, later ones are floated. */
-const PANEL_PRIORITY: PanelId[] = ['note', 'song', 'track', 'tempo', 'addRemove', 'keys'];
+const PANEL_PRIORITY: PanelId[] = ['note', 'song', 'track', 'tempo', 'addRemove', 'keys', 'tuner'];
 
 function defaultPanelLayout(): Record<PanelId, PanelLayout> {
 	return Object.fromEntries(
@@ -182,6 +187,9 @@ export class ScoreStore {
 	addRemoveOpen = $state(false);
 	trackControlOpen = $state(false);
 	trackControlIndex = $state(-1);
+	/** Chromatic tuner — a floating window on desktop, a modal on mobile (so it
+	 *  survives the breakpoint switch open, just changing its clothes). */
+	tunerOpen = $state(false);
 
 	// Desktop panel placement. Each panel (note editor, key-input pad, song/track/
 	// tempo/add-remove) can be docked to an edge or floated freely, and remembers
@@ -294,6 +302,8 @@ export class ScoreStore {
 				return this.tempoOpen;
 			case 'addRemove':
 				return this.addRemoveOpen;
+			case 'tuner':
+				return this.tunerOpen;
 		}
 	}
 
@@ -317,6 +327,9 @@ export class ScoreStore {
 			case 'addRemove':
 				this.addRemoveOpen = v;
 				break;
+			case 'tuner':
+				this.tunerOpen = v;
+				break;
 		}
 	}
 
@@ -326,25 +339,31 @@ export class ScoreStore {
 	 *  floating instead, letting several coexist on screen. */
 	openPanel(id: PanelId) {
 		this.#setPanelOpen(id, true);
-		const dock = this.panelLayout[id].dock;
-		if (
-			this.isDesktop &&
-			(dock === 'left' || dock === 'right') &&
-			PANEL_IDS.some((o) => o !== id && this.isPanelOpen(o) && this.panelLayout[o].dock === dock)
-		) {
-			// The remembered edge is taken by another open panel — open floating
-			// instead so both stay visible. Cascade never-placed windows (offset
-			// 0,0) clear of the left column so they don't stack on top of each
-			// other or a left-docked panel; keep an explicitly-placed spot as-is.
-			this.panelLayout[id].dock = 'float';
-			if (this.panelLayout[id].x === 0 && this.panelLayout[id].y === 0) {
+		const p = this.panelLayout[id];
+		if (this.isDesktop) {
+			if (
+				(p.dock === 'left' || p.dock === 'right') &&
+				PANEL_IDS.some(
+					(o) => o !== id && this.isPanelOpen(o) && this.panelLayout[o].dock === p.dock
+				)
+			) {
+				// The remembered edge is taken by another open panel — open floating
+				// instead so both stay visible.
+				p.dock = 'float';
+				this.#persistPrefs();
+			}
+			// Cascade never-placed floating windows (offset 0,0) clear of the left
+			// column so they don't stack on top of each other or a left-docked
+			// panel; an explicitly-placed spot is kept as-is. Also covers panels
+			// that are float-by-default (the tuner) on their first open.
+			if (p.dock === 'float' && p.x === 0 && p.y === 0) {
 				const others = PANEL_IDS.filter(
 					(o) => o !== id && this.isPanelOpen(o) && this.panelLayout[o].dock === 'float'
 				).length;
-				this.panelLayout[id].x = 340 + others * 30;
-				this.panelLayout[id].y = 24 + others * 30;
+				p.x = 340 + others * 30;
+				p.y = 24 + others * 30;
+				this.#persistPrefs();
 			}
-			this.#persistPrefs();
 		}
 		this.bringToFront(id);
 	}

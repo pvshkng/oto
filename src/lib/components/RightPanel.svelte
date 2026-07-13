@@ -19,7 +19,7 @@
 		which,
 		placement = 'right'
 	}: {
-		which: Exclude<PanelId, 'note' | 'keys'>;
+		which: Exclude<PanelId, 'note' | 'keys' | 'tuner'>;
 		placement?: 'left' | 'right' | 'bottom' | 'float';
 	} = $props();
 

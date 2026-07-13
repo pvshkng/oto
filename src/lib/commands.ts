@@ -43,6 +43,7 @@ import Eraser from 'phosphor-svelte/lib/Eraser';
 import MusicNote from 'phosphor-svelte/lib/MusicNote';
 import Sparkle from 'phosphor-svelte/lib/Sparkle';
 import Clock from 'phosphor-svelte/lib/Clock';
+import TuningFork from '$lib/components/icons/TuningFork.svelte';
 
 export interface Cmd {
 	id: string;
@@ -507,6 +508,14 @@ export function transportCommands(): Cmd[] {
 			icon: Repeat,
 			active: store.loopEnabled,
 			run: () => (store.loopEnabled = !store.loopEnabled)
+		},
+		{
+			id: 'tuner',
+			label: store.tunerOpen ? 'Chromatic tuner (open)' : 'Chromatic tuner',
+			icon: TuningFork,
+			keywords: 'tuner tune pitch fork microphone',
+			active: store.tunerOpen,
+			run: () => store.togglePanel('tuner')
 		}
 	];
 }
@@ -517,7 +526,10 @@ const PANEL_LABELS: Record<PanelId, string> = {
 	song: 'Song details',
 	track: 'Track control',
 	tempo: 'Tempo',
-	addRemove: 'Add / remove'
+	addRemove: 'Add / remove',
+	// Float-only, so panelCommands never emits a dock action for it — listed to
+	// keep the record total over PanelId.
+	tuner: 'Tuner'
 };
 const DOCK_LABELS: Record<Dock, string> = {
 	left: 'dock left',

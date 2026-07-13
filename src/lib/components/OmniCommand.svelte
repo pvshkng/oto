@@ -19,10 +19,13 @@
 </script>
 
 <Dialog.Root bind:open>
+	<!-- z-[70]: floating desktop panels stack at z 50–60 (see store.panelZ) and a
+	     recently-grabbed window would otherwise sit on top of the palette and
+	     swallow clicks on its items. -->
 	<Dialog.Content
-		class="overflow-hidden p-0"
+		class="z-[70] overflow-hidden p-0"
 		showCloseButton={false}
-		overlayClass="bg-transparent"
+		overlayClass="z-[70] bg-transparent"
 		onOpenAutoFocus={(e) => e.preventDefault()}
 	>
 		<Dialog.Title class="sr-only">Command palette</Dialog.Title>

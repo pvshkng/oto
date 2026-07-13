@@ -15,6 +15,7 @@
 	import OmniCommand from './OmniCommand.svelte';
 	import AddRemoveDrawer from './AddRemoveDrawer.svelte';
 	import TempoDrawer from './TempoDrawer.svelte';
+	import TuningFork from './icons/TuningFork.svelte';
 
 	import DotsThreeVertical from 'phosphor-svelte/lib/DotsThreeVertical';
 	import Play from 'phosphor-svelte/lib/Play';
@@ -355,6 +356,19 @@
 			{store.score.tempo}<span class="text-muted-foreground text-[10px] font-semibold">bpm</span>
 		</Button>
 	</div>
+
+	<!-- Chromatic tuner: floating window on desktop, modal on mobile -->
+	<Button
+		variant="outline"
+		size="icon"
+		class={cn('size-9 shrink-0', store.tunerOpen && 'sunk')}
+		title="Chromatic tuner"
+		aria-label="Toggle chromatic tuner"
+		aria-pressed={store.tunerOpen}
+		onclick={() => store.togglePanel('tuner')}
+	>
+		<TuningFork class="size-5" />
+	</Button>
 
 	<!-- Playback speed: standalone button showing icon + multiplier, sunk while
 	     active. Clicking always opens the popover (toggling off happens inside

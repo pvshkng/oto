@@ -18,6 +18,8 @@
 	import PdfExportModal from '$lib/components/PdfExportModal.svelte';
 	import TracksPanel from '$lib/components/TracksPanel.svelte';
 	import RightPanel from '$lib/components/RightPanel.svelte';
+	import TunerPanel from '$lib/components/TunerPanel.svelte';
+	import TunerModal from '$lib/components/TunerModal.svelte';
 	import StatusBanner from '$lib/components/StatusBanner.svelte';
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
@@ -55,8 +57,8 @@
 	// once. Here we resolve *which* panel fills each edge slot (left/right are
 	// single-occupancy, kept so by the store) and which ones float; the panels
 	// render docked-vs-floating from `placement`.
-	type PanelId = 'note' | 'keys' | 'song' | 'track' | 'tempo' | 'addRemove';
-	const PANELS: PanelId[] = ['note', 'keys', 'song', 'track', 'tempo', 'addRemove'];
+	type PanelId = 'note' | 'keys' | 'song' | 'track' | 'tempo' | 'addRemove' | 'tuner';
+	const PANELS: PanelId[] = ['note', 'keys', 'song', 'track', 'tempo', 'addRemove', 'tuner'];
 
 	const openPanels = $derived(PANELS.filter((id) => store.isPanelOpen(id)));
 	function sideOccupant(side: 'left' | 'right'): PanelId | null {
@@ -255,6 +257,9 @@
 				<NotePropertiesPanel {placement} />
 			{:else if id === 'keys'}
 				<KeyInput {placement} />
+			{:else if id === 'tuner'}
+				<!-- float-only, so `placement` is always 'float' here -->
+				<TunerPanel />
 			{:else}
 				<RightPanel which={id} {placement} />
 			{/if}
@@ -485,6 +490,7 @@
 			</div>
 
 			<SongModal />
+			<TunerModal />
 		</div>
 	{/if}
 
