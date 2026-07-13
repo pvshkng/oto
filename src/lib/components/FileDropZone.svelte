@@ -48,8 +48,10 @@
 		try {
 			const files = await import('$lib/io/files');
 			await files.openLocalFile(file);
-		} catch {
-			toast.error(`Could not open ${file.name}.`);
+		} catch (e) {
+			toast.error(`Could not open ${file.name}.`, {
+				description: e instanceof Error ? e.message : undefined
+			});
 		}
 	}
 </script>

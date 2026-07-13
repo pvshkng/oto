@@ -207,9 +207,20 @@ function convertMeasures(
 ): OtoMeasure[] {
 	const convertBeats = (atBeats: AtBeat[] | undefined): OtoBeat[] =>
 		(atBeats ?? []).map((beat) => {
-			const notes: OtoNote[] = (beat.notes ?? [])
-				.map((n) => convertNote(n, beat))
-				.filter((n): n is OtoNote => n !== null);
+			// One note per string per beat: string clamping (a note outside the
+			// staff's string range) and distinct percussion pieces resolving to the
+			// same GM number can both map two alphaTab notes onto the same .oto
+			// string. Duplicates would crash the string-keyed renderer, so keep the
+			// first note per string.
+			const notes: OtoNote[] = [];
+			const usedStrings = new Set<number>();
+			for (const atNote of beat.notes ?? []) {
+				const n = convertNote(atNote, beat);
+				if (n && !usedStrings.has(n.string)) {
+					usedStrings.add(n.string);
+					notes.push(n);
+				}
+			}
 			return {
 				duration: clampDuration(beat.duration),
 				dotted: (beat.dots ?? 0) > 0,

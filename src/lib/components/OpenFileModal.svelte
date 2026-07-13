@@ -11,6 +11,12 @@
 
 	let recents = $state<RecentFile[]>([]);
 
+	// Import failures carry useful messages (bad JSON, unsupported GP content,
+	// alphaTab parse errors) — show them instead of a bare "could not open".
+	function openError(title: string, e: unknown) {
+		toast.error(title, { description: e instanceof Error ? e.message : undefined });
+	}
+
 	$effect(() => {
 		if (store.openFileModalOpen) recents = getRecentFiles();
 	});
@@ -25,8 +31,8 @@
 		try {
 			const files = await import('$lib/io/files');
 			await files.openFile();
-		} catch {
-			toast.error('Could not open that file.');
+		} catch (e) {
+			openError('Could not open that file.', e);
 		}
 	}
 
@@ -36,8 +42,8 @@
 		try {
 			const files = await import('$lib/io/files');
 			await files.openWithLoading(f.name, () => f.content);
-		} catch {
-			toast.error(`Could not open ${f.name}.`);
+		} catch (e) {
+			openError(`Could not open ${f.name}.`, e);
 		}
 	}
 
@@ -47,8 +53,8 @@
 		try {
 			const files = await import('$lib/io/files');
 			await files.openWithLoading(ex.name, () => ex.load());
-		} catch {
-			toast.error(`Could not open ${ex.name}.`);
+		} catch (e) {
+			openError(`Could not open ${ex.name}.`, e);
 		}
 	}
 

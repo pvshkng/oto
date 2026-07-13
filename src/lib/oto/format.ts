@@ -335,22 +335,34 @@ function normaliseBeat(b: unknown): OtoBeat {
 	const duration = (
 		[1, 2, 4, 8, 16, 32].includes(o.duration as number) ? o.duration : 4
 	) as DurationValue;
+	// One note per string per beat: the renderer keys noteheads by string, so a
+	// document carrying two notes on the same string (hand-edited, or written by
+	// a buggy importer) would crash rendering. Keep the first note per string.
+	const usedStrings = new Set<number>();
 	const notes = Array.isArray(o.notes)
-		? (o.notes as unknown[]).map((n) => {
+		? (o.notes as unknown[]).flatMap((n) => {
 				const no = (n ?? {}) as Record<string, unknown>;
+				const string =
+					typeof no.string === 'number' && Number.isFinite(no.string)
+						? Math.max(0, Math.floor(no.string))
+						: 0;
+				if (usedStrings.has(string)) return [];
+				usedStrings.add(string);
 				// Keep only techniques this build knows about, so documents written
 				// by newer/older versions (or by hand) never carry junk into the UI.
 				const techniques = Array.isArray(no.techniques)
 					? no.techniques.filter(isTechnique)
 					: undefined;
-				return {
-					string: typeof no.string === 'number' ? no.string : 0,
-					fret: typeof no.fret === 'number' ? no.fret : 0,
-					techniques: techniques && techniques.length ? techniques : undefined,
-					bend: typeof no.bend === 'number' ? no.bend : undefined,
-					slideTo: typeof no.slideTo === 'number' ? no.slideTo : undefined,
-					tied: typeof no.tied === 'boolean' ? no.tied : undefined
-				};
+				return [
+					{
+						string,
+						fret: typeof no.fret === 'number' ? no.fret : 0,
+						techniques: techniques && techniques.length ? techniques : undefined,
+						bend: typeof no.bend === 'number' ? no.bend : undefined,
+						slideTo: typeof no.slideTo === 'number' ? no.slideTo : undefined,
+						tied: typeof no.tied === 'boolean' ? no.tied : undefined
+					}
+				];
 			})
 		: [];
 	return {

@@ -259,76 +259,108 @@
 	</button>
 {/snippet}
 
-{#if store.pageView && pages}
-	<!-- ═══ Page view: the score split into A4 sheets ═══ -->
-	<div class="print-pages flex flex-col items-center gap-6">
-		{#each pages as page, pi (pi)}
-			<div
-				class="a4-page relative shrink-0 rounded-md border border-border bg-paper shadow-[var(--shadow-1),var(--shadow-2)]"
-				style="width:{PAGE_W}px; height:{PAGE_H}px; padding:{PAGE_PAD_TOP}px {PAGE_PAD_X}px {PAGE_PAD_BOTTOM}px"
+<!-- A render error anywhere in the score (e.g. a corrupt imported document)
+     must never abort Svelte's render flush — that would freeze the whole app
+     (including the loading overlay's unmount). The boundary contains it and
+     shows a recoverable error card instead. -->
+<svelte:boundary onerror={(e) => console.error('Score render failed:', e)}>
+	{#snippet failed(error, reset)}
+		<div
+			class="[padding:28px_30px_36px] h-fit w-full max-w-[1080px] rounded-md border border-border bg-paper shadow-[var(--shadow-1),var(--shadow-2)]"
+		>
+			<h2 class="m-0 [font-family:var(--serif)] text-[20px] font-semibold text-ink">
+				This score could not be displayed
+			</h2>
+			<p class="[margin:8px_0_0] text-sm text-text-muted">
+				The document contains data the renderer can't handle. You can retry, or open a different
+				file from the File menu.
+			</p>
+			<pre
+				class="mt-3 max-h-40 overflow-auto rounded-sm border border-border bg-bg p-2 text-xs whitespace-pre-wrap text-text-muted">{error instanceof
+				Error
+					? error.message
+					: String(error)}</pre>
+			<button
+				type="button"
+				class="mt-3 cursor-pointer rounded-md border border-border-strong px-3 py-1.5 text-sm text-ink hover:bg-accent"
+				onclick={reset}
 			>
-				<!-- overflow-hidden guarantees nothing ever bleeds past the page's
-				     content area, even if a measurement is momentarily stale. -->
-				<div class="h-full overflow-hidden">
-					{#if pi === 0}
-						<!-- flow-root so the header's child margins are contained in the
-						     measured height that pagination subtracts from page 1. -->
-						<div class="flow-root" bind:clientHeight={headerHeight}>
-							{@render scoreHeader()}
-						</div>
-					{/if}
-					{#each page as block (block.trackId + ':' + block.si)}
-						<section style="margin-bottom:{block.gap}px" data-track-id={block.trackId}>
-							<TrackStaff
-								trackIndex={block.trackIndex}
-								onlySystemIndex={block.si}
-								sharedOverride={shared}
-								layoutOverride={pageLayouts?.[block.trackId]}
-								showLabel={!!shared}
-							/>
-						</section>
-					{/each}
-				</div>
-				<div
-					class="pointer-events-none absolute inset-x-0 bottom-[24px] text-center text-[11px] text-text-muted"
-				>
-					{pi + 1} / {pages.length}
-				</div>
-			</div>
-		{/each}
-	</div>
-{:else}
-	<!-- ═══ Continuous view: one tall sheet ═══ -->
-	<div
-		class="[padding:28px_30px_36px] h-fit w-full max-w-[1080px] rounded-md border border-border bg-paper shadow-[var(--shadow-1),var(--shadow-2)] max-[720px]:[padding:18px_12px_26px] lg:min-w-[860px] print:max-w-none print:min-w-0 print:border-none print:shadow-none"
-	>
-		{@render scoreHeader()}
+				Try again
+			</button>
+		</div>
+	{/snippet}
 
-		<div bind:this={tracksWrapperEl}>
-			{#if shared}
-				{#each shared.systems as _, si (si)}
+	{#if store.pageView && pages}
+		<!-- ═══ Page view: the score split into A4 sheets ═══ -->
+		<div class="print-pages flex flex-col items-center gap-6">
+			{#each pages as page, pi (pi)}
+				<div
+					class="a4-page relative shrink-0 rounded-md border border-border bg-paper shadow-[var(--shadow-1),var(--shadow-2)]"
+					style="width:{PAGE_W}px; height:{PAGE_H}px; padding:{PAGE_PAD_TOP}px {PAGE_PAD_X}px {PAGE_PAD_BOTTOM}px"
+				>
+					<!-- overflow-hidden guarantees nothing ever bleeds past the page's
+				     content area, even if a measurement is momentarily stale. -->
+					<div class="h-full overflow-hidden">
+						{#if pi === 0}
+							<!-- flow-root so the header's child margins are contained in the
+						     measured height that pagination subtracts from page 1. -->
+							<div class="flow-root" bind:clientHeight={headerHeight}>
+								{@render scoreHeader()}
+							</div>
+						{/if}
+						{#each page as block (block.trackId + ':' + block.si)}
+							<section style="margin-bottom:{block.gap}px" data-track-id={block.trackId}>
+								<TrackStaff
+									trackIndex={block.trackIndex}
+									onlySystemIndex={block.si}
+									sharedOverride={shared}
+									layoutOverride={pageLayouts?.[block.trackId]}
+									showLabel={!!shared}
+								/>
+							</section>
+						{/each}
+					</div>
+					<div
+						class="pointer-events-none absolute inset-x-0 bottom-[24px] text-center text-[11px] text-text-muted"
+					>
+						{pi + 1} / {pages.length}
+					</div>
+				</div>
+			{/each}
+		</div>
+	{:else}
+		<!-- ═══ Continuous view: one tall sheet ═══ -->
+		<div
+			class="[padding:28px_30px_36px] h-fit w-full max-w-[1080px] rounded-md border border-border bg-paper shadow-[var(--shadow-1),var(--shadow-2)] max-[720px]:[padding:18px_12px_26px] lg:min-w-[860px] print:max-w-none print:min-w-0 print:border-none print:shadow-none"
+		>
+			{@render scoreHeader()}
+
+			<div bind:this={tracksWrapperEl}>
+				{#if shared}
+					{#each shared.systems as _, si (si)}
+						{#each store.score.tracks as track, i (track.id)}
+							{#if store.isTrackVisible(track.id)}
+								<section class="mb-1" data-track-id={track.id}>
+									<TrackStaff
+										trackIndex={i}
+										onlySystemIndex={si}
+										sharedOverride={shared}
+										layoutOverride={sharedLayouts?.[track.id]}
+									/>
+								</section>
+							{/if}
+						{/each}
+					{/each}
+				{:else}
 					{#each store.score.tracks as track, i (track.id)}
 						{#if store.isTrackVisible(track.id)}
-							<section class="mb-1" data-track-id={track.id}>
-								<TrackStaff
-									trackIndex={i}
-									onlySystemIndex={si}
-									sharedOverride={shared}
-									layoutOverride={sharedLayouts?.[track.id]}
-								/>
+							<section class="mb-3" data-track-id={track.id}>
+								<TrackStaff trackIndex={i} />
 							</section>
 						{/if}
 					{/each}
-				{/each}
-			{:else}
-				{#each store.score.tracks as track, i (track.id)}
-					{#if store.isTrackVisible(track.id)}
-						<section class="mb-3" data-track-id={track.id}>
-							<TrackStaff trackIndex={i} />
-						</section>
-					{/if}
-				{/each}
-			{/if}
+				{/if}
+			</div>
 		</div>
-	</div>
-{/if}
+	{/if}
+</svelte:boundary>

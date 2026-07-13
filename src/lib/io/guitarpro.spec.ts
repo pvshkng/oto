@@ -149,6 +149,49 @@ describe('gpScoreToOto', () => {
 		expect(notes[3].techniques).not.toContain('vibrato');
 	});
 
+	it('keeps one note per string when clamping collapses out-of-range strings', () => {
+		// A hand-built score model: a beat carrying a note on string 7 of a
+		// 6-string staff. The converter clamps it onto .oto string 0, colliding
+		// with the real string-6 note — only the first note per string survives,
+		// because duplicate strings crash the string-keyed renderer.
+		const score: AtScore = {
+			tempo: 120,
+			tracks: [
+				{
+					name: 'Guitar',
+					staves: [
+						{
+							tuning: [64, 59, 55, 50, 45, 40], // E4 B3 G3 D3 A2 E2
+							bars: [
+								{
+									masterBar: { timeSignatureNumerator: 4, timeSignatureDenominator: 4 },
+									voices: [
+										{
+											isEmpty: false,
+											beats: [
+												{
+													duration: 4,
+													notes: [
+														{ string: 6, fret: 3 }, // → .oto string 0
+														{ string: 7, fret: 5 }, // out of range → also clamps to 0
+														{ string: 5, fret: 2 } // → .oto string 1
+													]
+												}
+											]
+										}
+									]
+								}
+							]
+						}
+					]
+				}
+			]
+		};
+		const notes = gpScoreToOto(score).tracks[0].measures[0].beats[0].notes;
+		expect(notes.map((n) => n.string)).toEqual([0, 1]);
+		expect(notes[0].fret).toBe(3); // the first note on the string wins
+	});
+
 	it('marks grace beats as grace notes', () => {
 		const oto = gpScoreToOto(fromTex('. 3.3{gr} 5.3'));
 		const beats = oto.tracks[0].measures[0].beats;

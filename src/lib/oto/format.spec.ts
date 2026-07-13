@@ -330,6 +330,44 @@ describe('.oto format', () => {
 		expect(s.tracks[0].measures[0].beats[0].notes[0].techniques).toEqual(['slap']);
 	});
 
+	it('keeps one note per string per beat (duplicates crash the string-keyed renderer)', () => {
+		const doc = JSON.stringify({
+			format: 'oto',
+			tracks: [
+				{
+					measures: [
+						{
+							beats: [
+								{
+									duration: 8,
+									notes: [
+										{ string: 0, fret: 3 },
+										{ string: 1, fret: 5 },
+										{ string: 0, fret: 8 } // duplicate string → dropped
+									]
+								},
+								{
+									duration: 8,
+									// Invalid strings normalise to 0, then collapse to one note.
+									notes: [
+										{ string: -1, fret: 2 },
+										{ string: 0.9, fret: 4 }
+									]
+								}
+							]
+						}
+					]
+				}
+			]
+		});
+		const beats = parse(doc).tracks[0].measures[0].beats;
+		expect(beats[0].notes).toEqual([
+			{ string: 0, fret: 3 },
+			{ string: 1, fret: 5 }
+		]);
+		expect(beats[1].notes).toEqual([{ string: 0, fret: 2 }]);
+	});
+
 	it('round-trips the audio backing-track config', () => {
 		const s = makeScore({
 			audio: {
