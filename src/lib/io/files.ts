@@ -65,6 +65,16 @@ export function loadOtoJson(name: string, json: string) {
 	addRecentFile(name, json);
 }
 
+export function openLocalFile(file: File): Promise<void> {
+	return openWithLoading(file.name, async () => {
+		if (isGuitarProFile(file.name)) {
+			const buf = new Uint8Array(await file.arrayBuffer());
+			return JSON.stringify(await importGuitarProBytes(buf));
+		}
+		return file.text();
+	});
+}
+
 /** Open a file picker accepting both .oto and Guitar Pro files. */
 export function openFile(): Promise<void> {
 	return new Promise((resolve, reject) => {
@@ -75,13 +85,7 @@ export function openFile(): Promise<void> {
 			const file = input.files?.[0];
 			if (!file) return resolve();
 			try {
-				await openWithLoading(file.name, async () => {
-					if (isGuitarProFile(file.name)) {
-						const buf = new Uint8Array(await file.arrayBuffer());
-						return JSON.stringify(await importGuitarProBytes(buf));
-					}
-					return file.text();
-				});
+				await openLocalFile(file);
 				resolve();
 			} catch (e) {
 				reject(e);

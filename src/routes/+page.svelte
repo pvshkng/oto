@@ -15,6 +15,7 @@
 	import KeyInput from '$lib/components/KeyInput.svelte';
 	import SongModal from '$lib/components/SongModal.svelte';
 	import OpenFileModal from '$lib/components/OpenFileModal.svelte';
+	import FileDropZone from '$lib/components/FileDropZone.svelte';
 	import PdfExportModal from '$lib/components/PdfExportModal.svelte';
 	import TracksPanel from '$lib/components/TracksPanel.svelte';
 	import RightPanel from '$lib/components/RightPanel.svelte';
@@ -498,6 +499,8 @@
 {/if}
 
 <OpenFileModal />
+
+<FileDropZone />
 
 <PdfExportModal />
 
