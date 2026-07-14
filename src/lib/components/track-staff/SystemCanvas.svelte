@@ -53,21 +53,42 @@
 		return ctx;
 	}
 
-	// Notation layer — depends only on geometry, font readiness and the section
-	// being edited (whose on-canvas label is suppressed while its input shows).
+	// A signature of everything drawSystem() actually rasterizes for THIS system:
+	// the laid system (all measures/beats/notes/beams/symbols/positions) plus the
+	// few track-level fields the frame reads and the canvas/section/font/print
+	// state. Every edit rebuilds the whole layout, so `system` is a fresh object
+	// each time even when its content is identical — comparing this string lets an
+	// unchanged system skip the (expensive) repaint, restoring the SVG renderer's
+	// "only the edited bar updates" behaviour. The voice drawers are pure over
+	// `beats`, so the system alone captures their output.
+	const notationSig = $derived(
+		JSON.stringify({
+			system,
+			bands: layout.bands,
+			keySigWidth: layout.keySigWidth,
+			keySigGlyphs: layout.keySigGlyphs,
+			clef: layout.clef,
+			tabTop: layout.tabTop,
+			stringCount: layout.stringCount,
+			cssWidth,
+			cssHeight,
+			lastMeasureIndex,
+			editingSectionId,
+			fontReady: bravuraFont.ready,
+			printing: scoreViewport.printing
+		})
+	);
+	let drawnSig = '';
+
+	// Notation layer — repainted only when the signature above changes, so a note
+	// edit repaints the one bar it touched instead of every mounted system.
 	$effect(() => {
-		// Track dependencies explicitly so the intent is clear.
-		void bravuraFont.ready;
-		void cssWidth;
-		void cssHeight;
-		void editingSectionId;
-		void layout;
-		void system;
-		void scoreViewport.printing;
-		if (!notationCanvas) return;
+		const sig = notationSig;
+		if (!notationCanvas || sig === drawnSig) return;
 		const ctx = prepare(notationCanvas);
 		if (!ctx) return;
 		drawSystem(ctx, { layout, system, lastMeasureIndex, containerWidth, editingSectionId });
+		drawnSig = sig;
 	});
 
 	// Overlay layer — repainted whenever any highlight input changes.

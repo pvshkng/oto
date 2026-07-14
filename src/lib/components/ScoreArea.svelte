@@ -10,6 +10,7 @@
 	//    are packed greedily — a page only breaks when the next system row no
 	//    longer fits — and each page shows a "current/total" footer. PDF export
 	//    prints these pages one per sheet.
+	import { untrack } from 'svelte';
 	import { store } from '$lib/stores/score.svelte';
 	import { observeWidth } from '$lib/resize';
 	import {
@@ -111,11 +112,21 @@
 	// index N groups track 1's Nth system with track 2's Nth system etc. —
 	// bars read top-to-bottom in parallel instead of one track's whole staff
 	// followed by the next track's whole staff.
-	const shared = $derived(
-		isMulti
-			? computeSharedSystemsCached(store.score, visibleTracks, layoutWidth, store.scoreVersion)
-			: undefined
-	);
+	//
+	// The layout walks here (and below) run inside untrack(): they read every
+	// note of the deep-reactive score, and letting a $derived register those
+	// tens of thousands of reads as dependencies costs far more than the layout
+	// itself. Every layout-relevant mutation bumps store.scoreVersion — that's
+	// its contract — so tracking version + identities + width + view flags is
+	// exactly enough.
+	const shared = $derived.by(() => {
+		if (!isMulti) return undefined;
+		const version = store.scoreVersion;
+		const score = store.score;
+		const tracks = visibleTracks;
+		const width = layoutWidth;
+		return untrack(() => computeSharedSystemsCached(score, tracks, width, version));
+	});
 
 	// In the interleaved view each track appears once per shared system, i.e.
 	// systems × tracks TrackStaff instances. Left to itself, every instance
@@ -124,20 +135,18 @@
 	// full layout exactly once here and hand it to every row instance instead.
 	const sharedLayouts = $derived.by(() => {
 		if (!shared) return null;
+		const version = store.scoreVersion;
+		const score = store.score;
 		const layouts: Record<string, TrackLayout> = {};
 		for (const t of visibleTracks) {
-			layouts[t.id] = layoutTrackCached(
-				store.score,
-				t,
-				{
-					containerWidth: layoutWidth,
-					showStandard: t.view.standard,
-					showTab: t.view.tab,
-					showRhythm: t.view.rhythm,
-					shared
-				},
-				store.scoreVersion
-			);
+			const opts = {
+				containerWidth: layoutWidth,
+				showStandard: t.view.standard,
+				showTab: t.view.tab,
+				showRhythm: t.view.rhythm,
+				shared
+			};
+			layouts[t.id] = untrack(() => layoutTrackCached(score, t, opts, version));
 		}
 		return layouts;
 	});
@@ -146,19 +155,17 @@
 	// A4 content width (the multi-track case reuses sharedLayouts above).
 	const pageSingleLayouts = $derived.by(() => {
 		if (!store.pageView || shared) return null;
+		const version = store.scoreVersion;
+		const score = store.score;
 		const layouts: Record<string, TrackLayout> = {};
 		for (const t of visibleTracks) {
-			layouts[t.id] = layoutTrackCached(
-				store.score,
-				t,
-				{
-					containerWidth: layoutWidth,
-					showStandard: t.view.standard,
-					showTab: t.view.tab,
-					showRhythm: t.view.rhythm
-				},
-				store.scoreVersion
-			);
+			const opts = {
+				containerWidth: layoutWidth,
+				showStandard: t.view.standard,
+				showTab: t.view.tab,
+				showRhythm: t.view.rhythm
+			};
+			layouts[t.id] = untrack(() => layoutTrackCached(score, t, opts, version));
 		}
 		return layouts;
 	});

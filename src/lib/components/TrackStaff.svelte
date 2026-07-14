@@ -5,6 +5,7 @@
 	// renderer swap left the editor untouched. Click anywhere to move the edit
 	// cursor; shift-click extends the loop selection.
 
+	import { untrack } from 'svelte';
 	import { store } from '$lib/stores/score.svelte';
 	import { scoreViewport } from '$lib/stores/viewport.svelte';
 	import { observeWidth } from '$lib/resize';
@@ -61,32 +62,41 @@
 	// track's systems must break at the same measures so bars line up in
 	// parallel — track 1 and track 2 both show bars 1–2 on line one, then
 	// both show bars 3–4 on line two, instead of each wrapping independently.
+	//
+	// The layout walks below run inside untrack(): they read every note of the
+	// deep-reactive score, and letting a $derived register those tens of
+	// thousands of reads as dependencies costs far more than the layout itself
+	// (dependency bookkeeping dominated the profile on large scores). Every
+	// layout-relevant mutation bumps store.scoreVersion — that's its contract —
+	// so tracking version + identities + width + view flags is exactly enough.
 	const visibleTracks = $derived(store.score.tracks.filter((t) => store.isTrackVisible(t.id)));
-	const shared = $derived(
-		sharedOverride ??
-			(store.trackViewMode === 'multi' && visibleTracks.length > 1
-				? computeSharedSystemsCached(store.score, visibleTracks, containerWidth, store.scoreVersion)
-				: undefined)
-	);
+	const shared = $derived.by(() => {
+		if (sharedOverride) return sharedOverride;
+		if (store.trackViewMode !== 'multi' || visibleTracks.length <= 1) return undefined;
+		const version = store.scoreVersion;
+		const score = store.score;
+		const tracks = visibleTracks;
+		const width = containerWidth;
+		return untrack(() => computeSharedSystemsCached(score, tracks, width, version));
+	});
 
 	// `$derived` is lazy, so when a pre-computed layout is supplied the local
 	// layoutTrack() call (and the `shared`/`visibleTracks` deriveds above)
 	// never even run for this instance.
-	const layout = $derived(
-		layoutOverride ??
-			layoutTrackCached(
-				store.score,
-				track,
-				{
-					containerWidth: containerWidth,
-					showStandard: track.view.standard,
-					showTab: track.view.tab,
-					showRhythm: track.view.rhythm,
-					shared
-				},
-				store.scoreVersion
-			)
-	);
+	const layout = $derived.by(() => {
+		if (layoutOverride) return layoutOverride;
+		const version = store.scoreVersion;
+		const score = store.score;
+		const t = track;
+		const opts = {
+			containerWidth: containerWidth,
+			showStandard: t.view.standard,
+			showTab: t.view.tab,
+			showRhythm: t.view.rhythm,
+			shared
+		};
+		return untrack(() => layoutTrackCached(score, t, opts, version));
+	});
 
 	// When rendering just one system (interleaved multi-track view), only
 	// that system is drawn; otherwise every system for this track is.
@@ -101,10 +111,11 @@
 	// (so total height and scroll targets are exact) and mount the heavy canvas
 	// only for systems near the viewport.
 	//
-	// Virtualization is off when a single system is handed in (the interleaved
-	// multi-track view already renders one row at a time) and while printing
-	// (every page must be in the DOM for the snapshot).
-	const virtualize = $derived(onlySystemIndex == null && !scoreViewport.printing);
+	// Also applies to the interleaved multi-track view: there ScoreArea mounts one
+	// instance per (system × track), so without virtualization the whole score's
+	// canvases are built and painted on load. Off while printing (every page must
+	// be in the DOM for the snapshot).
+	const virtualize = $derived(!scoreViewport.printing);
 
 	// Don't build the systems until the real container width is known: the first
 	// layout would otherwise run against the placeholder default width and be
@@ -118,22 +129,34 @@
 	let visTo = $state(0);
 	const isSystemVisible = (i: number): boolean => !virtualize || (i >= visFrom && i < visTo);
 
+	// Stable geometry signature of the rendered systems. Every edit rebuilds the
+	// layout, handing this component all-new system objects with (almost always)
+	// identical geometry — a string that only changes when positions/heights
+	// actually change lets the visibility effect below skip those runs. That
+	// matters because the effect reads getBoundingClientRect(): in the interleaved
+	// multi-track view there's one instance per (system × track), and a hundred
+	// rect reads interleaved with template updates is a forced-reflow storm that
+	// costs ~1s per keystroke on a large score.
+	const geometrySig = $derived(systemsToRender.map((s) => `${s.y}:${s.height}`).join('|'));
+
 	$effect(() => {
 		// Re-run on every viewport sync. Scrolling the container changes only its
 		// scrollTop (its top edge and height stay put), so `version` — bumped on
 		// each sync — is the trigger that makes this recompute as the user scrolls;
 		// without reading it here, systems revealed by scrolling would stay blank
 		// placeholders. `getBoundingClientRect()` below is read fresh each run and
-		// already reflects the new scroll offset.
+		// already reflects the new scroll offset. Content edits that keep the
+		// geometry identical don't re-trigger (see geometrySig above).
 		void scoreViewport.version;
+		void geometrySig;
 		if (!layoutReady) return;
-		const systems = systemsToRender;
+		const systems = untrack(() => systemsToRender);
 		if (!virtualize || !container || !systems.length) {
 			visFrom = 0;
 			visTo = systems.length;
 			return;
 		}
-		const wrapperTop = container.getBoundingClientRect().top;
+		const rect = container.getBoundingClientRect();
 		const measured = scoreViewport.height > 0;
 		const vTop = measured ? scoreViewport.top : 0;
 		const vHeight = measured
@@ -147,6 +170,19 @@
 			return;
 		}
 		const buffer = vHeight; // one screenful of over-scan above and below
+
+		// Interleaved multi-track / page view: this instance renders a single
+		// system filling its own container, so `system.y` (an offset within the
+		// whole-track layout) doesn't map to a position inside this container.
+		// Decide visibility straight from the container's own box vs the viewport.
+		if (onlySystemIndex != null) {
+			const visible = rect.bottom >= vTop - buffer && rect.top <= vTop + vHeight + buffer;
+			visFrom = 0;
+			visTo = visible ? systems.length : 0;
+			return;
+		}
+
+		const wrapperTop = rect.top;
 		const lo = vTop - buffer - wrapperTop;
 		const hi = vTop + vHeight + buffer - wrapperTop;
 		let from = systems.length;
