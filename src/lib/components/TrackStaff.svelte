@@ -122,8 +122,13 @@
 	const isSystemVisible = (i: number): boolean => !virtualize || (i >= visFrom && i < visTo);
 
 	$effect(() => {
-		// Re-measure on scroll/resize (version) and when the geometry changes.
-		//scoreViewport.version;
+		// Re-run on every viewport sync. Scrolling the container changes only its
+		// scrollTop (its top edge and height stay put), so `version` — bumped on
+		// each sync — is the trigger that makes this recompute as the user scrolls;
+		// without reading it here, systems revealed by scrolling would stay blank
+		// placeholders. `getBoundingClientRect()` below is read fresh each run and
+		// already reflects the new scroll offset.
+		void scoreViewport.version;
 		if (!layoutReady) return;
 		const systems = systemsToRender;
 		if (!virtualize || !container || !systems.length) {
@@ -780,7 +785,6 @@
 													beats={measure.beats}
 													vIdx={0}
 													bandHeight={band.height}
-													{tabTop}
 													showMarks={!layout.bands.standard}
 												/>
 												{#if measure.voice2}
@@ -788,7 +792,6 @@
 														beats={measure.voice2}
 														vIdx={1}
 														bandHeight={band.height}
-														{tabTop}
 														showMarks={!layout.bands.standard}
 													/>
 												{/if}

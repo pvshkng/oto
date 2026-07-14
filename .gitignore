@@ -29,3 +29,5 @@ vite.config.ts.timestamp-*
 # Assets copied in by @coderline/alphatab-vite at dev/build time
 /public/font
 /public/soundfont
+
+/.ignore
