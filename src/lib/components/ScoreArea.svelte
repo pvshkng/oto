@@ -12,7 +12,11 @@
 	//    prints these pages one per sheet.
 	import { store } from '$lib/stores/score.svelte';
 	import { observeWidth } from '$lib/resize';
-	import { computeSharedSystems, layoutTrack, type TrackLayout } from '$lib/notation/layout';
+	import {
+		computeSharedSystemsCached,
+		layoutTrackCached,
+		type TrackLayout
+	} from '$lib/notation/layout';
 	import { GLYPH } from '$lib/notation/glyphs';
 	import { TUNINGS } from '$lib/oto/pitch';
 	import type { OtoTrack } from '$lib/oto/types';
@@ -108,7 +112,9 @@
 	// bars read top-to-bottom in parallel instead of one track's whole staff
 	// followed by the next track's whole staff.
 	const shared = $derived(
-		isMulti ? computeSharedSystems(store.score, visibleTracks, layoutWidth) : undefined
+		isMulti
+			? computeSharedSystemsCached(store.score, visibleTracks, layoutWidth, store.scoreVersion)
+			: undefined
 	);
 
 	// In the interleaved view each track appears once per shared system, i.e.
@@ -120,13 +126,18 @@
 		if (!shared) return null;
 		const layouts: Record<string, TrackLayout> = {};
 		for (const t of visibleTracks) {
-			layouts[t.id] = layoutTrack(store.score, t, {
-				containerWidth: layoutWidth,
-				showStandard: t.view.standard,
-				showTab: t.view.tab,
-				showRhythm: t.view.rhythm,
-				shared
-			});
+			layouts[t.id] = layoutTrackCached(
+				store.score,
+				t,
+				{
+					containerWidth: layoutWidth,
+					showStandard: t.view.standard,
+					showTab: t.view.tab,
+					showRhythm: t.view.rhythm,
+					shared
+				},
+				store.scoreVersion
+			);
 		}
 		return layouts;
 	});
@@ -137,12 +148,17 @@
 		if (!store.pageView || shared) return null;
 		const layouts: Record<string, TrackLayout> = {};
 		for (const t of visibleTracks) {
-			layouts[t.id] = layoutTrack(store.score, t, {
-				containerWidth: layoutWidth,
-				showStandard: t.view.standard,
-				showTab: t.view.tab,
-				showRhythm: t.view.rhythm
-			});
+			layouts[t.id] = layoutTrackCached(
+				store.score,
+				t,
+				{
+					containerWidth: layoutWidth,
+					showStandard: t.view.standard,
+					showTab: t.view.tab,
+					showRhythm: t.view.rhythm
+				},
+				store.scoreVersion
+			);
 		}
 		return layouts;
 	});

@@ -12,6 +12,7 @@ import {
 	makeAudioConfig,
 	parse,
 	serialize,
+	serializeCompact,
 	restBeat,
 	emptyMeasure,
 	uid
@@ -649,7 +650,7 @@ export class ScoreStore {
 		this.scrollRequest = { kind: 'track', trackId, measure, token: ++this.#scrollToken };
 	}
 
-	// History
+	// History — JSON string snapshots of the score (see #snapshotScore).
 	#undoStack = $state<string[]>([]);
 	#redoStack = $state<string[]>([]);
 	#loaded = false;
@@ -774,7 +775,10 @@ export class ScoreStore {
 	// per pointer tick) and from every edit — doing it synchronously each time
 	// is jank exactly when smoothness matters most (e.g. mixing while a piece
 	// plays). One trailing write per burst is enough; flushPersist() runs on
-	// pagehide/hidden so nothing is lost when the tab goes away.
+	// pagehide/hidden so nothing is lost when the tab goes away. The window is
+	// deliberately generous — a large score costs real time to serialize + write,
+	// so during a rapid edit or drag burst we'd rather coalesce many writes into
+	// one than write every ~300ms.
 	#persistTimer: ReturnType<typeof setTimeout> | null = null;
 
 	persist() {
@@ -783,7 +787,7 @@ export class ScoreStore {
 		this.#persistTimer = setTimeout(() => {
 			this.#persistTimer = null;
 			this.#writeScore();
-		}, 300);
+		}, 800);
 	}
 
 	/** Write any pending autosave immediately (page is being hidden/unloaded). */
@@ -796,7 +800,11 @@ export class ScoreStore {
 
 	#writeScore() {
 		try {
-			localStorage.setItem(STORAGE_KEY, serialize(this.score));
+			// Snapshot the reactive proxy to a plain object first, then serialize
+			// compactly: stringifying the deep-reactive proxy directly pays a signal-
+			// materialising trap on every property, and the autosave blob is never
+			// read by a human so it doesn't need indentation.
+			localStorage.setItem(STORAGE_KEY, serializeCompact($state.snapshot(this.score)));
 		} catch {
 			/* quota / private mode */
 		}
@@ -819,9 +827,20 @@ export class ScoreStore {
 	}
 
 	#pushUndo() {
-		this.#undoStack.push(JSON.stringify(this.score));
+		this.#undoStack.push(this.#snapshotScore());
 		if (this.#undoStack.length > 100) this.#undoStack.shift();
 		this.#redoStack = [];
+	}
+
+	// History entries are JSON strings. Snapshotting the reactive proxy to a plain
+	// object first means the stringify walks plain objects instead of paying a
+	// signal-materialising trap on every property of the tree. Restores JSON.parse
+	// back to a fresh, mutable object (re-proxied on assignment to `score`).
+	// (A structuredClone of the snapshot would be nicer, but the snapshot carries
+	// state Svelte can't structured-clone in the browser — the JSON round-trip is
+	// the safe path, and it's what the autosave uses too.)
+	#snapshotScore(): string {
+		return JSON.stringify($state.snapshot(this.score));
 	}
 
 	/**
@@ -844,7 +863,7 @@ export class ScoreStore {
 	undo() {
 		const prev = this.#undoStack.pop();
 		if (!prev) return;
-		this.#redoStack.push(JSON.stringify(this.score));
+		this.#redoStack.push(this.#snapshotScore());
 		this.score = JSON.parse(prev);
 		this.clampCursor();
 		this.#scoreVersion++;
@@ -854,7 +873,7 @@ export class ScoreStore {
 	redo() {
 		const next = this.#redoStack.pop();
 		if (!next) return;
-		this.#undoStack.push(JSON.stringify(this.score));
+		this.#undoStack.push(this.#snapshotScore());
 		this.score = JSON.parse(next);
 		this.clampCursor();
 		this.#scoreVersion++;

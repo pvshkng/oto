@@ -156,6 +156,15 @@ export function serialize(score: OtoScore): string {
 	return JSON.stringify({ ...score, updatedAt: new Date().toISOString() }, null, 2);
 }
 
+/** Compact serialisation (no indentation) for the autosave path, where the
+ *  output is never read by a human — dropping the pretty-printing roughly halves
+ *  the bytes written to localStorage and the time spent building the string.
+ *  Pass a plain snapshot (see `$state.snapshot`) rather than a reactive proxy so
+ *  stringify doesn't pay the deep-proxy trap cost on every property. */
+export function serializeCompact(score: OtoScore): string {
+	return JSON.stringify({ ...score, updatedAt: new Date().toISOString() });
+}
+
 export class OtoParseError extends Error {}
 
 /** Parse + validate an .oto document, filling defaults defensively. */

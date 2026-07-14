@@ -377,6 +377,33 @@ function naturalMeasureWidth(inner: number, showHeader: boolean, headerWidth: nu
  * even if a given track has fewer notes in it. Header width (clef + key
  * signature) doesn't vary by track — key signature is score-level.
  */
+// Memoized `computeSharedSystems`, sharing the layout cache's version so the
+// same breakdown object is returned across re-renders until the content, the set
+// of tracks, or the width actually changes. Returning a stable object also keeps
+// the per-track layout cache keyed on it from missing needlessly (see
+// `sharedIdOf`). Cache is cleared alongside the layout cache on version change.
+const _sharedCache = new Map<string, SharedSystems>();
+let _sharedCacheVersion = Number.NaN;
+
+export function computeSharedSystemsCached(
+	score: OtoScore,
+	tracks: OtoTrack[],
+	containerWidth: number,
+	version: number
+): SharedSystems {
+	if (version !== _sharedCacheVersion) {
+		_sharedCache.clear();
+		_sharedCacheVersion = version;
+	}
+	const key = `${Math.round(containerWidth)}|${tracks.map((t) => t.id).join(',')}`;
+	let shared = _sharedCache.get(key);
+	if (!shared) {
+		shared = computeSharedSystems(score, tracks, containerWidth);
+		_sharedCache.set(key, shared);
+	}
+	return shared;
+}
+
 export function computeSharedSystems(
 	score: OtoScore,
 	tracks: OtoTrack[],
@@ -445,6 +472,68 @@ export function computeSharedSystems(
 		sys.forEach((mi, i) => (measureWidths[mi] = extras[i] + pads + naturalInners[mi] * stretch));
 	}
 	return { systems, measureWidths };
+}
+
+// ── Layout memoization ──────────────────────────────────────────────────────
+// layoutTrack is a pure function of (track content, score-level key/time sig +
+// sections, container width, which bands are shown, and the shared system
+// breakdown). Recomputing it is O(notes) main-thread work, so we cache results
+// keyed on exactly those inputs and hand every consumer the same object back.
+//
+// Correctness rests on the caller passing a `version` that bumps on any content
+// change (the store's scoreVersion — every commit/undo/redo bumps it). When the
+// version changes we drop the whole cache, so a stale entry can never outlive
+// the edit that invalidated it. Width, band flags and the shared breakdown are
+// part of the key directly, so toggling a view or resizing is handled even
+// though those don't move the version.
+const _layoutCache = new Map<string, TrackLayout>();
+let _layoutCacheVersion = Number.NaN;
+
+// Stable per-object id for a SharedSystems, so a given shared breakdown maps to
+// one cache key and a freshly recomputed breakdown (new object) misses.
+let _sharedIdSeq = 0;
+const _sharedIds = new WeakMap<SharedSystems, number>();
+function sharedIdOf(s: SharedSystems | undefined): number {
+	if (!s) return 0;
+	let id = _sharedIds.get(s);
+	if (id === undefined) _sharedIds.set(s, (id = ++_sharedIdSeq));
+	return id;
+}
+
+/**
+ * Memoized `layoutTrack`. `version` must change whenever any input the layout
+ * depends on that isn't already in the key (i.e. the track/score content)
+ * changes; pass the store's `scoreVersion`. Callers that can't provide a version
+ * should call `layoutTrack` directly.
+ */
+export function layoutTrackCached(
+	score: OtoScore,
+	track: OtoTrack,
+	opts: LayoutOptions,
+	version: number
+): TrackLayout {
+	if (version !== _layoutCacheVersion) {
+		_layoutCache.clear();
+		_layoutCacheVersion = version;
+	}
+	const key =
+		`${track.id}|${Math.round(opts.containerWidth)}|` +
+		`${opts.showStandard ? 1 : 0}${opts.showTab ? 1 : 0}${opts.showRhythm ? 1 : 0}|` +
+		`${sharedIdOf(opts.shared)}`;
+	let laid = _layoutCache.get(key);
+	if (!laid) {
+		laid = layoutTrack(score, track, opts);
+		_layoutCache.set(key, laid);
+	}
+	return laid;
+}
+
+/** Drop all cached layouts (e.g. when the whole document is replaced). Optional —
+ *  a version change already invalidates — but keeps the cache from briefly
+ *  holding a whole prior document's geometry. */
+export function clearLayoutCache(): void {
+	_layoutCache.clear();
+	_layoutCacheVersion = Number.NaN;
 }
 
 export function layoutTrack(score: OtoScore, track: OtoTrack, opts: LayoutOptions): TrackLayout {

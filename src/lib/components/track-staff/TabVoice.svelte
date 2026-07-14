@@ -2,43 +2,24 @@
 	// One voice of the tab band: frets + effect markers.
 	import type { LaidBeat } from '$lib/notation/layout';
 	import { METRICS } from '$lib/notation/layout';
-	import { store } from '$lib/stores/score.svelte';
 	import { dynamicGlyph, GLYPH, tupletGlyphs } from '$lib/notation/glyphs';
 	import { beatArticulations, letRingSpans, tupletSpans } from './beam-geometry';
-	import { isCursorBeat, inSelection, isPlayingBeat } from './predicates';
+	import { fretText } from './fret-label';
 	import { fretStyle } from './note-styles';
 
 	let {
 		beats,
-		measureIndex,
 		vIdx,
 		bandHeight,
-		tabTop,
-		isActiveTrack,
-		trackIndex,
 		showMarks = false
 	}: {
 		beats: LaidBeat[];
-		measureIndex: number;
 		vIdx: number;
 		bandHeight: number;
-		/** y of the top string line within the band (see layout's `tabTop`). */
-		tabTop: number;
-		isActiveTrack: boolean;
-		trackIndex: number;
 		/** Draw fermata/dynamics/tuplet marks here — only when the standard band
 		 *  (their usual home) is hidden, so they aren't drawn twice. */
 		showMarks?: boolean;
 	} = $props();
-
-	/** Fret text for one tab note. Natural harmonics read as `<12>` inline
-	 *  (instead of a mark above the number, which collides in crowded bars);
-	 *  ghost/tied wrap whatever the base label is in parens. */
-	function fretText(n: { fret: number; tied?: unknown; techniques: string[] }): string {
-		if (n.techniques.includes('dead')) return 'x';
-		const base = n.techniques.includes('harmonic') ? `<${n.fret}>` : String(n.fret);
-		return n.techniques.includes('ghost') || n.tied ? `(${base})` : base;
-	}
 
 	const FX = '[font:600_8px_ui-sans-serif,sans-serif] fill-[#71717a] [text-anchor:middle]';
 	// Bend value label: left-anchored so it sits to the RIGHT of the bend
@@ -46,11 +27,6 @@
 	const BEND_TEXT = '[font:600_8px_ui-sans-serif,sans-serif] fill-[#71717a] [text-anchor:start]';
 	const BEND_ARROW = 'fill-none stroke-[#52525b] [stroke-width:1.3] [marker-end:none]';
 	const BEND_HEAD = 'fill-none stroke-[#52525b] [stroke-width:1.3] [stroke-linejoin:round]';
-	// Editing/playback highlights are screen-only chrome — print:hidden keeps
-	// them out of the exported PDF.
-	const BG_CURSOR = 'fill-[rgba(24,24,27,0.16)] [rx:3] print:hidden';
-	const BG_SEL = 'fill-[rgba(24,24,27,0.07)] [rx:3] print:hidden';
-	const BG_PLAY = 'fill-[rgba(24,24,27,0.28)] [rx:3] print:hidden';
 	const BRAVURA = "[font-family:'Bravura',serif] fill-[#18181b]";
 	const MARK_LINE = 'stroke-[#52525b] [stroke-width:1.1] fill-none';
 	const STRUM = 'stroke-[#3f3f46] [stroke-width:1.5] fill-none';
@@ -109,22 +85,6 @@
 	/>
 {/each}
 {#each beats as beat, bi (beat.index)}
-	{#if vIdx === 0 && isPlayingBeat(measureIndex, beat.index)}
-		<rect x={beat.x - 9} y="6" width="18" height={bandHeight - 12} class={BG_PLAY} />
-	{:else if isCursorBeat(measureIndex, beat.index, vIdx, isActiveTrack)}
-		<rect x={beat.x - 9} y="6" width="18" height={bandHeight - 12} class={BG_CURSOR} />
-		{#if isActiveTrack}
-			<rect
-				x={beat.x - 9}
-				y={tabTop + store.cursor.string * METRICS.tabLineGap - 6}
-				width="18"
-				height="12"
-				class="fill-[rgba(24,24,27,0.14)] [rx:2] print:hidden"
-			/>
-		{/if}
-	{:else if vIdx === 0 && inSelection(measureIndex, beat.index, trackIndex)}
-		<rect x={beat.x - 9} y="6" width="18" height={bandHeight - 12} class={BG_SEL} />
-	{/if}
 	{#if beat.strum && beat.notes.length}
 		<!-- Strum/brush arrow beside the chord. A down-strum travels from the
 		     low-pitched strings (bottom of the tab) to the high ones (top), so
@@ -187,22 +147,6 @@
 		<!-- Tied continuations read like ghost notes in tab: parenthesised fret
 		     under the tie arc, so they aren't mistaken for a restrike. -->
 		{@const fretLabel = fretText(n)}
-		{@const labelW = fretLabel.length * 6.5 + 3}
-		{@const isNoteSelected =
-			store.noteSelection !== null &&
-			store.noteSelection.measure === measureIndex &&
-			store.noteSelection.beat === beat.index &&
-			store.noteSelection.voice === vIdx &&
-			store.noteSelection.strings.has(n.string)}
-		{#if isNoteSelected}
-			<rect
-				x={n.x - labelW / 2 - 1}
-				y={n.tabY - 5}
-				width={labelW + 2}
-				height="12"
-				class="fill-[rgba(24,24,27,0.22)] [rx:3]"
-			/>
-		{/if}
 		<text x={n.x} y={n.tabY + 4} class={fretStyle({ mutedNote: isDead, v2: vIdx === 1 })}
 			>{fretLabel}</text
 		>

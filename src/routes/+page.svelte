@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { onMount, untrack } from 'svelte';
+	import { onMount, untrack, flushSync } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import { store } from '$lib/stores/score.svelte';
+	import { scoreViewport } from '$lib/stores/viewport.svelte';
 	import { stopPlayback } from '$lib/audio/playback';
 	import { audioTrack } from '$lib/audio/audio-track.svelte';
 	import { handleGlobalKeydown } from '$lib/keyboard-shortcuts';
@@ -95,7 +96,7 @@
 		if (!trackEls.length) return null;
 		if (measure == null) return trackEls[0];
 		for (const trackEl of trackEls) {
-			for (const el of trackEl.querySelectorAll('svg.system')) {
+			for (const el of trackEl.querySelectorAll('.system')) {
 				const first = Number(el.getAttribute('data-first-measure'));
 				const last = Number(el.getAttribute('data-last-measure'));
 				if (measure >= first && measure <= last) return el;
@@ -167,6 +168,45 @@
 		if (store.contextMenuOpen) store.contextMenuOpen = false;
 	}
 
+	// Publish the score-area scroll container's geometry so the continuous
+	// notation view can virtualize systems outside the viewport. Reads are cheap
+	// (one getBoundingClientRect), but scroll fires fast, so the scroll path is
+	// coalesced to one measurement per animation frame.
+	function syncViewport() {
+		const el = scoreAreaEl;
+		if (!el) return;
+		scoreViewport.sync(el.scrollTop, el.getBoundingClientRect().top, el.clientHeight);
+	}
+	let scrollRaf = 0;
+	function onScoreScroll() {
+		closeContextMenuOnScroll();
+		if (scrollRaf) return;
+		scrollRaf = requestAnimationFrame(() => {
+			scrollRaf = 0;
+			syncViewport();
+		});
+	}
+
+	// Keep the published geometry in step with the container: initial measurement
+	// plus any size change (panels opening, window resize, the desktop⇄mobile
+	// swap that rebinds scoreAreaEl). The effect re-runs when scoreAreaEl changes.
+	// The measurement is deferred to a frame (rAF / the ResizeObserver's own
+	// initial callback) so it writes viewport state outside the current reactive
+	// flush rather than synchronously within it.
+	$effect(() => {
+		const el = scoreAreaEl;
+		if (!el) return;
+		const raf = requestAnimationFrame(syncViewport);
+		const ro = new ResizeObserver(() => syncViewport());
+		ro.observe(el);
+		window.addEventListener('resize', syncViewport);
+		return () => {
+			cancelAnimationFrame(raf);
+			ro.disconnect();
+			window.removeEventListener('resize', syncViewport);
+		};
+	});
+
 	onMount(() => {
 		store.loadFromStorage();
 		store.initLayout();
@@ -175,20 +215,37 @@
 		// button to see what it does, since touch has no hover for `title`.
 		const disposeLongPress = initLongPressTooltips();
 		const disposeHaptics = initButtonHaptics();
-		// Prefetch the heavy audio assets (module + soundfont) behind the loading
-		// screen. The synth itself boots on the first user interaction below —
-		// creating its AudioContext before a gesture would leave it suspended
-		// (browser autoplay policy) with a console warning.
-		audio.preload().finally(() => {
-			ready = true;
-		});
+		// Reveal the real layout as soon as the document + desktop/mobile detection
+		// are ready — the score itself needs none of the audio assets to render, so
+		// gating first paint on the soundfont fetch only adds its (cold-cache)
+		// network time to the perceived load. Prefetch the heavy audio assets
+		// (module + soundfont) in the background instead; the synth still boots on
+		// the first user interaction below (an AudioContext created before a gesture
+		// would be suspended by the browser autoplay policy).
+		ready = true;
+		audio.preload();
 		const warm = () => audio.warmup();
 		window.addEventListener('pointerdown', warm, { once: true });
 		window.addEventListener('keydown', warm, { once: true });
+		// Suspend system virtualization while the browser captures the page, so a
+		// direct Ctrl+P from the continuous view prints every system, not just the
+		// ones near the viewport. flushSync forces the full DOM to materialize
+		// synchronously before the (blocking) print snapshot is taken.
+		const onBeforePrint = () => {
+			scoreViewport.printing = true;
+			flushSync();
+		};
+		const onAfterPrint = () => {
+			scoreViewport.printing = false;
+		};
+		window.addEventListener('beforeprint', onBeforePrint);
+		window.addEventListener('afterprint', onAfterPrint);
 		return () => {
 			window.removeEventListener('keydown', handleGlobalKeydown);
 			window.removeEventListener('pointerdown', warm);
 			window.removeEventListener('keydown', warm);
+			window.removeEventListener('beforeprint', onBeforePrint);
+			window.removeEventListener('afterprint', onAfterPrint);
 			disposeLongPress();
 			disposeHaptics();
 			stopPlayback();
@@ -322,7 +379,7 @@
 					class="print-unclip min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [padding:20px_18px_24px] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
 					bind:this={scoreAreaEl}
 					style="padding-bottom: {desktopDockHeight + 40}px"
-					onscroll={closeContextMenuOnScroll}
+					onscroll={onScoreScroll}
 				>
 					<div
 						class="print-unclip flex [justify-content:safe_center] overflow-x-auto"
@@ -462,7 +519,7 @@
 				class="print-unclip flex min-h-0 flex-1 [justify-content:safe_center] overflow-x-auto overflow-y-auto [scrollbar-gutter:stable] [padding:20px_18px_0] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
 				bind:this={scoreAreaEl}
 				style="padding-bottom: {bottomBarHeight + (dockPanel ? dockPanelHeight : 0) + 48}px"
-				onscroll={closeContextMenuOnScroll}
+				onscroll={onScoreScroll}
 			>
 				<ScoreArea onHeaderClick={() => (store.songModalOpen = true)} />
 			</main>

@@ -35,7 +35,7 @@ export function createDragSelect(opts: DragSelectOptions) {
 		const container = opts.container();
 		if (!container) return null;
 		const layout = opts.layout();
-		const svgEls = container.querySelectorAll<SVGSVGElement>('svg.system');
+		const svgEls = container.querySelectorAll<HTMLElement>('.system');
 		for (const svgEl of svgEls) {
 			const rect = svgEl.getBoundingClientRect();
 			if (clientY < rect.top || clientY > rect.bottom) continue;
@@ -68,7 +68,7 @@ export function createDragSelect(opts: DragSelectOptions) {
 		const layout = opts.layout();
 		if (!container || !layout.bands.tab) return null;
 		const track = opts.track();
-		const svgEls = container.querySelectorAll<SVGSVGElement>('svg.system');
+		const svgEls = container.querySelectorAll<HTMLElement>('.system');
 		for (const svgEl of svgEls) {
 			const rect = svgEl.getBoundingClientRect();
 			if (clientY < rect.top || clientY > rect.bottom) continue;

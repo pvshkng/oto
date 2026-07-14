@@ -21,31 +21,19 @@
 		tupletSpans,
 		SEC_BEAM_GAP
 	} from './beam-geometry';
-	import { isCursorBeat, inSelection, isPlayingBeat } from './predicates';
 	import { noteheadStyle, deadHeadStyle } from './note-styles';
 
 	let {
 		beats,
-		measureIndex,
 		vIdx,
-		bandHeight,
-		isActiveTrack,
-		trackIndex
+		bandHeight
 	}: {
 		beats: LaidBeat[];
-		measureIndex: number;
 		vIdx: number;
 		bandHeight: number;
-		isActiveTrack: boolean;
-		trackIndex: number;
 	} = $props();
 
 	const BRAVURA = "[font-family:'Bravura',serif] fill-[#18181b]";
-	// Editing/playback highlights are screen-only chrome — print:hidden keeps
-	// them out of the exported PDF.
-	const BG_CURSOR = 'fill-[rgba(24,24,27,0.16)] [rx:3] print:hidden';
-	const BG_SEL = 'fill-[rgba(24,24,27,0.07)] [rx:3] print:hidden';
-	const BG_PLAY = 'fill-[rgba(24,24,27,0.28)] [rx:3] print:hidden';
 	const MARK_LINE = 'stroke-[#52525b] [stroke-width:1.1] fill-none';
 
 	// Below-staff line for dynamics; above-staff strip for fermata/tuplets/8va.
@@ -134,13 +122,6 @@
 	{/each}
 {/each}
 {#each beats as beat (beat.index)}
-	{#if vIdx === 0 && isPlayingBeat(measureIndex, beat.index)}
-		<rect x={beat.x - 9} y="2" width="18" height={bandHeight - 4} class={BG_PLAY} />
-	{:else if isCursorBeat(measureIndex, beat.index, vIdx, isActiveTrack)}
-		<rect x={beat.x - 9} y="2" width="18" height={bandHeight - 4} class={BG_CURSOR} />
-	{:else if vIdx === 0 && inSelection(measureIndex, beat.index, trackIndex)}
-		<rect x={beat.x - 9} y="2" width="18" height={bandHeight - 4} class={BG_SEL} />
-	{/if}
 	{#if beat.fermata}
 		<text
 			x={beat.x - 6}
