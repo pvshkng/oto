@@ -614,16 +614,23 @@ function writePitchAutomation(
 
 	let holdSemis = 0;
 	let settleTicks = Math.round(secondsToTicks(0.1, tempo));
+	let vibratoEndTick = endTick;
 	if (opts.slideSemis !== undefined) {
-		// Ramp to the destination across the note's full duration.
+		// Shift-slide shape: hold the struck pitch for the first ~75% of the
+		// note, then glide quickly into the destination right before the next
+		// attack. Ramping across the full duration instead reads as an
+		// out-of-tune rise rather than a slide into the next pitch. The ramp
+		// must never pass endTick: a bend event landing after the reset below
+		// would leave the whole channel bent for the notes that follow.
+		const slideStart = Math.min(Math.round(startTick + durTicks * 0.75), endTick);
 		const steps = 8;
 		handler.addBend(0, startTick, channel, wheel(0));
 		for (let i = 1; i <= steps; i++) {
-			const t = Math.round(startTick + (durTicks * i) / steps);
+			const t = Math.round(slideStart + ((endTick - slideStart) * i) / steps);
 			handler.addBend(0, t, channel, wheel((opts.slideSemis * i) / steps));
 		}
-		holdSemis = opts.slideSemis;
-		settleTicks = Math.round(durTicks * 0.5);
+		// Any vibrato wobbles the struck pitch and stops once the glide begins.
+		vibratoEndTick = slideStart;
 	} else if (opts.bendSemis) {
 		// Quick pull-up that is then sustained, not a slow glide.
 		const attackTicks = Math.min(durTicks * 0.4, secondsToTicks(0.18, tempo));
@@ -642,7 +649,7 @@ function writePitchAutomation(
 		const halfCycleTicks = Math.max(1, Math.round(secondsToTicks(1 / (VIBRATO_RATE * 2), tempo)));
 		let t = startTick + Math.min(settleTicks, Math.round(durTicks * 0.5));
 		let up = true;
-		while (t < endTick) {
+		while (t < vibratoEndTick) {
 			handler.addBend(
 				0,
 				Math.round(t),
