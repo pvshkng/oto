@@ -367,7 +367,7 @@
 </script>
 
 <ContextMenuPrimitive.Root bind:open={store.contextMenuOpen}>
-	<ContextMenuPrimitive.Trigger class="block">
+	<ContextMenuPrimitive.Trigger class="block outline-none focus-visible:outline-none">
 		<div class="flex items-start">
 			{#if showTrackLabel}
 				<div
