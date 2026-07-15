@@ -7,6 +7,7 @@
 
 	import { untrack } from 'svelte';
 	import { store } from '$lib/stores/score.svelte';
+	import { pausePlayback, seekPlayback } from '$lib/audio/playback';
 	import { scoreViewport } from '$lib/stores/viewport.svelte';
 	import { observeWidth } from '$lib/resize';
 	import {
@@ -284,17 +285,28 @@
 		return py < METRICS.sectionLabelHeight && !!measure.sectionLetter;
 	}
 
+	// Any click in the staff interrupts a running playback: a plain click on a
+	// beat is a seek (playback restarts from the clicked spot), everything else
+	// (section labels, whitespace, shift-selection) pauses in place.
 	function handleClick(e: MouseEvent, system: LaidSystem) {
 		const r = resolvePointer(e, system);
-		if (!r) return;
+		if (!r) {
+			if (store.isPlaying) pausePlayback();
+			return;
+		}
 		if (inSectionLabel(r.measure, r.py)) {
+			if (store.isPlaying) pausePlayback();
 			startEditSection(r.measure);
 			return;
 		}
-		if (!r.band) return;
+		if (!r.band) {
+			if (store.isPlaying) pausePlayback();
+			return;
+		}
 		if (drag.isSuppressingClick()) return;
 		const { beat, string } = locate(r.measure, r.band, r.px, r.py);
 		if (e.shiftKey) {
+			if (store.isPlaying) pausePlayback();
 			// Keep cursor where it is (just ensure this track is active), then extend
 			// selection from that anchor to the clicked beat.
 			store.setCursor({ track: trackIndex });
@@ -303,6 +315,7 @@
 			store.setCursor({ track: trackIndex, measure: r.measure.index, beat, string });
 			store.clearSelection();
 			store.clearNoteSelection();
+			if (store.isPlaying) seekPlayback(r.measure.index, beat);
 		}
 	}
 

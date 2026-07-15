@@ -1,19 +1,23 @@
 <script lang="ts">
-	// The moving playback line: a thin vertical bar that glides smoothly through
-	// the bar being played, one segment per visible track's current system row.
+	// The playback line: a thin vertical bar that sits in front of the beat
+	// being played, one segment per visible track's current system row. It
+	// steps from beat onset to beat onset — deliberately not a smooth glide,
+	// so it can never drift away from the note that is actually sounding.
 	//
 	// It replaces the old per-beat grey "play" highlight, which repainted every
 	// mounted overlay canvas on every beat tick and drowned big multi-track
 	// scores. This component instead runs a requestAnimationFrame loop that
 	// writes `transform` on a handful of fixed-position divs — no canvas work,
 	// and no reactive store writes, so a frame costs a few rect reads no matter
-	// how large the score is.
+	// how large the score is. (The rAF loop is still needed even though the
+	// position only changes per beat: scrolling moves the fixed-position line's
+	// target rects every frame.)
 	//
 	// Coordinates: the engine reports (measure, tick-within-measure) — see
-	// AudioEngine.displayPosition(). Each track maps that to an x by lerping
-	// between its own laid beats' onsets (LaidBeat.startFrac is the onset in
-	// whole-note fractions, and ticks are musical time at 960/quarter), so
-	// tracks with different rhythms each get a musically-correct position.
+	// AudioEngine.displayPosition(). Each track maps that to an x via its own
+	// laid beats' onsets (LaidBeat.startFrac is the onset in whole-note
+	// fractions, and ticks are musical time at 960/quarter), so tracks with
+	// different rhythms each get a musically-correct position.
 	import { store } from '$lib/stores/score.svelte';
 	import { audio } from '$lib/audio/engine';
 	import { TICKS_PER_QUARTER } from '$lib/audio/midi';

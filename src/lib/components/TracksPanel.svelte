@@ -9,6 +9,7 @@
 	import { store } from '$lib/stores/score.svelte';
 	import { audio } from '$lib/audio/engine';
 	import { audioTrack } from '$lib/audio/audio-track.svelte';
+	import { seekPlayback } from '$lib/audio/playback';
 	import { analyzeMeasure } from '$lib/oto/duration';
 	import { sectionLetterAt } from '$lib/oto/sections';
 	import { cn } from '$lib/utils';
@@ -129,6 +130,14 @@
 	function confirmRemoveSection(sec: { id: string; label: string }) {
 		const name = sec.label ? `"${sec.label}"` : 'this section';
 		if (confirm(`Remove ${name}?`)) store.removeSection(sec.id);
+	}
+
+	// Jump the score view (and, mid-playback, the playback itself) to a bar of a
+	// track: reveal the track, move the cursor there, and when a piece is
+	// playing restart it from that bar so the panel doubles as a live navigator.
+	function jumpTo(trackIdx: number, measure: number) {
+		store.goToBar(trackIdx, measure);
+		if (store.isPlaying) seekPlayback(measure, 0);
 	}
 
 	// Select all beats in one bar of a given track, revealing it first so the
@@ -446,8 +455,9 @@
 								} else {
 									// Clicking any track's bar switches the score view to that
 									// track and scrolls it to the bar — including a track that
-									// wasn't the focused one.
-									store.goToBar(i, measure);
+									// wasn't the focused one. Mid-playback it also moves the
+									// playback there.
+									jumpTo(i, measure);
 								}
 							}}
 							ondblclick={(e) => {
@@ -550,7 +560,7 @@
 										<button
 											class="bg-primary text-primary-foreground [background-image:none!important] flex size-4 shrink-0 items-center justify-center rounded text-[9px] font-bold"
 											title="Jump to this section"
-											onclick={() => store.goToBar(store.cursor.track, sec.measure)}
+											onclick={() => jumpTo(store.cursor.track, sec.measure)}
 										>
 											{letter}
 										</button>

@@ -132,6 +132,22 @@ export async function play() {
 	});
 }
 
+/** Jump a playing piece to a new position and keep playing from there —
+ *  click-to-seek from the score staff or the tracks panel. The beat index is
+ *  clamped to the playback beats of the target measure (a click on a busier
+ *  track can carry a beat index past what the compiled primary voice has —
+ *  unclamped it would resolve to the *next* measure's start). No-op while
+ *  stopped/paused: there a click just moves the cursor, and the next Play
+ *  starts from the cursor anyway. */
+export async function seekPlayback(measure: number, beat: number) {
+	if (!store.isPlaying) return;
+	const compiled = await getCompiledSong();
+	if (!store.isPlaying) return; // stopped while compiling
+	const beats = compiled.measureBeatTicks[measure];
+	const clamped = Math.max(0, Math.min(beat, (beats?.length ?? 1) - 1));
+	await startPlaybackFrom(measure, clamped, { countIn: false });
+}
+
 let tempoRescheduleTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Call after a tempo change (stepper or live slider) so a piece already
