@@ -87,7 +87,7 @@
 			>
 				<Faders class="size-4" />
 			</Popover.Trigger>
-			<!-- z-[70]: must clear the floating tuner window itself (panels stack at 50–60). -->
+			<!-- z-[70]: must clear the floating tuner window itself (panels stack at 10–30, see store.panelZ). -->
 			<Popover.Content side="bottom" align="end" class="z-[70] w-56 p-3">
 				<div class="mb-2 flex items-center justify-between">
 					<span class="text-xs font-semibold">Mic volume</span>

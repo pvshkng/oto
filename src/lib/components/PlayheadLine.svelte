@@ -162,7 +162,7 @@
 	{#each visibleTracks as t, i (t.id)}
 		<div
 			bind:this={lineEls[i]}
-			class="pointer-events-none fixed top-0 left-0 w-[1.5px] rounded-full bg-black print:hidden"
+			class="pointer-events-none fixed top-0 left-0 w-[1.5px] rounded-full bg-stone-500 opacity-50 print:hidden"
 			style="display:none"
 		></div>
 	{/each}

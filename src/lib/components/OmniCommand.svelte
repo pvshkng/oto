@@ -19,9 +19,10 @@
 </script>
 
 <Dialog.Root bind:open>
-	<!-- z-[70]: floating desktop panels stack at z 50–60 (see store.panelZ) and a
-	     recently-grabbed window would otherwise sit on top of the palette and
-	     swallow clicks on its items. -->
+	<!-- z-[70]: stays above the shared z-50 overlay layer (Popover/Dialog/...) as
+	     well as floating desktop panels (z 10–30, see store.panelZ), so a
+	     recently-grabbed window never sits on top of the palette and swallows
+	     clicks on its items. -->
 	<Dialog.Content
 		class="z-[70] overflow-hidden p-0"
 		showCloseButton={false}

@@ -56,7 +56,7 @@
 	class={cn(
 		'pointer-events-auto flex flex-col overflow-hidden bg-background/50 backdrop-blur-md',
 		floating
-			? 'fixed top-4 left-4 z-50 max-h-[calc(100dvh-2rem)] w-80 rounded-lg border border-border shadow-[0_6px_24px_rgba(0,0,0,0.14)]'
+			? 'fixed top-4 left-4 z-10 max-h-[calc(100dvh-2rem)] w-80 rounded-lg border border-border shadow-[0_6px_24px_rgba(0,0,0,0.14)]'
 			: 'h-full w-full rounded-lg border border-border shadow-[0_6px_24px_rgba(0,0,0,0.14)]'
 	)}
 >

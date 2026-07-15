@@ -403,11 +403,13 @@ export class ScoreStore {
 	}
 
 	/** Stacking order for a floating panel: the one being dragged sits above the
-	 *  most-recently-grabbed one, which sits above the rest. */
+	 *  most-recently-grabbed one, which sits above the rest. Kept below the
+	 *  shared z-50 overlay layer (Popover/Dialog/DropdownMenu/...) so portalled
+	 *  dropdowns opened from a panel's content always render on top of it. */
 	panelZ(id: PanelId): number {
-		if (this.draggingPanel === id) return 60;
-		if (this.frontPanel === id) return 55;
-		return 50;
+		if (this.draggingPanel === id) return 30;
+		if (this.frontPanel === id) return 20;
+		return 10;
 	}
 
 	/** Move a panel to a dock. Left and right are single-occupancy slots, so
