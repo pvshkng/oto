@@ -88,9 +88,12 @@
 
 	// Multi-track view splits a track's systems across several sections
 	// (interleaved with other tracks' matching systems), so a track can have
-	// more than one section — gather them all and search across. Shared by the
-	// explicit "scroll to track" requests below and the playback auto-follow
-	// effect further down.
+	// more than one section — gather them all and search across. Every system is
+	// in the DOM whether or not its canvas is mounted (TrackStaff virtualizes
+	// only the canvas, not the sized placeholder), so a system far off-screen is
+	// still findable. Null means the track — or that bar of it — isn't rendered.
+	// Shared by the explicit "scroll to track" requests below and the playback
+	// auto-follow effect further down.
 	function findSystemFor(trackId: string, measure?: number): Element | null {
 		const trackEls = [...document.querySelectorAll(`[data-track-id="${CSS.escape(trackId)}"]`)];
 		if (!trackEls.length) return null;
@@ -102,7 +105,20 @@
 				if (measure >= first && measure <= last) return el;
 			}
 		}
-		return trackEls[0];
+		return null;
+	}
+
+	// Pin a system to the top of the score view. Scrolls the container directly
+	// (not scrollIntoView) so only the score area moves — never the page/visual
+	// viewport on mobile. `minDelta` skips moves too small to be worth animating.
+	const SYSTEM_TOP_GAP = 12; // breathing room above the focused system
+	function pinSystemToTop(target: Element, minDelta = 0) {
+		if (!scoreAreaEl) return;
+		const view = scoreAreaEl.getBoundingClientRect();
+		const rect = target.getBoundingClientRect();
+		const delta = rect.top - view.top - SYSTEM_TOP_GAP;
+		if (Math.abs(delta) <= minDelta) return;
+		scoreAreaEl.scrollTo({ top: scoreAreaEl.scrollTop + delta, behavior: 'smooth' });
 	}
 
 	// Keep the loaded audio in step with the open document (page load / New /
@@ -123,10 +139,25 @@
 		if (!req || !scoreAreaEl) return;
 		if (req.kind === 'start') {
 			scoreAreaEl.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
-		} else if (req.kind === 'track' && req.trackId) {
-			const target = findSystemFor(req.trackId, req.measure);
-			target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			return;
 		}
+		const trackId = req.trackId;
+		if (req.kind !== 'track' || !trackId) return;
+		// A request usually arrives in the same tick the track was revealed (e.g.
+		// clicking another instrument's bar in the tracks panel), and its staff
+		// only builds systems once it has measured its own width — a frame or two
+		// later. So retry until the target bar exists rather than scrolling to
+		// whatever is there now. Capped so a request for a bar that never renders
+		// gives up instead of spinning.
+		let frames = 0;
+		let raf = 0;
+		const attempt = () => {
+			const target = findSystemFor(trackId, req.measure);
+			if (target) pinSystemToTop(target);
+			else if (++frames < 30) raf = requestAnimationFrame(attempt);
+		};
+		attempt();
+		return () => cancelAnimationFrame(raf);
 	});
 
 	// Playback auto-scroll: keep the system (staff line) under the playhead
@@ -150,15 +181,7 @@
 		if (!trackId) return;
 		const target = findSystemFor(trackId, measure);
 		if (!target) return;
-		const view = scoreAreaEl.getBoundingClientRect();
-		const rect = target.getBoundingClientRect();
-		// Scroll the container directly (not scrollIntoView) so only the score
-		// area moves — never the page/visual viewport on mobile.
-		const desired = 12; // breathing room above the focused system
-		const delta = rect.top - view.top - desired;
-		if (Math.abs(delta) > 4) {
-			scoreAreaEl.scrollTo({ top: scoreAreaEl.scrollTop + delta, behavior: 'smooth' });
-		}
+		pinSystemToTop(target, 4);
 	});
 
 	// The right-click track-staff context menu doesn't track the page under

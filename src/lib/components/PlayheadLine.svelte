@@ -36,7 +36,10 @@
 	let segments: (Segment | null)[] = [];
 	let segMeasure = -1;
 	let clipEl: HTMLElement | null = null;
-	let lineEls: (HTMLDivElement | undefined)[] = [];
+	// $state so `bind:this={lineEls[i]}` binds into reactive state (a plain
+	// array triggers Svelte's binding_property_non_reactive warning). The rAF
+	// loop reads it outside any reactive context, so no effect re-runs per frame.
+	let lineEls: (HTMLDivElement | undefined)[] = $state([]);
 
 	function resolveSegments(mi: number) {
 		segments = visibleTracks.map((t) => {

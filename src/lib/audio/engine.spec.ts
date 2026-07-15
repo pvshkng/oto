@@ -122,6 +122,7 @@ type ClockInternals = {
 	clockTick: number;
 	clockWall: number;
 	clockRate: number;
+	clockJumped: boolean;
 	repeat: boolean;
 	loopEndTick: number;
 };
@@ -192,6 +193,36 @@ describe('AudioEngine.displayPosition', () => {
 		// At most 300ms × rate past the anchor — not 10s ahead.
 		expect(pos.measure).toBe(0);
 		expect(pos.tickIn).toBeLessThanOrEqual(1.92 * 300 + 1);
+	});
+
+	it('holds instead of moving backwards when a callback lands behind the extrapolation', () => {
+		// The extrapolated position crossed into measure 1…
+		const engine = playingEngine({ tick: 3800, rate: 1.92 });
+		const c = engine as unknown as ClockInternals;
+		c.clockWall = performance.now() - 100; // ≈ tick 3992, past the 3840 barline
+		const first = engine.displayPosition()!;
+		expect(first.measure).toBe(1);
+		// …then the worker callback reports a tick still inside measure 0 (the
+		// rate estimate ran hot). The line must hold at the barline it already
+		// crossed — never bounce back into the previous bar.
+		c.clockTick = 3820;
+		c.clockWall = performance.now();
+		const second = engine.displayPosition()!;
+		expect(second.measure).toBe(1);
+		expect(second.tickIn).toBeGreaterThanOrEqual(first.tickIn);
+	});
+
+	it('snaps backwards when the clock reports a real jump (loop wrap / seek)', () => {
+		const engine = playingEngine({ tick: 7600, rate: 1.92 });
+		const c = engine as unknown as ClockInternals;
+		engine.displayPosition(); // shown near the end of measure 1's first pass
+		// The wrap callback reports a backwards tick and raises clockJumped.
+		c.clockTick = 3840;
+		c.clockWall = performance.now();
+		c.clockJumped = true;
+		const pos = engine.displayPosition()!;
+		expect(pos.measure).toBe(1);
+		expect(pos.tickIn).toBeLessThan(200);
 	});
 
 	it('never runs past the loop end while repeating', () => {

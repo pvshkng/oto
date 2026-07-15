@@ -124,10 +124,6 @@
 		}
 	}
 
-	function jumpTo(measure: number, track = store.cursor.track) {
-		store.setCursor({ track, measure, beat: 0 });
-	}
-
 	// Deleting a section is cheap to undo (Ctrl+Z), but a stray tap on the tiny
 	// X next to the letter chip is easy to fire by accident, so confirm first.
 	function confirmRemoveSection(sec: { id: string; label: string }) {
@@ -135,25 +131,13 @@
 		if (confirm(`Remove ${name}?`)) store.removeSection(sec.id);
 	}
 
-	// Double tap/click a colored (content-bearing) block in the arrangement to
-	// jump there and scroll the main score view to that exact track.
-	//
-	// function gotoSection(i: number, measure: number) {
-	// 	const t = tracks[i];
-	// 	if (!t || !trackHasContent(t, measure)) return;
-	// 	store.focusedTrackId = t.id;
-	// 	jumpTo(measure, i);
-	// 	store.mixerOpen = false;
-	// 	store.scrollToTrack(t.id, measure);
-	// }
-
-	// Select all beats in one bar of a given track.
+	// Select all beats in one bar of a given track, revealing it first so the
+	// selection is somewhere the user can actually see.
 	function selectBar(trackIdx: number, measure: number) {
 		const t = tracks[trackIdx];
 		if (!t) return;
 		const lastBeat = Math.max(0, (t.measures[measure]?.beats.length ?? 1) - 1);
-		if (store.trackViewMode === 'single') store.focusedTrackId = t.id;
-		store.setCursor({ track: trackIdx, measure, beat: 0 });
+		store.goToBar(trackIdx, measure);
 		store.setSelectionTo(measure, lastBeat);
 	}
 
@@ -447,7 +431,7 @@
 						<button
 							class="relative flex shrink-0 cursor-pointer [background-image:none!important]"
 							style="width:{timelineW}px"
-							title="Click to focus track · Shift-click to select bar range · Double-click to select entire bar"
+							title="Click to jump to this bar · Shift-click to select bar range · Double-click to select entire bar"
 							onclick={(e) => {
 								const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
 								const measure = Math.min(measureCount - 1, Math.floor(x / cell));
@@ -460,8 +444,10 @@
 									store.setCursor({ track: i, measure: start, beat: 0 });
 									store.setSelectionTo(end, lastBeat);
 								} else {
-									if (store.trackViewMode === 'single') store.focusedTrackId = track.id;
-									jumpTo(measure, i);
+									// Clicking any track's bar switches the score view to that
+									// track and scrolls it to the bar — including a track that
+									// wasn't the focused one.
+									store.goToBar(i, measure);
 								}
 							}}
 							ondblclick={(e) => {
@@ -564,7 +550,7 @@
 										<button
 											class="bg-primary text-primary-foreground [background-image:none!important] flex size-4 shrink-0 items-center justify-center rounded text-[9px] font-bold"
 											title="Jump to this section"
-											onclick={() => jumpTo(sec.measure)}
+											onclick={() => store.goToBar(store.cursor.track, sec.measure)}
 										>
 											{letter}
 										</button>

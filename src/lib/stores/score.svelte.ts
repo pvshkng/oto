@@ -1557,6 +1557,26 @@ export class ScoreStore {
 		}
 	}
 
+	/** Bring one bar of one track into view in the score area: whatever the
+	 *  current focus was, make that track's staff the (or one of the) visible
+	 *  one(s), put the cursor on the bar, and ask the score view to scroll to it.
+	 *  Single view swaps the focused track outright; multi view only widens an
+	 *  existing focus set (an empty set already shows everything). */
+	goToBar(trackIndex: number, measure: number) {
+		const t = this.score.tracks[trackIndex];
+		if (!t) return;
+		if (this.trackViewMode === 'single') {
+			this.focusedTrackId = t.id;
+		} else if (this.focusedTrackIds.size > 0 && !this.focusedTrackIds.has(t.id)) {
+			this.focusedTrackIds = new SvelteSet([...this.focusedTrackIds, t.id]);
+		}
+		this.setCursor({ track: trackIndex, measure, beat: 0 });
+		// Scroll to where the cursor actually landed: a click past the end of a
+		// track shorter than the longest one clamps, and the bar it clamped to is
+		// the one that exists to scroll to.
+		this.scrollToTrack(t.id, this.cursor.measure);
+	}
+
 	/** Switch track view mode. Clears the focused set when switching. */
 	setTrackViewMode(mode: 'single' | 'multi') {
 		if (mode === this.trackViewMode) return;
