@@ -363,7 +363,7 @@
 					{#each shared.systems as _, si (si)}
 						{#each store.score.tracks as track, i (track.id)}
 							{#if store.isTrackVisible(track.id)}
-								<section class="mb-1 border-3! border-red-500!" data-track-id={track.id}>
+								<section class="mb-1" data-track-id={track.id}>
 									<TrackStaff
 										trackIndex={i}
 										onlySystemIndex={si}
