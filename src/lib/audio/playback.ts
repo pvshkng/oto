@@ -92,11 +92,14 @@ async function startPlaybackFrom(
 			loopStartTick,
 			repeat,
 			onBeatMarker: (measure, beat) => {
-				// Mutate in place rather than replacing the object: Svelte 5's deep
-				// state only notifies subscribers of a property that actually changed,
-				// so a beat tick inside the same measure re-runs only the beat-level
-				// checks of that measure, instead of invalidating every rendered
-				// beat's playhead check across every visible track on every tick.
+				// The moving playback line does NOT read this — it extrapolates from
+				// the engine clock on its own rAF loop (see PlayheadLine.svelte). The
+				// store playhead only drives the per-measure consumers: playback
+				// auto-scroll and the tracks panel's section highlight, plus the
+				// pause-in-place cursor sync. Mutate in place rather than replacing
+				// the object: Svelte 5's deep state only notifies subscribers of a
+				// property that actually changed, so a beat tick inside the same
+				// measure doesn't re-run the measure-level subscribers at all.
 				const p = store.playhead;
 				if (p) {
 					p.measure = measure;

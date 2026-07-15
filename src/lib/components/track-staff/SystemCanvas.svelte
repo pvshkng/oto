@@ -1,7 +1,9 @@
 <script lang="ts">
 	// One notation system rendered as two stacked canvases:
-	//  - overlay (bottom): editing/playback highlights — repainted on cursor/
-	//    playhead/selection changes only, so those never touch the note glyphs.
+	//  - overlay (bottom): editing highlights — repainted on cursor/selection
+	//    changes only, so those never touch the note glyphs. (Playback focus is
+	//    the PlayheadLine DOM overlay, deliberately not drawn here: beat ticks
+	//    must never trigger canvas repaints.)
 	//  - notation (top, transparent): staff frame + note glyphs. Its white fret
 	//    masks and opaque ink sit over the overlay so the translucent highlight
 	//    tints read as "behind the notes", exactly as the SVG layered them.
@@ -99,7 +101,6 @@
 			system,
 			trackIndex,
 			cursor: store.cursor,
-			playhead: store.playhead,
 			loopBounds: store.loopBounds,
 			selectionTrack: store.selection?.track,
 			noteSelection: store.noteSelection

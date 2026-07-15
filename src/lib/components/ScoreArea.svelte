@@ -22,6 +22,7 @@
 	import { TUNINGS } from '$lib/oto/pitch';
 	import type { OtoTrack } from '$lib/oto/types';
 	import TrackStaff from './TrackStaff.svelte';
+	import PlayheadLine from './PlayheadLine.svelte';
 
 	let { onHeaderClick }: { onHeaderClick: () => void } = $props();
 
@@ -387,3 +388,7 @@
 		</div>
 	{/if}
 </svelte:boundary>
+
+<!-- Moving playback line, over whichever view is active. Mounted here (not in
+     +page) so it exists exactly when a score area does, for both hosts. -->
+<PlayheadLine />

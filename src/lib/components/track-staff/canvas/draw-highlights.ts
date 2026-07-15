@@ -1,13 +1,15 @@
-// Canvas port of HighlightLayer.svelte — the editing/playback overlay drawn on
-// its own canvas so cursor/playhead/selection changes never repaint the (heavy)
-// notation layer. `computeHighlights` is a pure function of the store snapshot
-// the component passes in; `drawHighlights` paints the result. Coordinates,
-// fills and priority mirror the SVG original 1:1.
+// Canvas port of HighlightLayer.svelte — the editing overlay drawn on its own
+// canvas so cursor/selection changes never repaint the (heavy) notation layer.
+// `computeHighlights` is a pure function of the store snapshot the component
+// passes in; `drawHighlights` paints the result. Coordinates, fills and
+// priority mirror the SVG original 1:1. Playback focus is NOT drawn here — the
+// moving playhead is PlayheadLine.svelte's DOM line, precisely so beat ticks
+// never touch a canvas.
 
 import { METRICS, type LaidBeat, type LaidSystem, type TrackLayout } from '$lib/notation/layout';
 import { fretLabelWidth } from '../fret-label';
 
-export type HighlightKind = 'play' | 'cursor' | 'sel' | 'string' | 'note';
+export type HighlightKind = 'cursor' | 'sel' | 'string' | 'note';
 
 export interface HRect {
 	x: number;
@@ -19,16 +21,14 @@ export interface HRect {
 
 // Per-kind fill + corner radius — byte-for-byte the classes the SVG rects used.
 const FILL: Record<HighlightKind, string> = {
-	play: 'rgba(24,24,27,0.28)',
 	cursor: 'rgba(24,24,27,0.16)',
 	sel: 'rgba(24,24,27,0.07)',
 	string: 'rgba(24,24,27,0.14)',
 	note: 'rgba(24,24,27,0.22)'
 };
-const RADIUS: Record<HighlightKind, number> = { play: 3, cursor: 3, sel: 3, string: 2, note: 3 };
-// The play/cursor/sel/string chrome was `print:hidden`; only `note` printed.
+const RADIUS: Record<HighlightKind, number> = { cursor: 3, sel: 3, string: 2, note: 3 };
+// The cursor/sel/string chrome was `print:hidden`; only `note` printed.
 const PRINT_HIDDEN: Record<HighlightKind, boolean> = {
-	play: true,
 	cursor: true,
 	sel: true,
 	string: true,
@@ -40,7 +40,6 @@ export interface HighlightInputs {
 	system: LaidSystem;
 	trackIndex: number;
 	cursor: { track: number; voice: number; measure: number; beat: number; string: number };
-	playhead: { measure: number; beat: number } | null;
 	loopBounds: {
 		startMeasure: number;
 		startBeat: number;
@@ -52,16 +51,7 @@ export interface HighlightInputs {
 }
 
 export function computeHighlights(inp: HighlightInputs): HRect[] {
-	const {
-		layout,
-		system,
-		trackIndex,
-		cursor,
-		playhead,
-		loopBounds,
-		selectionTrack,
-		noteSelection
-	} = inp;
+	const { layout, system, trackIndex, cursor, loopBounds, selectionTrack, noteSelection } = inp;
 	const out: HRect[] = [];
 	const std = layout.bands.standard;
 	const tab = layout.bands.tab;
@@ -83,17 +73,14 @@ export function computeHighlights(inp: HighlightInputs): HRect[] {
 		for (const [beats, vIdx] of voices) {
 			for (const beat of beats) {
 				const bi = beat.index;
-				// Priority mirrors the old {#if}/{:else if} chain: play > cursor > sel.
-				const isPlay = vIdx === 0 && !!playhead && playhead.measure === mi && playhead.beat === bi;
+				// Priority mirrors the old {#if}/{:else if} chain: cursor > sel.
 				const isCursor =
 					active && cursor.voice === vIdx && cursor.measure === mi && cursor.beat === bi;
-				const kind: HighlightKind | null = isPlay
-					? 'play'
-					: isCursor
-						? 'cursor'
-						: vIdx === 0 && inSel(mi, bi)
-							? 'sel'
-							: null;
+				const kind: HighlightKind | null = isCursor
+					? 'cursor'
+					: vIdx === 0 && inSel(mi, bi)
+						? 'sel'
+						: null;
 				if (kind) {
 					if (std) out.push({ x: beat.x - 9, y: std.offsetY + 2, w: 18, h: std.height - 4, kind });
 					if (tab) out.push({ x: beat.x - 9, y: tab.offsetY + 6, w: 18, h: tab.height - 12, kind });

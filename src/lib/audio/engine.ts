@@ -85,6 +85,18 @@ export class AudioEngine {
 	private harmonicChannels = new Map<string, number>();
 	private beatTicks: CompiledSong['beatTicks'] = [];
 	private lastBeatIndex = -1;
+	private totalTicks = 0;
+	// Smooth playhead clock for the moving playback line: the worker reports the
+	// position only every ~50ms, so the line extrapolates between callbacks from
+	// the last reported tick (clockTick @ clockWall) at the measured tick rate.
+	private clockTick = 0;
+	private clockWall = 0;
+	private clockRate = 0; // ticks per ms of wall time (already includes playbackSpeed)
+	/** True until the first positionChanged after play(). That first callback can
+	 *  report a large seek jump (count-in pre-roll, playback-range seek) whose
+	 *  tick delta says nothing about the real tick rate — anchor on it, but
+	 *  never take a rate sample from it. */
+	private clockFresh = true;
 	/** Tracks passed to the current/last play() call — read by syncAllTracks
 	 *  callers to resolve solo state across the whole score. */
 	private currentTracks: OtoTrack[] = [];
@@ -147,6 +159,24 @@ export class AudioEngine {
 
 		synth.positionChanged.on((e) => {
 			if (!this.playing) return;
+			const now = performance.now();
+			const dWall = now - this.clockWall;
+			const dTick = e.currentTick - this.clockTick;
+			// Re-estimate the tick rate from consecutive callbacks, which arrive
+			// every ~50ms while audio runs. No sample is taken from a pair that
+			// can't be an honest 50ms interval: the first callback after play()
+			// (clockFresh — its delta is the initial seek/count-in pre-roll), a
+			// backwards tick (loop wrap), a gap under 20ms (queued events flushed
+			// in a burst after a main-thread jam — tiny wall delta, full tick
+			// delta), or a gap over 250ms (the jam itself). Lightly smoothed so
+			// message-delivery jitter doesn't wobble the line.
+			if (!this.clockFresh && dTick > 0 && dWall >= 20 && dWall < 250) {
+				const r = dTick / dWall;
+				this.clockRate = this.clockRate > 0 ? this.clockRate * 0.5 + r * 0.5 : r;
+			}
+			this.clockFresh = false;
+			this.clockTick = e.currentTick;
+			this.clockWall = now;
 			this.emitBeatMarker(e.currentTick);
 			this.onPosition?.(e.currentTime);
 		});
@@ -204,10 +234,9 @@ export class AudioEngine {
 		if (!this.synth) throw this.lastStartError ?? new Error('audio engine failed to start');
 	}
 
-	/** Map a tick position to the latest primary-voice beat at/before it. */
-	private emitBeatMarker(tick: number) {
+	/** Index of the latest beatTicks entry at/before `tick` (-1 if before all). */
+	private beatIndexAt(tick: number): number {
 		const beats = this.beatTicks;
-		if (!beats.length || !this.onBeatMarker) return;
 		let lo = 0;
 		let hi = beats.length - 1;
 		let idx = -1;
@@ -220,10 +249,57 @@ export class AudioEngine {
 				hi = mid - 1;
 			}
 		}
+		return idx;
+	}
+
+	/** Map a tick position to the latest primary-voice beat at/before it. */
+	private emitBeatMarker(tick: number) {
+		const beats = this.beatTicks;
+		if (!beats.length || !this.onBeatMarker) return;
+		const idx = this.beatIndexAt(tick);
 		if (idx >= 0 && idx !== this.lastBeatIndex) {
 			this.lastBeatIndex = idx;
 			this.onBeatMarker(beats[idx].measure, beats[idx].beat);
 		}
+	}
+
+	/**
+	 * Smoothly-extrapolated playhead position for the moving playback line,
+	 * as (measure, tick-within-measure, measure length in ticks). Safe to call
+	 * every animation frame: it's pure math over the compiled beat table plus
+	 * one performance.now(), and touches no reactive state. Returns null while
+	 * stopped. Repeat passes resolve to the measure being played *now* (the
+	 * beat table has one entry per played beat, every pass included).
+	 */
+	displayPosition(): { measure: number; tickIn: number; measureTicks: number } | null {
+		const beats = this.beatTicks;
+		if (!this.playing || !beats.length) return null;
+		// Extrapolate at most 300ms past the last callback: they arrive every
+		// ~50ms while audio runs, so a longer silence means playback is stalled
+		// (backgrounded tab, audio underrun) and the line should hold, not run on.
+		const elapsed = Math.min(Math.max(0, performance.now() - this.clockWall), 300);
+		let tick = this.clockTick + elapsed * this.clockRate;
+		// Don't extrapolate past the end (or the loop wrap point) while waiting
+		// for the callback that reports the wrap/stop.
+		const end = this.repeat ? this.loopEndTick : this.totalTicks;
+		if (tick > end) tick = end;
+		const idx = Math.max(0, this.beatIndexAt(tick));
+		const mi = beats[idx].measure;
+		// Walk to the edges of this measure's entries within the current pass.
+		// A repeated measure appears once per pass; the beat-index reset marks
+		// the pass boundary, so only extend while beat indices stay monotonic.
+		let s = idx;
+		while (s > 0 && beats[s - 1].measure === mi && beats[s - 1].beat < beats[s].beat) s--;
+		let e = idx;
+		while (e + 1 < beats.length && beats[e + 1].measure === mi && beats[e + 1].beat > beats[e].beat)
+			e++;
+		const mStart = beats[s].tick;
+		const mEnd = e + 1 < beats.length ? beats[e + 1].tick : this.totalTicks;
+		return {
+			measure: mi,
+			tickIn: Math.max(0, tick - mStart),
+			measureTicks: Math.max(1, mEnd - mStart)
+		};
 	}
 
 	/** Switch the metronome's click timbre. The choice is baked into the next
@@ -365,6 +441,11 @@ export class AudioEngine {
 		this.harmonicChannels = compiled.harmonicChannels;
 		this.beatTicks = compiled.beatTicks;
 		this.lastBeatIndex = -1;
+		this.totalTicks = compiled.totalTicks;
+		this.clockTick = opts.startTick;
+		this.clockWall = performance.now();
+		this.clockRate = 0; // unknown until the first two position callbacks
+		this.clockFresh = true;
 		this.onBeatMarker = opts.onBeatMarker;
 		this.onPosition = opts.onPosition ?? null;
 		this.onStopCb = opts.onStop;

@@ -18,6 +18,7 @@
 		type SharedSystems,
 		type TrackLayout
 	} from '$lib/notation/layout';
+	import { registerTrackLayout } from '$lib/notation/layout-registry';
 	import { ContextMenu as ContextMenuPrimitive } from 'bits-ui';
 	import { createDragSelect } from './track-staff/DragSelect';
 	import StaffContextMenu from './track-staff/StaffContextMenu.svelte';
@@ -96,6 +97,14 @@
 			shared
 		};
 		return untrack(() => layoutTrackCached(score, t, opts, version));
+	});
+
+	// Publish this track's current layout for the playback line, which maps the
+	// playhead tick to an x position on its own rAF loop and so can't take part
+	// in component reactivity. Every instance of a track (one per system row in
+	// the interleaved view) registers the same shared layout object — idempotent.
+	$effect(() => {
+		registerTrackLayout(track.id, layout);
 	});
 
 	// When rendering just one system (interleaved multi-track view), only
