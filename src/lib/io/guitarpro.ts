@@ -21,6 +21,7 @@
 //    every hit round-trips to the exact sample our drum kit (oto/drums.ts) expects.
 
 import { midiToNote } from '$lib/oto/pitch';
+import { voiceForProgram } from '$lib/oto/instruments';
 import { makeScore, makeTrack } from '$lib/oto/format';
 import type {
 	DurationValue,
@@ -258,18 +259,9 @@ function convertStringedTrack(
 	const stringCount = tuning.length;
 	const kind: TrackKind = stringCount === 4 ? 'bass' : stringCount === 6 ? 'guitar' : 'custom';
 	const program = track.playbackInfo?.program ?? 25;
-	const instrument =
-		kind === 'bass'
-			? 'bass'
-			: program === 24
-				? 'nylon'
-				: program === 25
-					? 'acoustic'
-					: program === 27 || program === 28
-						? 'clean'
-						: program >= 26 && program <= 31
-							? 'electric'
-							: 'clean';
+	// Closest engine voice for the file's GM program; unmatched programs fall
+	// back to a generic synth so every imported track still sounds.
+	const instrument = voiceForProgram(program, kind);
 
 	const convertNote = (n: AtNote, beat: AtBeat): OtoNote => {
 		const otoString = Math.max(0, Math.min(stringCount - 1, stringCount - n.string));

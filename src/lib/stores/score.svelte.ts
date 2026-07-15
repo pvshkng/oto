@@ -21,6 +21,7 @@ import { analyzeMeasure, beatsFilled, measureCapacity } from '$lib/oto/duration'
 import { detuneTrack, transposeTrackFrets, retuneTrack } from '$lib/oto/transpose';
 import { MAX_SECTIONS } from '$lib/oto/sections';
 import type { MetronomeSound } from '$lib/audio/engine';
+import type { SoundFontQuality } from '$lib/audio/soundfont';
 import type {
 	AudioTrackConfig,
 	Dynamic,
@@ -118,6 +119,7 @@ interface StoredPrefs {
 	panelLayout?: Partial<Record<PanelId, Partial<PanelLayout>>>;
 	bottomSplitSwap?: boolean;
 	pageView?: boolean;
+	soundFontQuality?: SoundFontQuality;
 }
 
 export interface Selection {
@@ -177,6 +179,7 @@ export class ScoreStore {
 	 *  bar (measure) controls. Desktop shows both at once and ignores this. */
 	editScope = $state<'note' | 'bar'>('note');
 	songModalOpen = $state(false);
+	settingsOpen = $state(false);
 	openFileModalOpen = $state(false);
 	/** Mobile-only prompt shown when exporting a PDF from continuous view: it
 	 *  asks the user to switch to page view first, since mobile can't flip and
@@ -580,6 +583,7 @@ export class ScoreStore {
 	#playbackSpeedOn = $state(false);
 	#playbackSpeed = $state(1);
 	#pageView = $state(false);
+	#soundFontQuality = $state<SoundFontQuality>('standard');
 
 	get metronomeOn(): boolean {
 		return this.#metronomeOn;
@@ -642,6 +646,15 @@ export class ScoreStore {
 	}
 	set pageView(v: boolean) {
 		this.#pageView = v;
+		this.#persistPrefs();
+	}
+	/** Soundfont quality: standard (SF3) or high (SF2). The engine applies a
+	 *  change via audio.switchSoundFont(), see SettingsModal. */
+	get soundFontQuality(): SoundFontQuality {
+		return this.#soundFontQuality;
+	}
+	set soundFontQuality(v: SoundFontQuality) {
+		this.#soundFontQuality = v;
 		this.#persistPrefs();
 	}
 	/** Set when the audio engine failed to start (e.g. blocked autoplay), so the
@@ -794,6 +807,8 @@ export class ScoreStore {
 			}
 			if (typeof p.bottomSplitSwap === 'boolean') this.bottomSplitSwap = p.bottomSplitSwap;
 			if (typeof p.pageView === 'boolean') this.#pageView = p.pageView;
+			if (p.soundFontQuality === 'standard' || p.soundFontQuality === 'high')
+				this.#soundFontQuality = p.soundFontQuality;
 		} catch {
 			/* keep defaults */
 		}
@@ -812,7 +827,8 @@ export class ScoreStore {
 				playbackSpeed: this.#playbackSpeed,
 				panelLayout: $state.snapshot(this.panelLayout),
 				bottomSplitSwap: this.bottomSplitSwap,
-				pageView: this.#pageView
+				pageView: this.#pageView,
+				soundFontQuality: this.#soundFontQuality
 			};
 			localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
 		} catch {

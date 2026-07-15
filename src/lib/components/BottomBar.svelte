@@ -53,9 +53,6 @@
 	function toggleTempo() {
 		store.togglePanel('tempo');
 	}
-	function toggleSong() {
-		store.togglePanel('song');
-	}
 
 	// Playback speed: the toggle switches the multiplier on/off and the slider
 	// adjusts it; both apply to the synth immediately, even mid-playback.
@@ -424,17 +421,16 @@
 		</Popover.Content>
 	</Popover.Root>
 
-	<!-- Song settings pushed to the far right, split off from the song-control
+	<!-- Settings pushed to the far right, split off from the song-control
 	     buttons on the left (ml-auto opens the gap when there's room; the strip
 	     still scrolls when the viewport is too narrow to fit everything). -->
 	<Button
 		variant="ghost"
 		size="icon"
-		class={cn('ml-auto size-9 shrink-0', store.isDesktop && store.songModalOpen && 'sunk')}
-		title="Song settings"
-		aria-label="Song settings"
-		aria-pressed={store.isDesktop ? store.songModalOpen : undefined}
-		onclick={() => (store.isDesktop ? toggleSong() : (store.songModalOpen = true))}
+		class="ml-auto size-9 shrink-0"
+		title="Settings"
+		aria-label="Settings"
+		onclick={() => (store.settingsOpen = true)}
 	>
 		<GearSix class="size-5" />
 	</Button>

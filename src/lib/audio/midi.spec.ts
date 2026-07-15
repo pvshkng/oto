@@ -294,6 +294,96 @@ describe('harmonics', () => {
 		const compiled = await compileSong(score, 'click');
 		expect(compiled.harmonicChannels.size).toBe(0);
 	});
+
+	it('voices acoustic harmonics in the track timbre, softer, on the main channel', async () => {
+		type On = { channel?: number; type: number; noteKey: number; noteVelocity: number };
+		const track = makeTrack({
+			instrument: 'acoustic',
+			measures: [
+				{
+					beats: [
+						{ duration: 4, notes: [{ string: 1, fret: 12, techniques: ['harmonic'] }] },
+						note(1, 12)
+					]
+				}
+			]
+		});
+		const score = makeScore({ timeSignature: [4, 4], tracks: [track] });
+		const compiled = await compileSong(score, 'click');
+		// No companion channel: GM Guitar Harmonics is an electric sample.
+		expect(compiled.harmonicChannels.size).toBe(0);
+		const ons = (compiled.midi.events as unknown as On[]).filter(
+			(e) => e.type === NOTE_ON && e.channel === 0
+		);
+		expect(ons.map((e) => e.noteKey)).toEqual([OPEN_B + 12, OPEN_B + 12]);
+		// The harmonic chimes softer than the plain strike of the same pitch.
+		expect(ons[0].noteVelocity).toBeLessThan(ons[1].noteVelocity);
+	});
+});
+
+describe('ring-over', () => {
+	type Ev = { channel?: number; type: number; tick: number; noteKey: number };
+	const NOTE_OFF = 144;
+	// Standard tuning: string 0 is E4 = MIDI 64.
+	const offsFor = (compiled: Awaited<ReturnType<typeof compileSong>>, key: number) =>
+		(compiled.midi.events as unknown as Ev[])
+			.filter((e) => e.type === NOTE_OFF && e.channel === 0 && e.noteKey === key)
+			.map((e) => e.tick);
+
+	it('lets a note ring until the next strike on its string', async () => {
+		const track = makeTrack({
+			measures: [{ beats: [note(0, 5), note(0, 7), { duration: 2, notes: [], rest: true }] }]
+		});
+		const score = makeScore({ timeSignature: [4, 4], tracks: [track] });
+		const compiled = await compileSong(score, 'click');
+		// First note rings to just before the restrike; the second to the rest.
+		expect(offsFor(compiled, 64 + 5)).toEqual([TICKS_PER_QUARTER - 1]);
+		expect(offsFor(compiled, 64 + 7)).toEqual([TICKS_PER_QUARTER * 2]);
+	});
+
+	it('caps a plain note one quarter past its slot when nothing damps it', async () => {
+		const track = makeTrack({ measures: [{ beats: [note(0, 5)] }] });
+		const score = makeScore({ timeSignature: [4, 4], tracks: [track] });
+		const compiled = await compileSong(score, 'click');
+		expect(offsFor(compiled, 64 + 5)).toEqual([TICKS_PER_QUARTER * 2]);
+	});
+
+	it('extends let-ring up to a full bar', async () => {
+		const track = makeTrack({
+			measures: [
+				{
+					beats: [
+						{ duration: 4, notes: [{ string: 0, fret: 5, techniques: ['let-ring'] }] },
+						note(1, 5),
+						note(1, 5),
+						note(1, 5)
+					]
+				},
+				{ beats: [note(1, 5)] }
+			]
+		});
+		const score = makeScore({ timeSignature: [4, 4], tracks: [track] });
+		const compiled = await compileSong(score, 'click');
+		expect(offsFor(compiled, 64 + 5)).toEqual([TICKS_PER_QUARTER * 4]);
+	});
+
+	it('keeps staccato and palm-muted notes gated', async () => {
+		const track = makeTrack({
+			measures: [
+				{
+					beats: [
+						{ duration: 4, notes: [{ string: 0, fret: 5, techniques: ['staccato'] }] },
+						{ duration: 4, notes: [{ string: 0, fret: 7, techniques: ['palm-mute'] }] }
+					]
+				}
+			]
+		});
+		const score = makeScore({ timeSignature: [4, 4], tracks: [track] });
+		const compiled = await compileSong(score, 'click');
+		expect(offsFor(compiled, 64 + 5)).toEqual([Math.round(TICKS_PER_QUARTER * 0.4)]);
+		// Palm mutes stay chugged short (0.12s), never extended.
+		expect(offsFor(compiled, 64 + 7)[0]).toBeLessThan(TICKS_PER_QUARTER * 2);
+	});
 });
 
 describe('tie sustain', () => {
@@ -324,8 +414,8 @@ describe('tie sustain', () => {
 		const offs = trackNotes(compiled, NOTE_OFF);
 		expect(ons.length).toBe(1); // the continuation never restrikes
 		expect(ons[0].tick).toBe(0);
-		// Origin rings through both quarters (× the usual 0.95 gate).
-		expect(offs[0].tick).toBe(Math.round(TICKS_PER_QUARTER * 2 * 0.95));
+		// Origin rings through both quarters; the rest at beat 3 damps it.
+		expect(offs[0].tick).toBe(TICKS_PER_QUARTER * 2);
 	});
 
 	it('sustains across rests and the barline to the tied note', async () => {

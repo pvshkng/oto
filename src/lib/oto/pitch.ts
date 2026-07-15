@@ -81,6 +81,8 @@ export const TUNINGS: Record<string, string[]> = {
 	'Bass Standard': ['G2', 'D2', 'A1', 'E1'],
 	'Bass 5-String': ['G2', 'D2', 'A1', 'E1', 'B0'],
 	Ukulele: ['A4', 'E4', 'C4', 'G4'],
+	// 5-string banjo: the G4 drone is the 5th string but the highest pitch.
+	'Banjo (Open G)': ['G4', 'D4', 'B3', 'G3', 'D3'],
 	// Drum "tuning": each line is one GM kit piece. The open note of a line IS that
 	// piece's percussion MIDI note (fret 0), so playing the line sounds the piece
 	// and the audio engine can look it up in the drum map. Ordered top → bottom

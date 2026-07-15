@@ -1,10 +1,8 @@
 <script lang="ts">
 	// Minimal, monochromatic loading overlay shown while instrument sounds (and
-	// imported files) load. Matches the app's neutral palette — no colour, just
-	// the app mark, a spinning indicator and a short label — so it reads as part
-	// of the same surface rather than a separate splash. No progress bar: the
-	// work is quick enough that a spinner reads cleaner than a jumpy determinate
-	// bar.
+	// imported files) load. Matches the app's neutral palette: the app mark, a
+	// spinning indicator, a short label, and a detail line with download
+	// progress when the soundfont is being fetched.
 
 	import { loading } from '$lib/stores/loading.svelte';
 	import { fade } from 'svelte/transition';
@@ -23,6 +21,9 @@
 		<div class="panel">
 			<img class="mark" src="{base}/images/android-chrome-512x512-transparent.png" alt="oto" />
 			<Spinner size={26} label={loading.label} />
+			{#if loading.detail}
+				<p class="detail">{loading.detail}</p>
+			{/if}
 		</div>
 	</div>
 {/if}
@@ -49,5 +50,11 @@
 	.mark {
 		width: 150px;
 		height: 150px;
+	}
+	.detail {
+		margin: -8px 0 0;
+		font-size: 12px;
+		color: var(--muted-foreground, #888);
+		font-variant-numeric: tabular-nums;
 	}
 </style>

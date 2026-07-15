@@ -14,6 +14,8 @@ class LoadingStore {
 	done = $state(0);
 	/** Short status line, e.g. "Loading". */
 	label = $state('Loading');
+	/** Secondary status line, e.g. download progress ("12.4 of 35.9 MB"). */
+	detail = $state('');
 
 	get progress(): number {
 		return this.total > 0 ? Math.min(1, this.done / this.total) : 0;
@@ -25,6 +27,7 @@ class LoadingStore {
 		this.total = 0;
 		this.done = 0;
 		this.label = label;
+		this.detail = '';
 		this.active = true;
 	}
 
@@ -43,12 +46,16 @@ class LoadingStore {
 	/** Mark one item complete; auto-hides when the batch is fully done. */
 	tick() {
 		this.done = Math.min(this.total, this.done + 1);
-		if (this.done >= this.total) this.active = false;
+		if (this.done >= this.total) {
+			this.active = false;
+			this.detail = '';
+		}
 	}
 
 	/** Force the overlay closed (e.g. on error, so the app stays usable). */
 	finish() {
 		this.active = false;
+		this.detail = '';
 	}
 }
 

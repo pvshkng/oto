@@ -18,6 +18,7 @@
 	import OpenFileModal from '$lib/components/OpenFileModal.svelte';
 	import FileDropZone from '$lib/components/FileDropZone.svelte';
 	import PdfExportModal from '$lib/components/PdfExportModal.svelte';
+	import SettingsModal from '$lib/components/SettingsModal.svelte';
 	import TracksPanel from '$lib/components/TracksPanel.svelte';
 	import RightPanel from '$lib/components/RightPanel.svelte';
 	import TunerPanel from '$lib/components/TunerPanel.svelte';
@@ -583,5 +584,7 @@
 <FileDropZone />
 
 <PdfExportModal />
+
+<SettingsModal />
 
 <LoadingScreen forceActive={!ready} />

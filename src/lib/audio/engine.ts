@@ -16,7 +16,7 @@ import { loading } from '$lib/stores/loading.svelte';
 import { store } from '$lib/stores/score.svelte';
 import type { OtoTrack } from '$lib/oto/types';
 import type * as at from '@coderline/alphatab';
-import soundFontUrl from '@coderline/alphatab/soundfont/sonivox.sf3?url';
+import { loadSoundFontBytes, type SoundFontQuality } from './soundfont';
 import {
 	buildMetronomePreviewMidi,
 	buildPluckMidi,
@@ -74,6 +74,8 @@ export class AudioEngine {
 	private initPromise: Promise<void> | null = null;
 	private soundFontOk = false;
 	private soundFontBytes: Uint8Array | null = null;
+	/** Quality of the bytes fetched / presets loaded into the synth. */
+	private soundFontQuality: SoundFontQuality | null = null;
 
 	private metroSound: MetronomeSound = 'click';
 	private metroVolume = 1;
@@ -124,15 +126,23 @@ export class AudioEngine {
 		if (typeof window === 'undefined') return;
 		try {
 			await loadAlphaTab();
-			if (!this.soundFontBytes) {
-				this.soundFontBytes = await fetchWithProgress(soundFontUrl);
-			}
+			await this.fetchSoundFont();
 		} catch (err) {
 			this.lastStartError = err;
 			store.sampleWarning = "Couldn't load instrument sounds. Playback may be silent.";
 		} finally {
 			loading.finish();
 		}
+	}
+
+	/** Bytes for the selected quality (IndexedDB cache first, network otherwise). */
+	private async fetchSoundFont(): Promise<Uint8Array> {
+		const quality = store.soundFontQuality;
+		if (!this.soundFontBytes || this.soundFontQuality !== quality) {
+			this.soundFontBytes = await loadSoundFontBytes(quality);
+			this.soundFontQuality = quality;
+		}
+		return this.soundFontBytes;
 	}
 
 	/** Boot the synth inside a user gesture (idempotent, never throws). Wired
@@ -185,18 +195,47 @@ export class AudioEngine {
 		const synth = this.synth;
 		if (!synth || this.soundFontOk) return;
 		try {
-			if (!this.soundFontBytes) {
-				this.soundFontBytes = await fetchWithProgress(soundFontUrl);
-			}
+			const bytes = await this.fetchSoundFont();
 			const loaded = new Promise<void>((resolve, reject) => {
 				synth.soundFontLoaded.on(() => resolve());
 				synth.soundFontLoadFailed.on((e) => reject(e));
 			});
-			synth.loadSoundFont(this.soundFontBytes, false);
+			synth.loadSoundFont(bytes, false);
 			await loaded;
+			// The worker holds its own copy now; don't pin a second one here
+			// (the SF2 is ~200 MB). A later switch re-reads the IndexedDB cache.
+			this.soundFontBytes = null;
 			this.soundFontOk = true;
 			this.lastStartError = null;
 			store.sampleWarning = null;
+		} catch (err) {
+			this.lastStartError = err;
+			store.sampleWarning = "Couldn't load instrument sounds. Playback may be silent.";
+		} finally {
+			loading.finish();
+		}
+	}
+
+	/** Apply the selected soundfont quality: download if needed and swap the
+	 *  synth presets. Callers stop playback first. No-op when already active. */
+	async switchSoundFont(): Promise<void> {
+		// "Active" means actually usable, not just requested: a failed download
+		// leaves the quality tag matching while nothing is loaded, and switching
+		// back must retry then.
+		const active = this.synth ? this.soundFontOk : this.soundFontBytes !== null;
+		if (this.soundFontQuality === store.soundFontQuality && active) return;
+		// Stopping an idle synth trips an InvalidStateError inside the worklet
+		// output, so only stop when something is actually playing.
+		if (this.playing) this.stop();
+		this.soundFontOk = false;
+		try {
+			await this.fetchSoundFont();
+			this.lastStartError = null;
+			store.sampleWarning = null;
+			if (this.synth) {
+				this.synth.resetSoundFonts();
+				await this.loadSoundFont();
+			}
 		} catch (err) {
 			this.lastStartError = err;
 			store.sampleWarning = "Couldn't load instrument sounds. Playback may be silent.";
@@ -469,48 +508,6 @@ export class AudioEngine {
 		this.initPromise = null;
 		this.soundFontOk = false;
 	}
-}
-
-/** Download a URL as bytes, driving the loading overlay's progress bar. The
- *  batch opens before the request goes out so the overlay covers the whole
- *  download, and the caller's `finally` (via loading.finish) closes it on
- *  failure. */
-async function fetchWithProgress(url: string): Promise<Uint8Array> {
-	const STEPS = 20;
-	loading.begin(STEPS);
-	let ticked = 0;
-	const tickTo = (n: number) => {
-		while (ticked < n) {
-			loading.tick();
-			ticked++;
-		}
-	};
-	const res = await fetch(url);
-	if (!res.ok) throw new Error(`soundfont fetch failed: ${res.status}`);
-	const total = Number(res.headers.get('content-length')) || 0;
-	if (!res.body || !total) {
-		const bytes = new Uint8Array(await res.arrayBuffer());
-		tickTo(STEPS);
-		return bytes;
-	}
-	const reader = res.body.getReader();
-	const chunks: Uint8Array[] = [];
-	let received = 0;
-	for (;;) {
-		const { done, value } = await reader.read();
-		if (done) break;
-		chunks.push(value);
-		received += value.length;
-		tickTo(Math.min(STEPS, Math.floor((received / total) * STEPS)));
-	}
-	tickTo(STEPS);
-	const out = new Uint8Array(received);
-	let offset = 0;
-	for (const c of chunks) {
-		out.set(c, offset);
-		offset += c.length;
-	}
-	return out;
 }
 
 export const audio = new AudioEngine();

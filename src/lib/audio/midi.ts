@@ -11,6 +11,7 @@
 // exceeds the bar capacity are dropped from the schedule.
 
 import type * as at from '@coderline/alphatab';
+import { ENGINE_PROGRAMS, harmonicProgram } from '$lib/oto/instruments';
 import { frettedMidi } from '$lib/oto/pitch';
 import { beatFraction, beatsCutoff, isGraceBeat } from '$lib/oto/duration';
 import {
@@ -58,20 +59,6 @@ const PITCH_WHEEL_CENTER = 8192;
 const PITCH_BEND_RANGE_SEMITONES = 16;
 const WHEEL_PER_SEMITONE = PITCH_WHEEL_CENTER / PITCH_BEND_RANGE_SEMITONES;
 
-/** General MIDI program per oto engine voice. */
-const GM_PROGRAMS: Record<string, number> = {
-	nylon: 24, // Acoustic Guitar (nylon)
-	acoustic: 25, // Acoustic Guitar (steel)
-	clean: 27, // Electric Guitar (clean)
-	electric: 29, // Overdriven Guitar
-	bass: 33, // Electric Bass (finger)
-	piano: 0 // Acoustic Grand Piano
-};
-
-/** GM "Guitar Harmonics" — the timbre harmonic notes are voiced with, on a
- *  companion channel so the track's own program is never touched mid-song. */
-const GM_GUITAR_HARMONICS = 31;
-
 // Natural harmonics: the tabbed fret is the node the string is touched at, and
 // the note that rings is a fixed interval above the OPEN string — not the
 // fretted pitch. Node → semitones above open; unlisted nodes fall back to the
@@ -110,7 +97,8 @@ export interface CompiledSong {
 	/** Track id → MIDI channel the track's notes were written to. */
 	channels: Map<string, number>;
 	/** Track id → companion channel carrying the GM Guitar Harmonics program,
-	 *  for tracks that contain harmonic notes. The engine mirrors the track's
+	 *  for electric tracks that contain harmonic notes (other timbres voice
+	 *  harmonics on their own channel). The engine mirrors the track's
 	 *  volume/mute/solo onto it. */
 	harmonicChannels: Map<string, number>;
 	/** One entry per played beat of the primary track/voice (repeat passes
@@ -123,6 +111,37 @@ export interface CompiledSong {
 	totalTicks: number;
 	/** Which click timbre was baked into the metronome channel. */
 	metronomeSound: MetronomeSound;
+}
+
+/** A compiled note, held back until the whole timeline is known so its length
+ *  can ring over into the following beats (second pass in compileSong). */
+interface PendingNote {
+	start: number;
+	len: number;
+	key: number;
+	velocity: number;
+	channel: number;
+	/** Ring-over inputs; absent for notes that must end exactly at their gate. */
+	ring?: { strikeKey: string; restKey: string; cap: number };
+}
+
+function pushTick(map: Map<string, number[]>, key: string, tick: number) {
+	const list = map.get(key);
+	if (list) list.push(tick);
+	else map.set(key, [tick]);
+}
+
+/** First tick in the (sorted) list strictly after `tick`, or Infinity. */
+function nextTickAfter(list: number[] | undefined, tick: number): number {
+	if (!list) return Infinity;
+	let lo = 0;
+	let hi = list.length;
+	while (lo < hi) {
+		const mid = (lo + hi) >> 1;
+		if (list[mid] <= tick) lo = mid + 1;
+		else hi = mid;
+	}
+	return lo < list.length ? list[lo] : Infinity;
 }
 
 function secondsToTicks(seconds: number, tempo: number): number {
@@ -279,10 +298,12 @@ export function allocateChannels(tracks: OtoTrack[]): Map<string, number> {
 	return channels;
 }
 
-/** Companion Guitar-Harmonics channel for each pitched track that plays any
+/** Companion Guitar-Harmonics channel for each electric track that plays any
  *  harmonic note, drawn from the channels the main allocation left unused.
- *  When the pool is exhausted a track falls back to its own channel — the
- *  harmonic still sounds at the right pitch, just in the track's timbre. */
+ *  Other instruments skip the companion: the GM harmonics preset is an
+ *  electric sample, so their harmonics sound in the track's own timbre on
+ *  its own channel. When the pool is exhausted a track falls back to its own
+ *  channel — the harmonic still sounds at the right pitch. */
 export function allocateHarmonicChannels(
 	tracks: OtoTrack[],
 	channels: Map<string, number>
@@ -292,6 +313,7 @@ export function allocateHarmonicChannels(
 	const harmonicChannels = new Map<string, number>();
 	for (const track of tracks) {
 		if (track.instrument === 'drums') continue;
+		if (harmonicProgram(track.instrument) === (ENGINE_PROGRAMS[track.instrument] ?? 27)) continue;
 		const hasHarmonic = track.measures.some((m) =>
 			[...m.beats, ...(m.voice2 ?? [])].some((b) =>
 				b.notes.some(
@@ -349,7 +371,7 @@ export async function compileSong(
 		const channel = channels.get(track.id)!;
 		if (configured.has(channel)) continue;
 		configured.add(channel);
-		const program = channel === PERCUSSION_CHANNEL ? 0 : (GM_PROGRAMS[track.instrument] ?? 27);
+		const program = channel === PERCUSSION_CHANNEL ? 0 : (ENGINE_PROGRAMS[track.instrument] ?? 27);
 		setupChannel(alphaTab, handler, channel, program, track.pan ?? 0);
 	}
 	const harmonicChannels = allocateHarmonicChannels(score.tracks, channels);
@@ -359,7 +381,7 @@ export async function compileSong(
 		// channel — leave its program alone.
 		if (channel === undefined || configured.has(channel)) continue;
 		configured.add(channel);
-		setupChannel(alphaTab, handler, channel, GM_GUITAR_HARMONICS, track.pan ?? 0);
+		setupChannel(alphaTab, handler, channel, harmonicProgram(track.instrument), track.pan ?? 0);
 	}
 	{
 		const voice = METRONOME_VOICES[metronomeSound];
@@ -390,6 +412,14 @@ export async function compileSong(
 	}
 
 	const ties = computeTieSustains(score);
+
+	// Notes are collected rather than written immediately: their final lengths
+	// depend on strikes and rests that come later in the timeline (ring-over).
+	// Strike ticks are kept per `${track}:${string}`, rest ticks per
+	// `${track}:${voice}`; the walk below is chronological so both stay sorted.
+	const pending: PendingNote[] = [];
+	const strikes = new Map<string, number[]>();
+	const rests = new Map<string, number[]>();
 
 	let cursorTick = 0;
 	let lastTempo = -1;
@@ -470,7 +500,9 @@ export async function compileSong(
 							beat: content === measure ? bi : Math.min(bi, measure.beats.length - 1)
 						});
 					}
-					if (!beat.rest) {
+					if (beat.rest) {
+						pushTick(rests, `${ti}:${vi}`, startTick);
+					} else {
 						const palm = beat.notes.some((n) => n.techniques?.includes('palm-mute'));
 						// Dynamic marking scales the whole beat's attack strength.
 						const dynVel = beat.dynamic ? DYNAMIC_VELOCITY[beat.dynamic] : 1;
@@ -484,40 +516,46 @@ export async function compileSong(
 							: null;
 						const strumStep = Math.round(secondsToTicks(0.014, tempo));
 						for (const note of beat.notes) {
-							if (note.techniques?.includes('dead')) continue;
+							const noteStart = startTick + (strumOrder ? strumOrder.indexOf(note) * strumStep : 0);
+							if (note.techniques?.includes('dead')) {
+								// Doesn't sound, but still touches (and damps) the string.
+								pushTick(strikes, `${ti}:${note.string}`, noteStart);
+								continue;
+							}
 							const noteId = tieKey(ti, mi, vi, bi, note.string);
 							// Tied continuations never restrike — their origin's note-on
-							// below is stretched to ring through them instead.
+							// is stretched to ring through them instead.
 							if (ties.skip.has(noteId)) continue;
 							const sustainFrac = ties.sustain.get(noteId);
 							const soundTicks =
 								sustainFrac !== undefined ? sustainFrac * WHOLE_NOTE_TICKS : durTicks;
-							const strumDelay = strumOrder ? strumOrder.indexOf(note) * strumStep : 0;
 							let key = frettedMidi(track.tuning, note.string, note.fret, {
 								capo: track.capo,
 								transpose: track.transpose
 							});
-							// Harmonics ring at their true sounding pitch, voiced on the
-							// track's Guitar-Harmonics companion channel: a natural harmonic
-							// sounds a node interval above the open string (the tab fret is
-							// the touch point, not a stopped note); an artificial harmonic
-							// chimes an octave above the fretted pitch.
+							// Harmonics ring at their true sounding pitch: a natural
+							// harmonic sounds a node interval above the open string (the
+							// tab fret is the touch point, not a stopped note); an
+							// artificial harmonic chimes an octave above the fretted
+							// pitch. Electric tracks voice them on the Guitar-Harmonics
+							// companion channel; other timbres stay on their own channel
+							// (see allocateHarmonicChannels) and chime softer instead.
 							let noteChannel = channel;
-							if (note.techniques?.includes('harmonic')) {
-								key =
-									frettedMidi(track.tuning, note.string, 0, {
-										capo: track.capo,
-										transpose: track.transpose
-									}) + (NATURAL_HARMONIC_SEMITONES[note.fret] ?? 12);
-								noteChannel = harmonicChannels.get(track.id) ?? channel;
-							} else if (note.techniques?.includes('artificial-harmonic')) {
-								key += 12;
+							const harmonic =
+								note.techniques?.includes('harmonic') ||
+								note.techniques?.includes('artificial-harmonic');
+							if (harmonic) {
+								key = note.techniques!.includes('harmonic')
+									? frettedMidi(track.tuning, note.string, 0, {
+											capo: track.capo,
+											transpose: track.transpose
+										}) + (NATURAL_HARMONIC_SEMITONES[note.fret] ?? 12)
+									: key + 12;
 								noteChannel = harmonicChannels.get(track.id) ?? channel;
 							}
-							const noteStart = startTick + strumDelay;
-							let noteLen = Math.round(
-								soundTicks * (note.techniques?.includes('staccato') ? 0.4 : 0.95)
-							);
+							pushTick(strikes, `${ti}:${note.string}`, noteStart);
+							const staccato = note.techniques?.includes('staccato');
+							let noteLen = Math.round(soundTicks * (staccato ? 0.4 : 0.95));
 							if (palm) {
 								noteLen = Math.min(noteLen, Math.round(secondsToTicks(0.12, tempo)));
 							}
@@ -532,11 +570,11 @@ export async function compileSong(
 												? 0.4
 												: note.techniques?.includes('fade-in')
 													? 0.5
-													: 1)
+													: 1) *
+											(harmonic && noteChannel === channel ? 0.75 : 1)
 									)
 								)
 							);
-							handler.addNote(0, noteStart, noteLen, key, velocity, noteChannel);
 
 							// Pitch effects, expressed as channel pitch-bend automation. One
 							// channel per track means a bend rides the whole channel — same
@@ -563,6 +601,33 @@ export async function compileSong(
 									vibrato: !!vibrato
 								});
 							}
+
+							// Bent and slid notes can't ring past their gate: the pitch
+							// wheel resets there and would audibly snap the tail back.
+							const rings =
+								!staccato &&
+								!palm &&
+								channel !== PERCUSSION_CHANNEL &&
+								slideToKey === undefined &&
+								!bendSemis;
+							pending.push({
+								start: noteStart,
+								len: noteLen,
+								key,
+								velocity,
+								channel: noteChannel,
+								ring: rings
+									? {
+											strikeKey: `${ti}:${note.string}`,
+											restKey: `${ti}:${vi}`,
+											cap:
+												noteStart +
+												(note.techniques?.includes('let-ring')
+													? measureLenTicks
+													: soundTicks + TICKS_PER_QUARTER)
+										}
+									: undefined
+							});
 						}
 					}
 					localTicks += gridTicks;
@@ -571,6 +636,25 @@ export async function compileSong(
 		}
 
 		cursorTick += measureLenTicks;
+	}
+
+	// Second pass, now that every strike is known: a string keeps ringing past
+	// its notated slot until it's struck again, its voice rests, or a cap runs
+	// out — one extra quarter for plain notes, a full bar for let-ring
+	// (alphaTab's cap). Without this every note gates off on the grid and
+	// playback sounds staccato.
+	for (const n of pending) {
+		let len = n.len;
+		if (n.ring) {
+			const end = Math.min(
+				// -1 keeps the note-off clear of a same-key restrike at the barrier.
+				nextTickAfter(strikes.get(n.ring.strikeKey), n.start) - 1,
+				nextTickAfter(rests.get(n.ring.restKey), n.start),
+				n.ring.cap
+			);
+			len = Math.max(len, Math.round(end - n.start));
+		}
+		handler.addNote(0, n.start, len, n.key, n.velocity, n.channel);
 	}
 
 	const totalTicks = Math.round(cursorTick);
@@ -685,7 +769,7 @@ export async function buildPluckMidi(
 	handler.addTempo(0, 120);
 	// Even the percussion channel needs a program selected (0 = GM kit) — a
 	// preset-less channel makes the synth emit NaN samples.
-	handler.addProgramChange(0, 0, channel, isDrum ? 0 : (GM_PROGRAMS[track.instrument] ?? 27));
+	handler.addProgramChange(0, 0, channel, isDrum ? 0 : (ENGINE_PROGRAMS[track.instrument] ?? 27));
 	// 0.6s at 120bpm = 1152 ticks, with a little tail so the release can ring.
 	handler.addNote(0, 0, 1152, key, 102, channel);
 	handler.finishTrack(0, 1152 + 480);
