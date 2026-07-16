@@ -22,7 +22,7 @@
 	import { audio } from '$lib/audio/engine';
 	import { TICKS_PER_QUARTER } from '$lib/audio/midi';
 	import { getTrackLayout } from '$lib/notation/layout-registry';
-	import type { LaidMeasure } from '$lib/notation/layout';
+	import { METRICS, type LaidMeasure, type TrackLayout } from '$lib/notation/layout';
 
 	const WHOLE_NOTE_TICKS = TICKS_PER_QUARTER * 4;
 
@@ -36,6 +36,37 @@
 	interface Segment {
 		systemEl: HTMLElement;
 		measure: LaidMeasure;
+		/** Line extent within the system, in system coordinates. */
+		top: number;
+		bottom: number;
+	}
+
+	/**
+	 * How far the line runs within a system. A system reserves a lot of slack
+	 * under its last band (inter-band padding + systemGap), so spanning the whole
+	 * placeholder left the line trailing down towards the next system's notes.
+	 * Instead it runs from the system top to the last staff line plus the same
+	 * overhang it already has above the first staff line.
+	 */
+	function extentInSystem(layout: TrackLayout): { top: number; bottom: number } {
+		const { standard, tab, rhythm } = layout.bands;
+		let first: number | null = null;
+		let last: number | null = null;
+		if (standard) {
+			first = standard.offsetY + METRICS.stdTopPad;
+			last = first + METRICS.staffLineGap * 4;
+		}
+		if (rhythm) {
+			first ??= rhythm.offsetY;
+			last = rhythm.offsetY + rhythm.height;
+		}
+		if (tab) {
+			const tabFirst = tab.offsetY + layout.tabTop;
+			first ??= tabFirst;
+			last = tabFirst + (layout.stringCount - 1) * METRICS.tabLineGap;
+		}
+		if (first == null || last == null) return { top: 0, bottom: 0 };
+		return { top: 0, bottom: last + first };
 	}
 	let segments: (Segment | null)[] = [];
 	let segMeasure = -1;
@@ -68,7 +99,8 @@
 				for (const el of trackEl.querySelectorAll<HTMLElement>('.system')) {
 					const first = Number(el.dataset.firstMeasure);
 					const last = Number(el.dataset.lastMeasure);
-					if (mi >= first && mi <= last) return { systemEl: el, measure };
+					if (mi >= first && mi <= last)
+						return { systemEl: el, measure, ...extentInSystem(layout) };
 				}
 			}
 			return null;
@@ -123,8 +155,8 @@
 			}
 			const rect = seg.systemEl.getBoundingClientRect();
 			const x = rect.left + xInMeasure(seg.measure, pos.tickIn, pos.measureTicks);
-			let top = rect.top;
-			let bottom = rect.bottom;
+			let top = rect.top + seg.top;
+			let bottom = rect.top + seg.bottom;
 			if (clip) {
 				top = Math.max(top, clip.top);
 				bottom = Math.min(bottom, clip.bottom);
