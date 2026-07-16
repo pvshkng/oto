@@ -1294,6 +1294,23 @@ export class ScoreStore {
 		}
 	}
 
+	/** Move the track at `from` so it ends up at index `to` (drag-reorder in the
+	 *  tracks panel). Focus/hidden state is ID-keyed and survives untouched; the
+	 *  index-based cursor and open track-control panel are remapped so they keep
+	 *  pointing at the same tracks. */
+	moveTrack(from: number, to: number) {
+		const n = this.score.tracks.length;
+		if (from === to || from < 0 || from >= n || to < 0 || to >= n) return;
+		const remap = (i: number) =>
+			i === from ? to : i > from && i <= to ? i - 1 : i < from && i >= to ? i + 1 : i;
+		this.commit(() => {
+			const [t] = this.score.tracks.splice(from, 1);
+			this.score.tracks.splice(to, 0, t);
+			this.cursor.track = remap(this.cursor.track);
+		});
+		if (this.trackControlIndex >= 0) this.trackControlIndex = remap(this.trackControlIndex);
+	}
+
 	updateTrack(index: number, patch: Partial<OtoTrack>) {
 		this.commit(() => {
 			Object.assign(this.score.tracks[index], patch);

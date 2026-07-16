@@ -29,14 +29,14 @@
 	import MagnifyingGlassMinus from 'phosphor-svelte/lib/MagnifyingGlassMinus';
 	import Minus from 'phosphor-svelte/lib/Minus';
 	import List from 'phosphor-svelte/lib/List';
-	import ListStar from 'phosphor-svelte/lib/ListStar';
-	import Check from 'phosphor-svelte/lib/Check';
 	import SpeakerSimpleHigh from 'phosphor-svelte/lib/SpeakerSimpleHigh';
+	import EyeClosed from 'phosphor-svelte/lib/EyeClosed';
+	import DotsSixVertical from 'phosphor-svelte/lib/DotsSixVertical';
 
 	// Width of the frozen track-controls column. Desktop: draggable 350–520 px.
 	// Mobile: fixed, narrow enough to leave more room for the timeline.
-	const LEAD_MOBILE = 230;
-	let MIN_DESKTOP_LEAD = 280;
+	const LEAD_MOBILE = 180;
+	let MIN_DESKTOP_LEAD = 230;
 	let LEAD = $state(MIN_DESKTOP_LEAD);
 
 	function startColumnResize(e: PointerEvent) {
@@ -166,6 +166,61 @@
 		}
 	}
 
+	// Drag-to-reorder tracks via the dots handle at the head of each row. While
+	// dragging, `dropAt` is the insertion index in the full track array (hidden
+	// tracks keep their slots); a primary-coloured line marks the gap it maps to.
+	let rowEls: Record<number, HTMLDivElement | null> = {};
+	let dragFrom = $state(-1);
+	let dropAt = $state(-1);
+	const dropIndicatorAt = $derived(
+		dragFrom !== -1 && dropAt !== dragFrom && dropAt !== dragFrom + 1 ? dropAt : -1
+	);
+	const lastVisibleIndex = $derived.by(() => {
+		let last = -1;
+		tracks.forEach((t, i) => {
+			if (!store.isTrackHidden(t.id)) last = i;
+		});
+		return last;
+	});
+
+	function startRowDrag(e: PointerEvent, from: number) {
+		e.preventDefault();
+		dragFrom = from;
+		dropAt = from;
+		function onMove(ev: PointerEvent) {
+			const rows = Object.entries(rowEls)
+				.filter(([, el]) => el?.isConnected)
+				.map(([k, el]) => ({ index: +k, rect: el!.getBoundingClientRect() }))
+				.sort((a, b) => a.rect.top - b.rect.top);
+			if (!rows.length) return;
+			// Insert before the first visible row whose midpoint the pointer is
+			// above; past the last row means "after the end".
+			let target = rows[rows.length - 1].index + 1;
+			for (const r of rows) {
+				if (ev.clientY < r.rect.top + r.rect.height / 2) {
+					target = r.index;
+					break;
+				}
+			}
+			dropAt = target;
+		}
+		function onUp() {
+			window.removeEventListener('pointermove', onMove);
+			window.removeEventListener('pointerup', onUp);
+			window.removeEventListener('pointercancel', onUp);
+			if (dropAt !== -1 && dropAt !== dragFrom && dropAt !== dragFrom + 1) {
+				store.moveTrack(dragFrom, dropAt > dragFrom ? dropAt - 1 : dropAt);
+			}
+			dragFrom = -1;
+			dropAt = -1;
+		}
+		window.addEventListener('pointermove', onMove);
+		window.addEventListener('pointerup', onUp);
+		window.addEventListener('pointercancel', onUp);
+	}
+
+	const hiddenTracks = $derived(tracks.filter((t) => store.isTrackHidden(t.id)));
+
 	// Mixer setters mirror the store, then push the change onto the live audio
 	// chain so a fader/knob is audible mid-playback rather than on the next play.
 	function setVolume(i: number, v: number) {
@@ -292,47 +347,6 @@
 							<List class="size-3.5" />
 						</button>
 					</div>
-					<!-- Show/hide tracks: popover listing every track with a visibility
-					     toggle, so a busy song can be narrowed to just the tracks being
-					     worked on. Scrolls vertically when the track list is long. -->
-					<Popover.Root>
-						<Popover.Trigger
-							class="text-muted-foreground hover:text-foreground hover:border-border [background-image:none!important] flex size-6 shrink-0 items-center justify-center rounded-md border"
-							title="Show / hide tracks"
-							aria-label="Show or hide tracks"
-						>
-							<ListStar class="size-3.5" />
-						</Popover.Trigger>
-						<Popover.Content side="bottom" align="start" class="w-56 p-1.5">
-							<p
-								class="text-muted-foreground px-2 pt-1 pb-1.5 text-[10px] font-semibold tracking-wide uppercase"
-							>
-								Visible tracks
-							</p>
-							<div class="max-h-56 overflow-y-auto">
-								{#each tracks as t (t.id)}
-									{@const visible = !store.isTrackHidden(t.id)}
-									<button
-										class="hover:bg-muted [background-image:none!important] flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px]"
-										aria-pressed={visible}
-										title={visible ? `Hide ${t.name}` : `Show ${t.name}`}
-										onclick={() => store.setTrackVisible(t.id, !visible)}
-									>
-										<span class="size-2.5 shrink-0 rounded-full" style="background:{t.color}"
-										></span>
-										<span class={cn('min-w-0 flex-1 truncate', !visible && 'text-muted-foreground')}
-											>{t.name}</span
-										>
-										{#if visible}
-											<Check class="size-3.5 shrink-0" />
-										{:else}
-											<span class="size-3.5 shrink-0"></span>
-										{/if}
-									</button>
-								{/each}
-							</div>
-						</Popover.Content>
-					</Popover.Root>
 				</div>
 				<div class="relative shrink-0" style="width:{timelineW}px">
 					<div class="flex h-full">
@@ -392,25 +406,43 @@
 				<AudioTrackRow lead={store.isDesktop ? LEAD : LEAD_MOBILE} {timelineW} {cell} />
 			{/if}
 
-			<!-- One row per track. Tracks hidden via the visibility popover are
-			     removed from the panel entirely (toggle them back from that popover). -->
+			<!-- One row per track. Hidden tracks are removed from the panel entirely;
+			     the eye-closed counter next to the Master volume lists them so they
+			     can be brought back. -->
 			{#each tracks as track, i (track.id)}
 				{#if !store.isTrackHidden(track.id)}
 					{@const active = store.cursor.track === i}
-					<div class={cn('relative flex border-b', active && 'bg-muted/40')}>
+					<div
+						bind:this={rowEls[i]}
+						class={cn(
+							'relative flex border-b',
+							active && 'bg-muted/40',
+							dragFrom === i && 'opacity-50',
+							dropIndicatorAt === i && 'shadow-[inset_0_2px_0_0_var(--primary)]',
+							i === lastVisibleIndex &&
+								dropIndicatorAt > i &&
+								'shadow-[inset_0_-2px_0_0_var(--primary)]'
+						)}
+					>
 						<!-- Frozen controls column -->
 						<div
-							class="bg-background/50 sticky left-0 z-10 flex shrink-0 flex-col gap-1.5 border-r px-2.5 py-2 backdrop-blur-md"
-							style="width:{store.isDesktop
-								? LEAD
-								: LEAD_MOBILE}px;border-left:3px solid {track.color}"
+							class="bg-background/50 sticky left-0 z-10 flex shrink-0 flex-col gap-1.5 border-r py-2 pr-2.5 pl-1 backdrop-blur-md"
+							style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px;"
 						>
-							<!-- Single row — Eye | Name | M | S | Vol -->
-							<div class="flex items-center gap-2">
+							<!-- Single row — Drag | Name | Controls | Mute | Vol -->
+							<div class="flex items-center gap-1">
+								<button
+									class="text-muted-foreground hover:text-foreground flex h-7 w-4 shrink-0 cursor-grab touch-none items-center justify-center [background-image:none!important]"
+									title="Drag to reorder"
+									aria-label={`Reorder ${track.name}`}
+									onpointerdown={(e) => startRowDrag(e, i)}
+								>
+									<DotsSixVertical class="size-3.5" />
+								</button>
 								<TrackIdentityRow
 									{track}
 									index={i}
-									onNameClick={() => {
+									onOpenControl={() => {
 										if (store.isDesktop) {
 											store.trackControlIndex = i;
 											store.openPanel('track');
@@ -421,7 +453,6 @@
 									}}
 									onToggleMute={() => toggleMute(i)}
 									onToggleSolo={() => toggleSolo(i)}
-									onVolume={(v) => setVolume(i, v)}
 								/>
 							</div>
 						</div>
@@ -497,41 +528,138 @@
 					class="bg-background/50 sticky left-0 z-10 flex shrink-0 items-center justify-between gap-2 border-r px-2.5 py-1 backdrop-blur-md"
 					style="width:{store.isDesktop ? LEAD : LEAD_MOBILE}px"
 				>
-					<!-- Master volume: compact speaker button + readout, opens a small
-					     popover fader (mirrors the section-marker popover style). -->
-					<Popover.Root>
-						<Popover.Trigger
-							class="text-muted-foreground hover:text-foreground [background-image:none!important] flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] tabular-nums"
-							title="Master volume"
-							aria-label="Master volume"
-						>
-							<SpeakerSimpleHigh class="size-3.5" />
-							{Math.round(store.score.masterVolume * 100)}%
-						</Popover.Trigger>
-						<Popover.Content side="top" align="start" class="w-44 p-1.5">
-							<div class="flex items-center gap-2">
-								<SpeakerSimpleHigh class="text-muted-foreground size-3.5 shrink-0" />
-								<input
-									type="range"
-									min="0"
-									max="1"
-									step="0.01"
-									aria-label="Master volume"
-									title="Master volume"
-									class={cn(MIXER_FADER_CLASS, 'min-w-0 flex-1')}
-									value={store.score.masterVolume}
-									aria-valuetext={`${Math.round(store.score.masterVolume * 100)} percent`}
-									onpointerdown={() => store.beginGesture()}
-									onpointerup={() => store.endGesture()}
-									onpointercancel={() => store.endGesture()}
-									oninput={(e) => setMaster(e.currentTarget.valueAsNumber)}
-								/>
-								<span class="text-muted-foreground w-9 shrink-0 text-right text-[11px] tabular-nums"
-									>{Math.round(store.score.masterVolume * 100)}%</span
+					<!-- Mixer: compact speaker button + master readout, opens a popover with
+					     one fader + M/S row per track (scrollable) and the master fader
+					     pinned at the bottom. Per-row volume shows in the identity row as a
+					     thin gauge, so no numeric % per track here. -->
+					<div class="flex min-w-0 items-center gap-1.5">
+						<Popover.Root>
+							<Popover.Trigger
+								class="text-muted-foreground hover:text-foreground [background-image:none!important] flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] tabular-nums"
+								title="Mixer & master volume"
+								aria-label="Mixer & master volume"
+							>
+								<SpeakerSimpleHigh class="size-3.5" />
+								{Math.round(store.score.masterVolume * 100)}%
+							</Popover.Trigger>
+							<Popover.Content side="top" align="start" class="w-72 p-1.5">
+								<div class="max-h-56 space-y-1.5 overflow-y-auto py-0.5">
+									{#each tracks as t, i (t.id)}
+										<div class="flex items-center gap-1.5 px-1">
+											<span class="size-2.5 shrink-0 rounded-full" style="background:{t.color}"
+											></span>
+											<span
+												class="text-muted-foreground w-16 shrink-0 truncate text-[11px]"
+												title={t.name}>{t.name}</span
+											>
+											<input
+												type="range"
+												min="0"
+												max="1"
+												step="0.01"
+												aria-label={`${t.name} volume`}
+												title={`Volume: ${Math.round(t.volume * 100)}%`}
+												class={cn(MIXER_FADER_CLASS, 'min-w-0 flex-1')}
+												value={t.volume}
+												aria-valuetext={`${Math.round(t.volume * 100)} percent`}
+												onpointerdown={() => store.beginGesture()}
+												onpointerup={() => store.endGesture()}
+												onpointercancel={() => store.endGesture()}
+												oninput={(e) => setVolume(i, e.currentTarget.valueAsNumber)}
+											/>
+											<div class="flex shrink-0 items-stretch">
+												<button
+													class={cn(
+														'flex h-5 w-5 items-center justify-center rounded-l-md rounded-r-none border text-[10px] font-bold [background-image:none!important]',
+														t.muted
+															? 'sunk text-foreground'
+															: 'text-muted-foreground hover:text-foreground'
+													)}
+													title="Mute"
+													aria-label={`Mute ${t.name}`}
+													aria-pressed={t.muted}
+													onclick={() => toggleMute(i)}>M</button
+												>
+												<button
+													class={cn(
+														'flex h-5 w-5 items-center justify-center rounded-l-none rounded-r-md border border-l-0 text-[10px] font-bold [background-image:none!important]',
+														t.soloed
+															? 'sunk text-foreground'
+															: 'text-muted-foreground hover:text-foreground'
+													)}
+													title="Solo"
+													aria-label={`Solo ${t.name}`}
+													aria-pressed={t.soloed}
+													onclick={() => toggleSolo(i)}>S</button
+												>
+											</div>
+										</div>
+									{/each}
+								</div>
+								<div class="mt-1.5 flex items-center gap-1.5 border-t px-1 pt-1.5">
+									<SpeakerSimpleHigh class="text-muted-foreground size-3.5 shrink-0" />
+									<span class="text-muted-foreground w-16 shrink-0 truncate text-[11px]"
+										>Master</span
+									>
+									<input
+										type="range"
+										min="0"
+										max="1"
+										step="0.01"
+										aria-label="Master volume"
+										title="Master volume"
+										class={cn(MIXER_FADER_CLASS, 'min-w-0 flex-1')}
+										value={store.score.masterVolume}
+										aria-valuetext={`${Math.round(store.score.masterVolume * 100)} percent`}
+										onpointerdown={() => store.beginGesture()}
+										onpointerup={() => store.endGesture()}
+										onpointercancel={() => store.endGesture()}
+										oninput={(e) => setMaster(e.currentTarget.valueAsNumber)}
+									/>
+									<span
+										class="text-muted-foreground w-9 shrink-0 text-right text-[11px] tabular-nums"
+										>{Math.round(store.score.masterVolume * 100)}%</span
+									>
+								</div>
+							</Popover.Content>
+						</Popover.Root>
+						<!-- Hidden-track counter: only shown when tracks are hidden. Opens a
+						     popover listing them so they can be shown again (the rows
+						     themselves are gone from the panel while hidden). -->
+						{#if hiddenTracks.length > 0}
+							<Popover.Root>
+								<Popover.Trigger
+									class="text-muted-foreground hover:text-foreground [background-image:none!important] flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] tabular-nums"
+									title={`${hiddenTracks.length} hidden track${hiddenTracks.length === 1 ? '' : 's'}`}
+									aria-label={`${hiddenTracks.length} hidden track${hiddenTracks.length === 1 ? '' : 's'}`}
 								>
-							</div>
-						</Popover.Content>
-					</Popover.Root>
+									<EyeClosed class="size-3.5" />
+									{hiddenTracks.length}
+								</Popover.Trigger>
+								<Popover.Content side="top" align="start" class="w-56 p-1.5">
+									<p
+										class="text-muted-foreground px-2 pt-1 pb-1.5 text-[10px] font-semibold tracking-wide uppercase"
+									>
+										Hidden tracks
+									</p>
+									<div class="max-h-56 overflow-y-auto">
+										{#each hiddenTracks as t (t.id)}
+											<button
+												class="hover:bg-muted [background-image:none!important] flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px]"
+												title={`Show ${t.name}`}
+												onclick={() => store.setTrackVisible(t.id, true)}
+											>
+												<span class="size-2.5 shrink-0 rounded-full" style="background:{t.color}"
+												></span>
+												<span class="text-muted-foreground min-w-0 flex-1 truncate">{t.name}</span>
+												<EyeClosed class="size-3.5 shrink-0" />
+											</button>
+										{/each}
+									</div>
+								</Popover.Content>
+							</Popover.Root>
+						{/if}
+					</div>
 					<button
 						class="text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-40 [background-image:none!important] flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px]"
 						title={store.canAddSection

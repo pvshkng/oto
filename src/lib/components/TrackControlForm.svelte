@@ -15,6 +15,7 @@
 	import CaretUpDown from 'phosphor-svelte/lib/CaretUpDown';
 	import Trash from 'phosphor-svelte/lib/Trash';
 	import SlidersHorizontal from 'phosphor-svelte/lib/SlidersHorizontal';
+	import EyeClosed from 'phosphor-svelte/lib/EyeClosed';
 
 	let { index, onClose = () => {} }: { index: number; onClose?: () => void } = $props();
 
@@ -32,6 +33,24 @@
 	const tuningLabel = $derived(tuningName ?? 'Custom');
 	const tuningNotes = $derived(track ? track.tuning.map((t) => t.replace(/\d/, '')).join(' ') : '');
 	const instGroups = $derived([...new Set(INSTRUMENTS.map((p) => p.group))]);
+	// Rhythm notation (slashes) only makes sense for drum tracks; pitched
+	// instruments get just Standard / Tab.
+	const notationViews = $derived(
+		track?.instrument === 'drums'
+			? ([
+					['standard', 'Standard'],
+					['tab', 'Tab'],
+					['rhythm', 'Rhythm']
+				] as const)
+			: ([
+					['standard', 'Standard'],
+					['tab', 'Tab']
+				] as const)
+	);
+	const trackHidden = $derived(track ? store.isTrackHidden(track.id) : false);
+	const visibleCount = $derived(
+		store.score.tracks.filter((t) => !store.isTrackHidden(t.id)).length
+	);
 
 	function tuningNameFor(tuning: string[]): string | null {
 		for (const [n, t] of Object.entries(TUNINGS)) {
@@ -192,7 +211,7 @@
 		<div class="grid gap-2">
 			<Label>Notation</Label>
 			<div class="flex items-stretch">
-				{#each [['standard', 'Standard'], ['tab', 'Tab'], ['rhythm', 'Rhythm']] as [key, label], i (key)}
+				{#each notationViews as [key, label], i (key)}
 					{@const k = key as 'standard' | 'tab' | 'rhythm'}
 					<button
 						type="button"
@@ -200,7 +219,7 @@
 							'border-input bg-background hover:bg-accent hover:text-accent-foreground flex-1 border px-2 py-1.5 text-sm font-medium transition-colors',
 							i > 0 && 'border-l-0',
 							i === 0 && 'rounded-l-md',
-							i === 2 && 'rounded-r-md',
+							i === notationViews.length - 1 && 'rounded-r-md',
 							track.view[k] ? 'sunk' : 'text-muted-foreground'
 						)}
 						aria-pressed={track.view[k]}
@@ -228,6 +247,17 @@
 				{/each}
 			</div>
 		</div>
+
+		<Button
+			variant="outline"
+			class="justify-start"
+			disabled={!trackHidden && visibleCount <= 1}
+			aria-pressed={trackHidden}
+			onclick={() => store.setTrackVisible(track.id, trackHidden)}
+		>
+			<EyeClosed class="size-4" />
+			{trackHidden ? 'Show track' : 'Hide track'}
+		</Button>
 
 		<Button
 			variant="outline"
