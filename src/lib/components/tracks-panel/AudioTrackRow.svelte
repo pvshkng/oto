@@ -17,6 +17,7 @@
 	import { audio } from '$lib/audio/engine';
 	import { audioTrack } from '$lib/audio/audio-track.svelte';
 	import { cn } from '$lib/utils';
+	import { windowPointerDrag } from '$lib/pointer-drag';
 	import * as Popover from '$lib/components/ui/popover';
 	import { MIXER_FADER_CLASS } from './mixer-fader';
 	import SpeakerSimpleHigh from 'phosphor-svelte/lib/SpeakerSimpleHigh';
@@ -140,13 +141,13 @@
 					pressTimer &&
 					(Math.abs(dx) > WANDER_CANCEL_PX || Math.abs(ev.clientY - startY) > WANDER_CANCEL_PX)
 				) {
-					cleanup();
+					endDrag();
 				}
 				return;
 			}
 			store.setAudioOffset(audioTrack.clampOffset(startOffset + dx / pxPerSec));
 		}
-		function cleanup() {
+		const endDrag = windowPointerDrag(move, () => {
 			if (pressTimer) {
 				clearTimeout(pressTimer);
 				pressTimer = null;
@@ -156,13 +157,7 @@
 				store.endGesture();
 			}
 			clipEl.removeEventListener('touchmove', preventScroll);
-			window.removeEventListener('pointermove', move);
-			window.removeEventListener('pointerup', cleanup);
-			window.removeEventListener('pointercancel', cleanup);
-		}
-		window.addEventListener('pointermove', move);
-		window.addEventListener('pointerup', cleanup);
-		window.addEventListener('pointercancel', cleanup);
+		});
 	}
 
 	const NUDGE = 0.25; // seconds — one caret press

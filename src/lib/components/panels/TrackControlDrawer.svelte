@@ -5,7 +5,7 @@
 	// visible behind it. Changes apply instantly.
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { buttonVariants } from '$lib/components/ui/button';
-	import TrackControlForm from './TrackControlForm.svelte';
+	import TrackControlForm from '$lib/components/panels/TrackControlForm.svelte';
 
 	let { open = $bindable(false), index = -1 }: { open: boolean; index?: number } = $props();
 </script>

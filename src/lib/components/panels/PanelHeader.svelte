@@ -9,7 +9,7 @@
 	// or a floating one to move/redock it. Buttons opt out via `data-panel-cancel`.
 	import X from 'phosphor-svelte/lib/X';
 	import DotsSixVertical from 'phosphor-svelte/lib/DotsSixVertical';
-	import DockControls from './DockControls.svelte';
+	import DockControls from '$lib/components/panels/DockControls.svelte';
 	import type { PanelId } from '$lib/stores/score.svelte';
 
 	let {

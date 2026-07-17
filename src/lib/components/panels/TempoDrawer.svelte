@@ -5,7 +5,7 @@
 	import { store } from '$lib/stores/score.svelte';
 	// open prop is kept for API compatibility but store.tempoOpen drives the dialog
 	import * as Dialog from '$lib/components/ui/dialog';
-	import TempoControls from './TempoControls.svelte';
+	import TempoControls from '$lib/components/panels/TempoControls.svelte';
 
 	let { open = $bindable(false) }: { open?: boolean } = $props();
 </script>

@@ -7,7 +7,7 @@
 	import { store } from '$lib/stores/score.svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { buttonVariants } from '$lib/components/ui/button';
-	import SongDetailsFields from './SongDetailsFields.svelte';
+	import SongDetailsFields from '$lib/components/panels/SongDetailsFields.svelte';
 </script>
 
 <Dialog.Root bind:open={store.songModalOpen}>

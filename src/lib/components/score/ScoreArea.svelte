@@ -21,8 +21,8 @@
 	import { GLYPH } from '$lib/notation/glyphs';
 	import { TUNINGS } from '$lib/oto/pitch';
 	import type { OtoTrack } from '$lib/oto/types';
-	import TrackStaff from './TrackStaff.svelte';
-	import PlayheadLine from './PlayheadLine.svelte';
+	import TrackStaff from '$lib/components/track-staff/TrackStaff.svelte';
+	import PlayheadLine from '$lib/components/score/PlayheadLine.svelte';
 
 	let { onHeaderClick }: { onHeaderClick: () => void } = $props();
 

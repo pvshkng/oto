@@ -5,7 +5,7 @@
 	// TunerDisplay, which releases the microphone.
 	import { store } from '$lib/stores/score.svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
-	import TunerDisplay from './TunerDisplay.svelte';
+	import TunerDisplay from '$lib/components/tuner/TunerDisplay.svelte';
 </script>
 
 <Dialog.Root bind:open={store.tunerOpen}>

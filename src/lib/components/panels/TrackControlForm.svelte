@@ -10,7 +10,7 @@
 	import { INSTRUMENTS, presetFor, type InstrumentPreset } from '$lib/oto/instruments';
 	import { TUNINGS } from '$lib/oto/pitch';
 	import { TRACK_COLOR_SWATCHES } from '$lib/oto/format';
-	import CustomTuningDrawer from './CustomTuningDrawer.svelte';
+	import CustomTuningDrawer from '$lib/components/panels/CustomTuningDrawer.svelte';
 	import Check from 'phosphor-svelte/lib/Check';
 	import CaretUpDown from 'phosphor-svelte/lib/CaretUpDown';
 	import Trash from 'phosphor-svelte/lib/Trash';

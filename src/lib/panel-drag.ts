@@ -1,4 +1,5 @@
 import { store, type PanelId } from '$lib/stores/score.svelte';
+import { windowPointerDrag } from '$lib/pointer-drag';
 
 // Every floating panel is anchored to the top-left corner (top-4 / left-4) and
 // offset from there by `panelLayout[id].{x,y}`, so a single translate drives
@@ -59,15 +60,9 @@ function runDrag(node: HTMLElement, id: PanelId, floating: boolean, start: Point
 		store.panelLayout[id].y = y;
 		store.updatePanelDrag(id, e.clientX, e.clientY);
 	}
-	function onUp() {
-		window.removeEventListener('pointermove', onMove);
-		window.removeEventListener('pointerup', onUp);
-		window.removeEventListener('pointercancel', onUp);
+	windowPointerDrag(onMove, () => {
 		if (started) store.endPanelDrag(id, store.panelLayout[id].x, store.panelLayout[id].y);
-	}
-	window.addEventListener('pointermove', onMove);
-	window.addEventListener('pointerup', onUp);
-	window.addEventListener('pointercancel', onUp);
+	});
 }
 
 /**

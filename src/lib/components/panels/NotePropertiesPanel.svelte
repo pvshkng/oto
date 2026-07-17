@@ -16,17 +16,17 @@
 	import { store } from '$lib/stores/score.svelte';
 	import { panelDrag } from '$lib/panel-drag';
 	import { cn } from '$lib/utils';
-	import DurationPicker from './note-edit/DurationPicker.svelte';
-	import VoiceToggle from './note-edit/VoiceToggle.svelte';
-	import BarTimeSigPicker from './note-edit/BarTimeSigPicker.svelte';
-	import BarTempoPicker from './note-edit/BarTempoPicker.svelte';
-	import BeatActions from './note-edit/BeatActions.svelte';
-	import NoteActions from './note-edit/NoteActions.svelte';
-	import BarActions from './note-edit/BarActions.svelte';
-	import EffectsGrid from './note-edit/EffectsGrid.svelte';
-	import BeatMarksGrid from './note-edit/BeatMarksGrid.svelte';
-	import BarMarksGrid from './note-edit/BarMarksGrid.svelte';
-	import PanelHeader from './PanelHeader.svelte';
+	import DurationPicker from '$lib/components/note-edit/DurationPicker.svelte';
+	import VoiceToggle from '$lib/components/note-edit/VoiceToggle.svelte';
+	import BarTimeSigPicker from '$lib/components/note-edit/BarTimeSigPicker.svelte';
+	import BarTempoPicker from '$lib/components/note-edit/BarTempoPicker.svelte';
+	import BeatActions from '$lib/components/note-edit/BeatActions.svelte';
+	import NoteActions from '$lib/components/note-edit/NoteActions.svelte';
+	import BarActions from '$lib/components/note-edit/BarActions.svelte';
+	import EffectsGrid from '$lib/components/note-edit/EffectsGrid.svelte';
+	import BeatMarksGrid from '$lib/components/note-edit/BeatMarksGrid.svelte';
+	import BarMarksGrid from '$lib/components/note-edit/BarMarksGrid.svelte';
+	import PanelHeader from '$lib/components/panels/PanelHeader.svelte';
 
 	let { placement = 'left' }: { placement?: 'left' | 'right' | 'bottom' | 'float' } = $props();
 

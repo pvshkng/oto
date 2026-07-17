@@ -8,12 +8,12 @@
 	import { store, type PanelId } from '$lib/stores/score.svelte';
 	import { panelDrag } from '$lib/panel-drag';
 	import { cn } from '$lib/utils';
-	import TrackControlDrawer from './TrackControlDrawer.svelte';
-	import TrackControlForm from './TrackControlForm.svelte';
-	import TempoControls from './TempoControls.svelte';
-	import SongDetailsFields from './SongDetailsFields.svelte';
-	import AddRemoveActions from './AddRemoveActions.svelte';
-	import PanelHeader from './PanelHeader.svelte';
+	import TrackControlDrawer from '$lib/components/panels/TrackControlDrawer.svelte';
+	import TrackControlForm from '$lib/components/panels/TrackControlForm.svelte';
+	import TempoControls from '$lib/components/panels/TempoControls.svelte';
+	import SongDetailsFields from '$lib/components/panels/SongDetailsFields.svelte';
+	import AddRemoveActions from '$lib/components/panels/AddRemoveActions.svelte';
+	import PanelHeader from '$lib/components/panels/PanelHeader.svelte';
 
 	let {
 		which,

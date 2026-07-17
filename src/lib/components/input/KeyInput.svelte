@@ -12,9 +12,9 @@
 	import { enterDigit } from '$lib/editing/entry';
 	import { panelDrag } from '$lib/panel-drag';
 	import { cn } from '$lib/utils';
-	import Fretboard from './Fretboard.svelte';
-	import Piano from './Piano.svelte';
-	import PanelHeader from './PanelHeader.svelte';
+	import Fretboard from '$lib/components/input/Fretboard.svelte';
+	import Piano from '$lib/components/input/Piano.svelte';
+	import PanelHeader from '$lib/components/panels/PanelHeader.svelte';
 
 	let { placement = 'bottom' }: { placement?: 'left' | 'right' | 'bottom' | 'float' } = $props();
 

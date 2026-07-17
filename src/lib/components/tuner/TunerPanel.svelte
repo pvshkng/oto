@@ -4,8 +4,8 @@
 	// Mobile shows TunerModal instead. The mic lifecycle lives in TunerDisplay.
 	import { store } from '$lib/stores/score.svelte';
 	import { panelDrag } from '$lib/panel-drag';
-	import PanelHeader from './PanelHeader.svelte';
-	import TunerDisplay from './TunerDisplay.svelte';
+	import PanelHeader from '$lib/components/panels/PanelHeader.svelte';
+	import TunerDisplay from '$lib/components/tuner/TunerDisplay.svelte';
 
 	const layout = $derived(store.panelLayout.tuner);
 </script>

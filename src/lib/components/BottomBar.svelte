@@ -13,8 +13,8 @@
 	import { MIXER_FADER_CLASS } from './tracks-panel/mixer-fader';
 	import { cn } from '$lib/utils';
 	import OmniCommand from './OmniCommand.svelte';
-	import AddRemoveDrawer from './AddRemoveDrawer.svelte';
-	import TempoDrawer from './TempoDrawer.svelte';
+	import AddRemoveDrawer from '$lib/components/panels/AddRemoveDrawer.svelte';
+	import TempoDrawer from '$lib/components/panels/TempoDrawer.svelte';
 	import TuningFork from './icons/TuningFork.svelte';
 
 	import DotsThreeVertical from 'phosphor-svelte/lib/DotsThreeVertical';

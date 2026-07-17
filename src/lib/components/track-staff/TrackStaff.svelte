@@ -21,9 +21,9 @@
 	} from '$lib/notation/layout';
 	import { registerTrackLayout } from '$lib/notation/layout-registry';
 	import { ContextMenu as ContextMenuPrimitive } from 'bits-ui';
-	import { createDragSelect } from './track-staff/DragSelect';
-	import StaffContextMenu from './track-staff/StaffContextMenu.svelte';
-	import SystemCanvas from './track-staff/SystemCanvas.svelte';
+	import { createDragSelect } from './DragSelect';
+	import StaffContextMenu from './StaffContextMenu.svelte';
+	import SystemCanvas from './SystemCanvas.svelte';
 
 	let {
 		trackIndex,
@@ -405,6 +405,7 @@
 				bind:this={container}
 				class:active={isActiveTrack}
 				onpointerdown={drag.onDragPointerDown}
+				role="presentation"
 			>
 				{#if layoutReady}
 					{#each systemsToRender as system, i (system.y)}

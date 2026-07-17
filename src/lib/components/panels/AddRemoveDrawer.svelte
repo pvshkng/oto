@@ -4,8 +4,8 @@
 	// so it stays usable on touch/narrow screens.
 	import { store } from '$lib/stores/score.svelte';
 	import * as Drawer from '$lib/components/ui/drawer';
-	import TrackControlDrawer from './TrackControlDrawer.svelte';
-	import AddRemoveActions from './AddRemoveActions.svelte';
+	import TrackControlDrawer from '$lib/components/panels/TrackControlDrawer.svelte';
+	import AddRemoveActions from '$lib/components/panels/AddRemoveActions.svelte';
 
 	let { open = $bindable(false) }: { open?: boolean } = $props();
 

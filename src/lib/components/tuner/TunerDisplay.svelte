@@ -7,8 +7,8 @@
 	import { tuner, NOISE_FLOOR } from '$lib/audio/tuner.svelte';
 	import { midiToPitchClass } from '$lib/oto/pitch';
 	import * as Popover from '$lib/components/ui/popover';
-	import { MIXER_FADER_CLASS } from './tracks-panel/mixer-fader';
-	import Spinner from './Spinner.svelte';
+	import { MIXER_FADER_CLASS } from '$lib/components/tracks-panel/mixer-fader';
+	import Spinner from '$lib/components/Spinner.svelte';
 	import Faders from 'phosphor-svelte/lib/Faders';
 	import MicrophoneSlash from 'phosphor-svelte/lib/MicrophoneSlash';
 	import Warning from 'phosphor-svelte/lib/Warning';

@@ -3,16 +3,23 @@
 // One singleton store holds the score, the edit cursor, the loop selection,
 // the active duration/effects palette and playback state. Components read these
 // directly (they're deep-reactive `$state`) and call methods to mutate.
+//
+// Three cohesive domains live in sibling modules and are composed here behind
+// a stable `store.x` facade: desktop panel docking (panels.svelte.ts),
+// persisted user preferences (prefs.svelte.ts), and undo history + autosave
+// (history.svelte.ts).
 
 import { SvelteSet } from 'svelte/reactivity';
 import { toast } from 'svelte-sonner';
+import { PanelController, type Dock, type PanelId } from './panels.svelte';
+import { PrefsController } from './prefs.svelte';
+import { ScoreHistory } from './history.svelte';
 import {
 	makeScore,
 	makeTrack,
 	makeAudioConfig,
 	parse,
 	serialize,
-	serializeCompact,
 	restBeat,
 	emptyMeasure,
 	uid
@@ -43,84 +50,9 @@ function clamp(v: number, lo: number, hi: number): number {
 	return Math.max(lo, Math.min(hi, v));
 }
 
-const STORAGE_KEY = 'oto.score';
-const PREFS_KEY = 'oto.prefs';
-const AUTOSAVE = true;
-
-const METRONOME_SOUNDS: MetronomeSound[] = ['click', 'beep', 'wood', 'bell'];
-
-/** Where a desktop panel currently lives. `float` = a free-floating, draggable
- *  window; the others dock it into the corresponding edge slot. */
-export type Dock = 'left' | 'right' | 'bottom' | 'float';
-
-/** The desktop panels that can be freely docked/undocked and remember their
- *  placement. `song`/`track`/`tempo`/`addRemove` all render through RightPanel
- *  (one open at a time) but each remembers its own dock independently. `tuner`
- *  is float-only on desktop and a modal on mobile. */
-export type PanelId = 'note' | 'keys' | 'song' | 'track' | 'tempo' | 'addRemove' | 'tuner';
-
-/** Persisted placement for one panel: which edge it's docked to (or `float`),
- *  plus the last floating-window offset so it reopens where the user left it. */
-interface PanelLayout {
-	dock: Dock;
-	x: number;
-	y: number;
-}
-
-/** Which docks each panel is allowed to use. Song/track/tempo/add-remove are
- *  side/float only (no bottom); the note editor and key-input pad may also dock
- *  to the bottom strip. */
-const PANEL_ALLOWED: Record<PanelId, Dock[]> = {
-	note: ['left', 'right', 'bottom', 'float'],
-	// The key-input pad (keypad/fretboard/piano) is a wide, landscape component —
-	// it only makes sense along the bottom strip or as a floating window, never
-	// squeezed into a narrow side column.
-	keys: ['bottom', 'float'],
-	song: ['left', 'right', 'float'],
-	track: ['left', 'right', 'float'],
-	tempo: ['left', 'right', 'float'],
-	addRemove: ['left', 'right', 'float'],
-	// The tuner is a compact readout widget — always a small floating window on
-	// desktop (mobile shows it as a modal instead).
-	tuner: ['float']
-};
-
-const PANEL_DEFAULT_DOCK: Record<PanelId, Dock> = {
-	note: 'left',
-	keys: 'bottom',
-	song: 'right',
-	track: 'right',
-	tempo: 'right',
-	addRemove: 'right',
-	tuner: 'float'
-};
-
-const PANEL_IDS = Object.keys(PANEL_ALLOWED) as PanelId[];
-
-/** Tie-break order when normalizing a legacy layout that somehow put two panels
- *  on the same edge — the first listed keeps the slot, later ones are floated. */
-const PANEL_PRIORITY: PanelId[] = ['note', 'song', 'track', 'tempo', 'addRemove', 'keys', 'tuner'];
-
-function defaultPanelLayout(): Record<PanelId, PanelLayout> {
-	return Object.fromEntries(
-		PANEL_IDS.map((id) => [id, { dock: PANEL_DEFAULT_DOCK[id], x: 0, y: 0 }])
-	) as Record<PanelId, PanelLayout>;
-}
-
-/** Persisted user-preference shape (a subset of the store's session fields). */
-interface StoredPrefs {
-	metronomeOn?: boolean;
-	metronomeSound?: MetronomeSound;
-	metronomeVolume?: number;
-	loopEnabled?: boolean;
-	countInOn?: boolean;
-	playbackSpeedOn?: boolean;
-	playbackSpeed?: number;
-	panelLayout?: Partial<Record<PanelId, Partial<PanelLayout>>>;
-	bottomSplitSwap?: boolean;
-	pageView?: boolean;
-	soundFontQuality?: SoundFontQuality;
-}
+// Panel types re-exported so existing `$lib/stores/score.svelte` imports keep
+// working; the definitions (and the docking logic) live in panels.svelte.ts.
+export type { Dock, PanelId };
 
 export interface Selection {
 	track: number;
@@ -128,25 +60,6 @@ export interface Selection {
 	startBeat: number;
 	endMeasure: number;
 	endBeat: number;
-}
-
-// How long after the last edit the history "baseline" (the expensive snapshot
-// that undo reverts to) is refreshed. Editing keeps pushing the previous
-// baseline for undo — which is free — and the costly proxy walk is deferred to
-// this idle gap instead of blocking each keystroke. A rapid run of edits within
-// the window coalesces into one undo entry.
-const HISTORY_SETTLE_MS = 400;
-
-/** Run `cb` when the browser is idle (with a bounded wait), falling back to a
- *  short timeout where requestIdleCallback doesn't exist (Safari, node tests).
- *  Returns a canceller. */
-function scheduleIdle(cb: (deadline?: IdleDeadline) => void): () => void {
-	if (typeof requestIdleCallback === 'function') {
-		const id = requestIdleCallback(cb, { timeout: 50 });
-		return () => cancelIdleCallback(id);
-	}
-	const id = setTimeout(cb, 16);
-	return () => clearTimeout(id);
 }
 
 export class ScoreStore {
@@ -214,23 +127,43 @@ export class ScoreStore {
 	 *  survives the breakpoint switch open, just changing its clothes). */
 	tunerOpen = $state(false);
 
-	// Desktop panel placement. Each panel (note editor, key-input pad, song/track/
-	// tempo/add-remove) can be docked to an edge or floated freely, and remembers
-	// where the user last put it (persisted via prefs). See setPanelDock / the
-	// PANEL_* tables above.
-	panelLayout = $state<Record<PanelId, PanelLayout>>(defaultPanelLayout());
-	// When the note editor and the key-input pad are BOTH docked to the bottom
-	// strip they share it side-by-side; this flips which one sits on the left.
-	bottomSplitSwap = $state(false);
+	// Composed domain controllers. The store stays the single entry point —
+	// components keep calling `store.x` — and these own the mechanics: panel
+	// placement/docking, persisted prefs, and undo history + autosave. The host
+	// callbacks are the few store-owned bits each domain needs (open flags live
+	// here because they're entangled with mobile modal exclusivity; the score
+	// itself stays here as document state).
+	#panels = new PanelController({
+		isDesktop: () => this.isDesktop,
+		isOpen: (id) => this.isPanelOpen(id),
+		setOpen: (id, v) => this.#setPanelOpen(id, v),
+		persistPrefs: () => this.#prefs.persist()
+	});
+	#prefs = new PrefsController(this.#panels);
+	#history = new ScoreHistory({
+		getScore: () => this.score,
+		setScore: (s) => (this.score = s),
+		afterRestore: () => this.clampCursor()
+	});
 
-	// Live drag-to-dock session: which floating panel is being dragged and which
-	// edge (if any) it's currently hovering over. `+page` reads `dropTarget` to
-	// paint the drop-zone preview; the drag ends by docking there or floating.
-	draggingPanel = $state<PanelId | null>(null);
-	dropTarget = $state<Dock | null>(null);
-	// The most-recently-grabbed floating panel — rendered on top so it's never
-	// buried under another window while you're interacting with it.
-	frontPanel = $state<PanelId | null>(null);
+	/** Desktop panel placement (dock/floating offset per panel), owned by the
+	 *  panel controller; exposed for deep reads/writes (e.g. panel-drag.ts). */
+	get panelLayout() {
+		return this.#panels.panelLayout;
+	}
+	get bottomSplitSwap() {
+		return this.#panels.bottomSplitSwap;
+	}
+	/** Live drag-to-dock session (see PanelController). */
+	get draggingPanel() {
+		return this.#panels.draggingPanel;
+	}
+	get dropTarget() {
+		return this.#panels.dropTarget;
+	}
+	get frontPanel() {
+		return this.#panels.frontPanel;
+	}
 
 	/** Call once from onMount after browser APIs are available. */
 	initLayout() {
@@ -303,11 +236,11 @@ export class ScoreStore {
 
 	/** The docks a given panel is allowed to occupy. */
 	panelAllowed(id: PanelId): Dock[] {
-		return PANEL_ALLOWED[id];
+		return this.#panels.panelAllowed(id);
 	}
 
 	panelDock(id: PanelId): Dock {
-		return this.panelLayout[id].dock;
+		return this.#panels.panelDock(id);
 	}
 
 	/** Whether a panel's content is currently showing (drives which slot it fills). */
@@ -356,172 +289,54 @@ export class ScoreStore {
 		}
 	}
 
-	/** Open a desktop panel. The detail panels (song/track/tempo/add-remove) are
-	 *  independent — opening one no longer closes the others — so if a newly-opened
-	 *  panel's remembered edge is already taken by another open panel, it opens
-	 *  floating instead, letting several coexist on screen. */
 	openPanel(id: PanelId) {
-		this.#setPanelOpen(id, true);
-		const p = this.panelLayout[id];
-		if (this.isDesktop) {
-			if (
-				(p.dock === 'left' || p.dock === 'right') &&
-				PANEL_IDS.some(
-					(o) => o !== id && this.isPanelOpen(o) && this.panelLayout[o].dock === p.dock
-				)
-			) {
-				// The remembered edge is taken by another open panel — open floating
-				// instead so both stay visible.
-				p.dock = 'float';
-				this.#persistPrefs();
-			}
-			// Cascade never-placed floating windows (offset 0,0) clear of the left
-			// column so they don't stack on top of each other or a left-docked
-			// panel; an explicitly-placed spot is kept as-is. Also covers panels
-			// that are float-by-default (the tuner) on their first open.
-			if (p.dock === 'float' && p.x === 0 && p.y === 0) {
-				const others = PANEL_IDS.filter(
-					(o) => o !== id && this.isPanelOpen(o) && this.panelLayout[o].dock === 'float'
-				).length;
-				p.x = 340 + others * 30;
-				p.y = 24 + others * 30;
-				this.#persistPrefs();
-			}
-		}
-		this.bringToFront(id);
+		this.#panels.openPanel(id);
 	}
 
 	closePanel(id: PanelId) {
-		this.#setPanelOpen(id, false);
+		this.#panels.closePanel(id);
 	}
 
 	togglePanel(id: PanelId) {
-		if (this.isPanelOpen(id)) this.closePanel(id);
-		else this.openPanel(id);
+		this.#panels.togglePanel(id);
 	}
 
 	/** Raise a panel above its peers (last grabbed wins). */
 	bringToFront(id: PanelId) {
-		this.frontPanel = id;
+		this.#panels.bringToFront(id);
 	}
 
-	/** Stacking order for a floating panel: the one being dragged sits above the
-	 *  most-recently-grabbed one, which sits above the rest. Kept below the
-	 *  shared z-50 overlay layer (Popover/Dialog/DropdownMenu/...) so portalled
-	 *  dropdowns opened from a panel's content always render on top of it. */
+	/** Stacking order for a floating panel (see PanelController.panelZ). */
 	panelZ(id: PanelId): number {
-		if (this.draggingPanel === id) return 30;
-		if (this.frontPanel === id) return 20;
-		return 10;
+		return this.#panels.panelZ(id);
 	}
 
-	/** Move a panel to a dock. Left and right are single-occupancy slots, so
-	 *  docking there evicts whatever else claimed that edge back to floating —
-	 *  keeping the invariant that at most one panel lives on each side. */
 	setPanelDock(id: PanelId, dock: Dock) {
-		if (!PANEL_ALLOWED[id].includes(dock)) return;
-		if (dock === 'left' || dock === 'right') {
-			for (const other of PANEL_IDS) {
-				if (other !== id && this.panelLayout[other].dock === dock) {
-					this.panelLayout[other].dock = 'float';
-				}
-			}
-		}
-		this.panelLayout[id].dock = dock;
-		this.#persistPrefs();
+		this.#panels.setPanelDock(id, dock);
 	}
 
-	/** Remember where a floating panel was dragged to (offset from its anchor). */
 	setPanelFloatPos(id: PanelId, x: number, y: number) {
-		this.panelLayout[id].x = x;
-		this.panelLayout[id].y = y;
-		this.#persistPrefs();
+		this.#panels.setPanelFloatPos(id, x, y);
 	}
 
 	toggleBottomSplit() {
-		this.bottomSplitSwap = !this.bottomSplitSwap;
-		this.#persistPrefs();
+		this.#panels.toggleBottomSplit();
 	}
-
-	// ---- drag-to-dock -------------------------------------------------------
-
-	/** How close (px) the pointer must get to an edge for that edge's drop zone
-	 *  to arm. */
-	static #DOCK_SNAP_PX = 150;
 
 	beginPanelDrag(id: PanelId) {
-		this.draggingPanel = id;
-		this.dropTarget = null;
+		this.#panels.beginPanelDrag(id);
 	}
 
-	/** While dragging, arm the nearest allowed edge whose drop zone the pointer is
-	 *  inside (or clear it when the pointer is out in open space → will float). */
 	updatePanelDrag(id: PanelId, clientX: number, clientY: number) {
-		if (this.draggingPanel !== id) return;
-		const allowed = PANEL_ALLOWED[id];
-		const w = window.innerWidth;
-		const h = window.innerHeight;
-		let best: Dock | null = null;
-		let bestDist = ScoreStore.#DOCK_SNAP_PX;
-		if (allowed.includes('left') && clientX < bestDist) {
-			best = 'left';
-			bestDist = clientX;
-		}
-		if (allowed.includes('right') && w - clientX < bestDist) {
-			best = 'right';
-			bestDist = w - clientX;
-		}
-		if (allowed.includes('bottom') && h - clientY < bestDist) {
-			best = 'bottom';
-			bestDist = h - clientY;
-		}
-		this.dropTarget = best;
+		this.#panels.updatePanelDrag(id, clientX, clientY);
 	}
 
-	/** Finish a drag: dock to the armed edge, or persist the new floating offset
-	 *  when released in open space. */
 	endPanelDrag(id: PanelId, offsetX: number, offsetY: number) {
-		const target = this.dropTarget;
-		this.draggingPanel = null;
-		this.dropTarget = null;
-		if (target && target !== 'float') {
-			this.setPanelDock(id, target);
-		} else {
-			this.setPanelFloatPos(id, offsetX, offsetY);
-		}
+		this.#panels.endPanelDrag(id, offsetX, offsetY);
 	}
 
-	/** Pull any floating panel whose saved offset would land it (mostly)
-	 *  off-screen back into view — e.g. a position saved on a much larger window.
-	 *  Called once from initLayout when the viewport size is known. */
 	clampFloatingPanels() {
-		const w = window.innerWidth;
-		const h = window.innerHeight;
-		for (const id of PANEL_IDS) {
-			const p = this.panelLayout[id];
-			if (p.dock !== 'float') continue;
-			// Anchors sit ~16px inside an edge; keep at least a grabbable strip of
-			// the header on-screen regardless of which corner the panel anchors to.
-			const nx = clamp(p.x, -(w - 160), w - 160);
-			const ny = clamp(p.y, -(h - 96), h - 96);
-			if (nx !== p.x || ny !== p.y) {
-				p.x = nx;
-				p.y = ny;
-			}
-		}
-	}
-
-	/** Enforce "≤1 panel per left/right edge" — defends against a hand-edited or
-	 *  future-migrated layout; setPanelDock already keeps this true at runtime. */
-	#normalizePanelDocks() {
-		for (const side of ['left', 'right'] as const) {
-			let taken = false;
-			for (const id of PANEL_PRIORITY) {
-				if (this.panelLayout[id].dock !== side) continue;
-				if (taken) this.panelLayout[id].dock = 'float';
-				else taken = true;
-			}
-		}
+		this.#panels.clampFloatingPanels();
 	}
 
 	get editMode(): boolean {
@@ -572,90 +387,71 @@ export class ScoreStore {
 	isPaused = $state(false);
 	playhead = $state<{ measure: number; beat: number } | null>(null);
 
-	// User preferences (persisted to localStorage, see loadPrefs/#persistPrefs).
-	// These are device/session settings rather than document data, so they live
-	// apart from the .oto score and survive a page reload.
-	#metronomeOn = $state(false);
-	#metronomeSound = $state<MetronomeSound>('click');
-	#metronomeVolume = $state(1);
-	#loopEnabled = $state(false);
-	#countInOn = $state(false);
-	#playbackSpeedOn = $state(false);
-	#playbackSpeed = $state(1);
-	#pageView = $state(false);
-	#soundFontQuality = $state<SoundFontQuality>('standard');
-
+	// User preferences (persisted to localStorage) — owned by PrefsController;
+	// these are device/session settings rather than document data. Delegated
+	// getter/setter pairs keep the `store.metronomeOn = …` call sites working.
 	get metronomeOn(): boolean {
-		return this.#metronomeOn;
+		return this.#prefs.metronomeOn;
 	}
 	set metronomeOn(v: boolean) {
-		this.#metronomeOn = v;
-		this.#persistPrefs();
+		this.#prefs.metronomeOn = v;
 	}
 	get metronomeSound(): MetronomeSound {
-		return this.#metronomeSound;
+		return this.#prefs.metronomeSound;
 	}
 	set metronomeSound(v: MetronomeSound) {
-		this.#metronomeSound = v;
-		this.#persistPrefs();
+		this.#prefs.metronomeSound = v;
 	}
 	get metronomeVolume(): number {
-		return this.#metronomeVolume;
+		return this.#prefs.metronomeVolume;
 	}
 	set metronomeVolume(v: number) {
-		this.#metronomeVolume = clamp(v, 0, 1);
-		this.#persistPrefs();
+		this.#prefs.metronomeVolume = v;
 	}
 	get loopEnabled(): boolean {
-		return this.#loopEnabled;
+		return this.#prefs.loopEnabled;
 	}
 	set loopEnabled(v: boolean) {
-		this.#loopEnabled = v;
-		this.#persistPrefs();
+		this.#prefs.loopEnabled = v;
 	}
 	get countInOn(): boolean {
-		return this.#countInOn;
+		return this.#prefs.countInOn;
 	}
 	set countInOn(v: boolean) {
-		this.#countInOn = v;
-		this.#persistPrefs();
+		this.#prefs.countInOn = v;
 	}
 	get playbackSpeedOn(): boolean {
-		return this.#playbackSpeedOn;
+		return this.#prefs.playbackSpeedOn;
 	}
 	set playbackSpeedOn(v: boolean) {
-		this.#playbackSpeedOn = v;
-		this.#persistPrefs();
+		this.#prefs.playbackSpeedOn = v;
 	}
 	/** Playback speed multiplier (0.5..1.5) applied only while speed is on. */
 	get playbackSpeed(): number {
-		return this.#playbackSpeed;
+		return this.#prefs.playbackSpeed;
 	}
 	set playbackSpeed(v: number) {
-		this.#playbackSpeed = clamp(v, 0.5, 1.5);
-		this.#persistPrefs();
+		this.#prefs.playbackSpeed = v;
 	}
 	/** The speed the engine should actually play at (1 while speed is off). */
 	get effectivePlaybackSpeed(): number {
-		return this.#playbackSpeedOn ? this.#playbackSpeed : 1;
+		return this.#prefs.effectivePlaybackSpeed;
 	}
 	/** Page view: lay the score out as A4 pages (with page breaks and numbered
 	 *  footers) instead of one continuous sheet. Also what PDF export prints. */
 	get pageView(): boolean {
-		return this.#pageView;
+		return this.#prefs.pageView;
 	}
 	set pageView(v: boolean) {
-		this.#pageView = v;
-		this.#persistPrefs();
+		this.#prefs.pageView = v;
 	}
 	/** Soundfont quality: standard (SF3) or high (SF2). The engine applies a
 	 *  change via audio.switchSoundFont(), see SettingsModal. */
 	get soundFontQuality(): SoundFontQuality {
-		return this.#soundFontQuality;
+		return this.#prefs.soundFontQuality;
 	}
 	set soundFontQuality(v: SoundFontQuality) {
-		this.#soundFontQuality = v;
-		this.#persistPrefs();
+		this.#prefs.soundFontQuality = v;
 	}
 	/** Set when the audio engine failed to start (e.g. blocked autoplay), so the
 	 *  UI can surface a clear, actionable message instead of silent no-sound. */
@@ -684,47 +480,12 @@ export class ScoreStore {
 		this.scrollRequest = { kind: 'track', trackId, measure, token: ++this.#scrollToken };
 	}
 
-	// History — JSON string snapshots of the score (see #adoptBaseline).
-	#undoStack = $state<string[]>([]);
-	#redoStack = $state<string[]>([]);
-	// The "baseline": a JSON snapshot of the last settled score — the state a
-	// fresh edit reverts to. Kept current during idle (see #settle) so commit()
-	// can push it to the undo stack for free instead of walking the reactive
-	// proxy on every keystroke. `#baselineFor` is the score object it was taken
-	// from; when `score` is reassigned (load/undo/redo) the reference changes and
-	// the baseline is lazily recomputed. `#baselineStale` forces a recompute when
-	// a non-undoable direct mutation (a mixer setter) changed the score in place.
-	#baseline = '';
-	#baselineFor: OtoScore | null = null;
-	#baselineStale = false;
-	/** True while an undo entry is open and further edits may coalesce into it. */
-	#burstOpen = false;
-	/** Coalesce key of the open entry; only a same-key edit joins it (see commit). */
-	#burstKey: string | null = null;
-	#settleTimer: ReturnType<typeof setTimeout> | null = null;
-	/** Cancels an in-flight idle-sliced baseline walk (see #settleIdle). */
-	#sliceCancel: (() => void) | null = null;
-	/** Bumped on every score mutation (commit, live, mixer setters, undo/redo).
-	 *  The sliced walk and the autosave's baseline reuse validate against it, so
-	 *  neither can ever hold state from before an interleaved edit. */
-	#snapEpoch = 0;
-	/** Epoch at which #baseline was computed. While it matches #snapEpoch the
-	 *  baseline string IS the current score — the autosave writes it directly
-	 *  instead of paying its own whole-score snapshot walk. */
-	#settledEpoch = -1;
 	#loaded = false;
-	/** Set while a continuous mixer drag is in flight (see beginGesture). */
-	#gestureActive = false;
 
-	/** Bumped whenever the score's *compiled* content changes (notes, tempo,
-	 *  tuning, mute/solo, …) — anything that goes through commit()/commitLive()
-	 *  or undo/redo. Live mixer setters (volume/pan/EQ) deliberately don't bump
-	 *  this: they're applied to audio nodes directly and never baked into the
-	 *  compiled schedule, so the playback engine can cache its compiled score
-	 *  keyed on this number instead of recompiling on every Play press. */
-	#scoreVersion = $state(0);
+	/** Bumped whenever the score's *compiled* content changes — see ScoreHistory,
+	 *  which owns the undo/redo stacks, the settled baseline and the autosave. */
 	get scoreVersion(): number {
-		return this.#scoreVersion;
+		return this.#history.scoreVersion;
 	}
 
 	get track(): OtoTrack {
@@ -732,11 +493,11 @@ export class ScoreStore {
 	}
 
 	get canUndo(): boolean {
-		return this.#undoStack.length > 0;
+		return this.#history.canUndo;
 	}
 
 	get canRedo(): boolean {
-		return this.#redoStack.length > 0;
+		return this.#history.canRedo;
 	}
 
 	get currentMeasureFill() {
@@ -750,7 +511,7 @@ export class ScoreStore {
 	loadFromStorage() {
 		if (this.#loaded || typeof localStorage === 'undefined') return;
 		this.#loaded = true;
-		const raw = localStorage.getItem(STORAGE_KEY);
+		const raw = this.#history.readAutosave();
 		if (raw) {
 			try {
 				this.score = parse(raw);
@@ -774,361 +535,53 @@ export class ScoreStore {
 		// Warm the history baseline during idle so the *first* edit doesn't pay the
 		// whole-score snapshot on its keystroke (the document was assigned directly
 		// here, not through commit()).
-		this.#scheduleSettle();
+		this.#history.scheduleSettle();
 	}
 
-	/** Restore persisted user preferences (metronome/loop/count-in). Safe to call
-	 *  once on startup; missing or malformed values keep their defaults. */
+	/** Restore persisted user preferences (metronome/loop/panel placement/…).
+	 *  Safe to call once on startup; missing or malformed values keep defaults. */
 	loadPrefs() {
-		if (typeof localStorage === 'undefined') return;
-		const raw = localStorage.getItem(PREFS_KEY);
-		if (!raw) return;
-		try {
-			const p = JSON.parse(raw) as StoredPrefs;
-			if (typeof p.metronomeOn === 'boolean') this.#metronomeOn = p.metronomeOn;
-			if (p.metronomeSound && METRONOME_SOUNDS.includes(p.metronomeSound))
-				this.#metronomeSound = p.metronomeSound;
-			if (typeof p.metronomeVolume === 'number')
-				this.#metronomeVolume = clamp(p.metronomeVolume, 0, 1);
-			if (typeof p.loopEnabled === 'boolean') this.#loopEnabled = p.loopEnabled;
-			if (typeof p.countInOn === 'boolean') this.#countInOn = p.countInOn;
-			if (typeof p.playbackSpeedOn === 'boolean') this.#playbackSpeedOn = p.playbackSpeedOn;
-			if (typeof p.playbackSpeed === 'number')
-				this.#playbackSpeed = clamp(p.playbackSpeed, 0.5, 1.5);
-			if (p.panelLayout) {
-				for (const id of PANEL_IDS) {
-					const s = p.panelLayout[id];
-					if (!s) continue;
-					if (s.dock && PANEL_ALLOWED[id].includes(s.dock)) this.panelLayout[id].dock = s.dock;
-					if (typeof s.x === 'number') this.panelLayout[id].x = s.x;
-					if (typeof s.y === 'number') this.panelLayout[id].y = s.y;
-				}
-				this.#normalizePanelDocks();
-			}
-			if (typeof p.bottomSplitSwap === 'boolean') this.bottomSplitSwap = p.bottomSplitSwap;
-			if (typeof p.pageView === 'boolean') this.#pageView = p.pageView;
-			if (p.soundFontQuality === 'standard' || p.soundFontQuality === 'high')
-				this.#soundFontQuality = p.soundFontQuality;
-		} catch {
-			/* keep defaults */
-		}
+		this.#prefs.load();
 	}
 
-	#persistPrefs() {
-		if (typeof localStorage === 'undefined') return;
-		try {
-			const prefs: StoredPrefs = {
-				metronomeOn: this.#metronomeOn,
-				metronomeSound: this.#metronomeSound,
-				metronomeVolume: this.#metronomeVolume,
-				loopEnabled: this.#loopEnabled,
-				countInOn: this.#countInOn,
-				playbackSpeedOn: this.#playbackSpeedOn,
-				playbackSpeed: this.#playbackSpeed,
-				panelLayout: $state.snapshot(this.panelLayout),
-				bottomSplitSwap: this.bottomSplitSwap,
-				pageView: this.#pageView,
-				soundFontQuality: this.#soundFontQuality
-			};
-			localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
-		} catch {
-			/* quota / private mode */
-		}
-	}
-
-	// Autosave is debounced: serializing the whole score is O(score) main-thread
-	// work, and persist() fires from continuous gestures (a fader drag calls it
-	// per pointer tick) and from every edit — doing it synchronously each time
-	// is jank exactly when smoothness matters most (e.g. mixing while a piece
-	// plays). One trailing write per burst is enough; flushPersist() runs on
-	// pagehide/hidden so nothing is lost when the tab goes away. The window is
-	// deliberately generous — a large score costs real time to serialize + write,
-	// so during a rapid edit or drag burst we'd rather coalesce many writes into
-	// one than write every ~300ms.
-	#persistTimer: ReturnType<typeof setTimeout> | null = null;
-	/** Times a due autosave has been re-debounced waiting for the settle to
-	 *  finish its walk (see #writeScore) — bounded so autosave can't starve. */
-	#persistDeferrals = 0;
-
+	/** Schedule a debounced autosave (see ScoreHistory for the mechanics). */
 	persist() {
-		if (!AUTOSAVE || typeof localStorage === 'undefined') return;
-		if (this.#persistTimer) return;
-		this.#persistTimer = setTimeout(() => {
-			this.#persistTimer = null;
-			this.#writeScore();
-		}, 800);
+		this.#history.persist();
 	}
 
 	/** Write any pending autosave immediately (page is being hidden/unloaded). */
 	flushPersist() {
-		if (!this.#persistTimer) return;
-		clearTimeout(this.#persistTimer);
-		this.#persistTimer = null;
-		this.#writeScore(true);
+		this.#history.flushPersist();
 	}
 
-	#writeScore(force = false) {
-		// When the settle that refreshed the undo baseline already serialized the
-		// score (and nothing has mutated since — same #snapEpoch), the baseline
-		// string IS the current score: write it directly, zero extra work. (Its
-		// `updatedAt` is whatever the last real save stamped — the autosave is a
-		// crash-recovery blob, not an export, so that's fine.)
-		const fresh = this.#baseline !== '' && this.#settledEpoch === this.#snapEpoch;
-		// A settle is still walking the score — wait for it instead of paying a
-		// second whole-score walk here (it flushes the autosave itself on
-		// completion, see #adoptBaseline). Bounded so a marathon of nonstop edits
-		// can't starve the autosave forever.
-		if (
-			!force &&
-			!fresh &&
-			(this.#settleTimer !== null || this.#sliceCancel !== null) &&
-			this.#persistDeferrals < 3
-		) {
-			this.#persistDeferrals++;
-			this.persist();
-			return;
-		}
-		this.#persistDeferrals = 0;
-		try {
-			// Fallback: snapshot the reactive proxy to a plain object first, then
-			// serialize compactly — stringifying the deep proxy directly pays a
-			// signal-materialising trap on every property, and the blob is never
-			// read by a human so it doesn't need indentation.
-			const blob = fresh
-				? this.#baseline
-				: serializeCompact($state.snapshot(this.score) as OtoScore);
-			localStorage.setItem(STORAGE_KEY, blob);
-		} catch {
-			/* quota / private mode */
-		}
-	}
-
-	/** Open an undoable edit, run a mutation and persist. The pre-edit snapshot
-	 *  used for undo is the already-computed baseline (free); the fresh baseline
-	 *  for the *next* edit is deferred to an idle #settle so a keystroke never
-	 *  blocks on the whole-score proxy walk.
-	 *
-	 *  Pass `coalesceKey` for a rapid, continuous action (note entry) so a run of
-	 *  such edits collapses into a single undo entry and only settles once it
-	 *  stops. Omit it for a discrete command (add/remove section, toggle, …) so it
-	 *  gets its own undo entry — a following different command never merges in. */
+	/** Open an undoable edit, run a mutation and persist (see ScoreHistory.commit
+	 *  for the baseline mechanics and when to pass `coalesceKey`). */
 	commit(mutate: () => void, coalesceKey?: string) {
-		this.#beginEdit(coalesceKey);
-		mutate();
-		this.#snapEpoch++;
-		this.#scoreVersion++;
-		this.persist();
-		this.#scheduleSettle();
+		this.#history.commit(mutate, coalesceKey);
 	}
 
 	/** Mutate and persist without opening a new undo entry — for use inside a
 	 *  gesture (see beginGesture) where the entry was already opened up front. */
 	commitLive(mutate: () => void) {
-		mutate();
-		this.#snapEpoch++;
-		this.#scoreVersion++;
-		this.persist();
+		this.#history.commitLive(mutate);
 	}
 
-	// Open an undo entry. A rapid same-key edit joins the open entry (coalesces)
-	// and returns immediately. Otherwise a new entry is opened: #settle() first
-	// makes the baseline reflect the current (pre-edit) score — a no-op on the hot
-	// path where the last idle settle already did it, so no proxy walk happens on
-	// the keystroke — then the baseline is pushed as this entry's undo target.
-	#beginEdit(coalesceKey?: string) {
-		if (this.#burstOpen && coalesceKey != null && coalesceKey === this.#burstKey) return;
-		this.#settle();
-		this.#undoStack.push(this.#baseline);
-		if (this.#undoStack.length > 100) this.#undoStack.shift();
-		this.#redoStack = [];
-		this.#burstOpen = true;
-		this.#burstKey = coalesceKey ?? null;
-	}
-
-	#needsBaselineRefresh(): boolean {
-		return (
-			this.#burstOpen ||
-			this.#baselineStale ||
-			this.#baselineFor !== this.score ||
-			this.#baseline === ''
-		);
-	}
-
-	/** Record `snap` (a plain snapshot of the current score) as the settled
-	 *  baseline, and keep the plain object so the autosave can reuse the walk.
-	 *  History entries are JSON strings — undo/redo JSON.parse them back to a
-	 *  fresh, mutable object (re-proxied on assignment to `score`). A
-	 *  structuredClone would be nicer, but the snapshot carries state Svelte
-	 *  can't structured-clone in the browser; the JSON round-trip is the safe
-	 *  path, and it's what the autosave uses too. */
-	#adoptBaseline(snap: OtoScore) {
-		this.#baseline = JSON.stringify(snap);
-		this.#baselineFor = this.score;
-		this.#baselineStale = false;
-		this.#settledEpoch = this.#snapEpoch;
-		// A pending autosave no longer needs its own snapshot walk — the string
-		// just computed IS the current score. Flush it now.
-		if (this.#persistTimer) {
-			clearTimeout(this.#persistTimer);
-			this.#persistTimer = null;
-			this.#persistDeferrals = 0;
-			try {
-				if (AUTOSAVE && typeof localStorage !== 'undefined')
-					localStorage.setItem(STORAGE_KEY, this.#baseline);
-			} catch {
-				/* quota / private mode */
-			}
-		}
-	}
-
-	#cancelSettleWork() {
-		if (this.#settleTimer) {
-			clearTimeout(this.#settleTimer);
-			this.#settleTimer = null;
-		}
-		if (this.#sliceCancel) {
-			this.#sliceCancel();
-			this.#sliceCancel = null;
-		}
-	}
-
-	// Refresh the baseline to the current score and close the burst, synchronously.
-	// This is the expensive whole-score proxy walk — only forced when the fresh
-	// state is needed *right now* (opening a new undo entry, undo/redo). On the
-	// hot path the idle settle below has usually already run, so this no-ops.
-	#settle() {
-		this.#cancelSettleWork();
-		if (this.#needsBaselineRefresh()) {
-			this.#adoptBaseline($state.snapshot(this.score) as OtoScore);
-		}
-		this.#burstOpen = false;
-		this.#burstKey = null;
-	}
-
-	#scheduleSettle() {
-		this.#cancelSettleWork();
-		this.#settleTimer = setTimeout(() => {
-			this.#settleTimer = null;
-			this.#settleIdle();
-		}, HISTORY_SETTLE_MS);
-	}
-
-	// Idle-sliced baseline refresh. Snapshotting a big score's reactive proxy in
-	// one go blocks the main thread for hundreds of ms, and (being deferred) that
-	// block lands *between* keystrokes — exactly where the next keypress queues
-	// behind it. Instead the walk streams measure-by-measure in idle slices; any
-	// interleaved mutation bumps #snapEpoch which aborts the walk (the mutation's
-	// own #scheduleSettle restarts it), so a half-walked snapshot can never be
-	// adopted.
-	#settleIdle() {
-		if (!this.#needsBaselineRefresh()) {
-			this.#burstOpen = false;
-			this.#burstKey = null;
-			return;
-		}
-		const epoch = this.#snapEpoch;
-		const score = this.score;
-		// Scalar fields + track shells snapshotted up front (cheap); the measure
-		// lists — the bulk of a big score — stream into the shells below.
-		const shell = $state.snapshot({
-			...score,
-			tracks: score.tracks.map((t) => ({ ...t, measures: [] as OtoMeasure[] }))
-		}) as OtoScore;
-		let ti = 0;
-		let mi = 0;
-		const step = (deadline?: IdleDeadline) => {
-			this.#sliceCancel = null;
-			if (epoch !== this.#snapEpoch || score !== this.score) return; // aborted by an edit
-			const until = performance.now() + 12;
-			while (ti < score.tracks.length) {
-				const measures = score.tracks[ti].measures;
-				while (mi < measures.length) {
-					const outOfBudget =
-						deadline && !deadline.didTimeout
-							? deadline.timeRemaining() < 2
-							: performance.now() >= until;
-					if (outOfBudget) {
-						this.#sliceCancel = scheduleIdle(step);
-						return;
-					}
-					shell.tracks[ti].measures.push($state.snapshot(measures[mi]) as OtoMeasure);
-					mi++;
-				}
-				ti++;
-				mi = 0;
-			}
-			this.#adoptBaseline(shell);
-			this.#burstOpen = false;
-			this.#burstKey = null;
-		};
-		this.#sliceCancel = scheduleIdle(step);
-	}
-
-	/** Mark the baseline stale after a direct, non-undoable mutation (mixer
-	 *  setters) so the next undo entry captures that change instead of reverting
-	 *  past it, and refresh it during idle. Skipped mid-gesture — endGesture
-	 *  schedules the refresh once the drag ends. */
-	#dirtyBaseline() {
-		this.#snapEpoch++;
-		this.#baselineStale = true;
-		if (!this.#gestureActive) this.#scheduleSettle();
-	}
-
-	/**
-	 * Begin a continuous mixer gesture (a fader/knob drag). We open one undo entry
-	 * on drag-start, then let the live setters mutate freely; endGesture() closes
-	 * it. This makes volume/pan/EQ undoable without flooding the history with one
-	 * entry per pointer tick. Safe to call repeatedly — only the first call in a
-	 * gesture opens the entry.
-	 */
+	/** Begin a continuous mixer gesture (a fader/knob drag): one undo entry for
+	 *  the whole drag. Pair with endGesture(). */
 	beginGesture() {
-		if (this.#gestureActive) return;
-		this.#gestureActive = true;
-		this.#beginEdit(); // opens a fresh entry (no key), finalizing any prior burst
+		this.#history.beginGesture();
 	}
 
 	endGesture() {
-		this.#gestureActive = false;
-		// The drag changed the score in place under the open entry; close the
-		// burst and mark the baseline stale so the next edit starts a fresh entry
-		// (and its baseline includes this drag). The refresh is deferred to idle.
-		this.#burstOpen = false;
-		this.#baselineStale = true;
-		this.#scheduleSettle();
+		this.#history.endGesture();
 	}
 
 	undo() {
-		this.#settle(); // ensure the baseline reflects the current state for redo
-		const prev = this.#undoStack.pop();
-		if (prev === undefined) return;
-		this.#redoStack.push(this.#baseline);
-		this.score = JSON.parse(prev);
-		this.#baseline = prev;
-		this.#baselineFor = this.score;
-		this.#baselineStale = false;
-		this.#burstOpen = false;
-		this.#snapEpoch++;
-		this.#settledEpoch = this.#snapEpoch; // the restored string IS the new state
-		this.clampCursor();
-		this.#scoreVersion++;
-		this.persist();
+		this.#history.undo();
 	}
 
 	redo() {
-		this.#settle();
-		const next = this.#redoStack.pop();
-		if (next === undefined) return;
-		this.#undoStack.push(this.#baseline);
-		this.score = JSON.parse(next);
-		this.#baseline = next;
-		this.#baselineFor = this.score;
-		this.#baselineStale = false;
-		this.#burstOpen = false;
-		this.#snapEpoch++;
-		this.#settledEpoch = this.#snapEpoch; // the restored string IS the new state
-		this.clampCursor();
-		this.#scoreVersion++;
-		this.persist();
+		this.#history.redo();
 	}
 
 	// ---- document ops ------------------------------------------------------
@@ -1174,32 +627,11 @@ export class ScoreStore {
 		this.score = makeScore();
 		this.cursor = { track: 0, measure: 0, beat: 0, string: 0, voice: 0 };
 		this.selection = null;
-		this.#undoStack = [];
-		this.#redoStack = [];
-		// The document was replaced wholesale — drop the settled baseline (and any
-		// in-flight walk) so nothing from the closed score can be pushed for undo
-		// or written to the autosave.
-		this.#cancelSettleWork();
-		this.#snapEpoch++;
-		this.#baseline = '';
-		this.#baselineFor = null;
-		this.#baselineStale = false;
-		this.#burstOpen = false;
-		this.#burstKey = null;
-		this.#scheduleSettle();
-		// Drop any autosave still waiting in the debounce window — it belongs to
-		// the score being closed and would otherwise re-write the key just removed.
-		if (this.#persistTimer) {
-			clearTimeout(this.#persistTimer);
-			this.#persistTimer = null;
-		}
-		if (typeof localStorage !== 'undefined') {
-			try {
-				localStorage.removeItem(STORAGE_KEY);
-			} catch {
-				/* ignore */
-			}
-		}
+		// The document was replaced wholesale — drop the history, the settled
+		// baseline (and any in-flight walk) and the pending autosave, then remove
+		// the autosaved blob itself: it belongs to the score being closed.
+		this.#history.reset();
+		this.#history.clearAutosave();
 		this.#refocusAfterLoad();
 	}
 
@@ -1349,21 +781,21 @@ export class ScoreStore {
 		const t = this.score.tracks[index];
 		if (!t) return;
 		t.volume = clamp(v, 0, 1);
-		this.#dirtyBaseline();
+		this.#history.dirtyBaseline();
 		this.persist();
 	}
 	setPan(index: number, p: number) {
 		const t = this.score.tracks[index];
 		if (!t) return;
 		t.pan = clamp(p, -1, 1);
-		this.#dirtyBaseline();
+		this.#history.dirtyBaseline();
 		this.persist();
 	}
 	setEqBand(index: number, band: 'low' | 'mid' | 'high', db: number) {
 		const t = this.score.tracks[index];
 		if (!t) return;
 		t.eq = { ...t.eq, [band]: clamp(db, -12, 12) };
-		this.#dirtyBaseline();
+		this.#history.dirtyBaseline();
 		this.persist();
 	}
 	resetEq(index: number) {
@@ -1376,7 +808,7 @@ export class ScoreStore {
 	}
 	setMasterVolume(v: number) {
 		this.score.masterVolume = clamp(v, 0, 1);
-		this.#dirtyBaseline();
+		this.#history.dirtyBaseline();
 		this.persist();
 	}
 
@@ -1427,13 +859,13 @@ export class ScoreStore {
 	setAudioOffset(sec: number) {
 		if (!this.score.audio || !isFinite(sec)) return;
 		this.score.audio.offsetSec = sec;
-		this.#dirtyBaseline();
+		this.#history.dirtyBaseline();
 		this.persist();
 	}
 	setAudioVolume(v: number) {
 		if (!this.score.audio) return;
 		this.score.audio.volume = clamp(v, 0, 1);
-		this.#dirtyBaseline();
+		this.#history.dirtyBaseline();
 		this.persist();
 	}
 	toggleAudioMute() {
