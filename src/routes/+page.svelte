@@ -308,7 +308,7 @@
 			     relayout that's still settling when the print dialog snapshots the
 			     page would stamp a spinner onto each PDF page. -->
 			<div
-				class="fixed inset-0 z-[150] flex items-center justify-center bg-bg/60 backdrop-blur-[1px] print:hidden"
+				class="fixed inset-0 z-150 flex items-center justify-center bg-bg/60 backdrop-blur-[1px] print:hidden"
 				out:fade={{ duration: 140 }}
 			>
 				<Spinner size={30} />
@@ -371,9 +371,7 @@
 			</div>
 		{/snippet}
 
-		<div
-			class="print-unclip relative flex h-screen h-dvh flex-col overflow-hidden bg-bg print:bg-white"
-		>
+		<div class="print-unclip relative flex h-dvh flex-col overflow-hidden bg-bg print:bg-white">
 			<StatusBanner />
 
 			<!-- Score area with the left/right panels floated on top of it.
@@ -400,13 +398,13 @@
 				     edge scrollable clear of the dock (which floats 16px off the
 				     viewport bottom), so the page background stays visible below it. -->
 				<main
-					class="print-unclip min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [padding:20px_18px_24px] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
+					class="print-unclip min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] p-[20px_18px_24px] max-[720px]:p-[12px_8px_0] print:overflow-visible print:bg-white print:p-0"
 					bind:this={scoreAreaEl}
 					style="padding-bottom: {desktopDockHeight + 40}px"
 					onscroll={onScoreScroll}
 				>
 					<div
-						class="print-unclip flex [justify-content:safe_center] overflow-x-auto"
+						class="print-unclip flex justify-center-safe overflow-x-auto"
 						onscroll={closeContextMenuOnScroll}
 					>
 						<ScoreArea onHeaderClick={() => store.togglePanel('song')} />
@@ -451,7 +449,7 @@
 							32}px"
 					>
 						<div
-							class="h-full w-full rounded-lg border-2 border-dashed border-foreground/40 bg-foreground/[0.06]"
+							class="h-full w-full rounded-lg border-2 border-dashed border-foreground/40 bg-foreground/6"
 						></div>
 					</div>
 				{/if}
@@ -511,7 +509,7 @@
 			<!-- Drag-to-dock preview for the bottom strip. -->
 			{#if store.draggingPanel && store.dropTarget === 'bottom'}
 				<div
-					class="pointer-events-none absolute inset-x-4 bottom-4 z-40 rounded-lg border-2 border-dashed border-foreground/40 bg-foreground/[0.06]"
+					class="pointer-events-none absolute inset-x-4 bottom-4 z-40 rounded-lg border-2 border-dashed border-foreground/40 bg-foreground/6"
 					style="height: min(42vh, 340px)"
 				></div>
 			{/if}
@@ -529,7 +527,7 @@
 	     MOBILE LAYOUT  (< 1024 px)
 	     Fixed-bottom dock with slide-up note editor or tracks panel.
 	     ═══════════════════════════════════════════════════════════════ -->
-		<div class="print-unclip flex h-screen h-dvh flex-col overflow-hidden bg-bg print:bg-white">
+		<div class="print-unclip flex h-dvh flex-col overflow-hidden bg-bg print:bg-white">
 			<StatusBanner />
 			<!-- scrollbar-gutter stable for the same reason as desktop: the padding
 			     below tracks the dock height, and letting the scrollbar toggle with
@@ -540,7 +538,7 @@
 			     be wider than a phone screen; plain justify-center would clip their
 			     left edge unreachably, safe center + scroll keeps it reachable. -->
 			<main
-				class="print-unclip flex min-h-0 flex-1 [justify-content:safe_center] overflow-x-auto overflow-y-auto [scrollbar-gutter:stable] [padding:20px_18px_0] max-[720px]:[padding:12px_8px_0] print:overflow-visible print:bg-white print:p-0"
+				class="print-unclip flex min-h-0 flex-1 justify-center-safe overflow-x-auto overflow-y-auto [scrollbar-gutter:stable] p-[20px_18px_0] max-[720px]:p-[12px_8px_0] print:overflow-visible print:bg-white print:p-0"
 				bind:this={scoreAreaEl}
 				style="padding-bottom: {bottomBarHeight + (dockPanel ? dockPanelHeight : 0) + 48}px"
 				onscroll={onScoreScroll}
@@ -558,7 +556,7 @@
 				style="bottom: max(0.75rem, env(safe-area-inset-bottom, 0px))"
 			>
 				{#if dockPanel}
-					<div class="relative z-[1] shadow-[var(--shadow-3)]" bind:clientHeight={dockPanelHeight}>
+					<div class="relative z-1 shadow-card-3" bind:clientHeight={dockPanelHeight}>
 						{#if dockPanel === 'edit'}
 							<EditPanel />
 						{:else}

@@ -240,7 +240,7 @@
 
 {#snippet scoreHeader()}
 	<button
-		class="group relative mb-[22px] block w-full cursor-pointer border-none bg-transparent [background-image:none!important] [padding:0_0_16px] text-center [border-bottom:1px_solid_var(--border)]"
+		class="group relative mb-[22px] block w-full cursor-pointer border-none bg-transparent [background-image:none!important] p-[0_0_16px] text-center [border-bottom:1px_solid_var(--border)]"
 		onclick={onHeaderClick}
 		title="Edit song details"
 	>
@@ -249,7 +249,7 @@
 		>
 			{store.score.title || 'Untitled Score'}
 		</h1>
-		<p class="[margin:4px_0_0] [font-family:var(--serif)] text-text-muted italic">
+		<p class="m-[4px_0_0] [font-family:var(--serif)] text-text-muted italic">
 			{store.score.artist || 'Unknown'}
 		</p>
 		<span
@@ -276,7 +276,7 @@
 		title="Tempo — click to edit"
 		aria-label="Tempo {store.score.tempo} bpm, click to edit"
 	>
-		<span class="[font-family:'Bravura',serif] text-[19px] leading-none pt-3"
+		<span class="font-['Bravura',serif] text-[19px] leading-none pt-3"
 			>{GLYPH.metNoteQuarterUp}</span
 		>
 		<span class="text-[15px] font-semibold [font-family:var(--serif)]">= {store.score.tempo}</span>
@@ -290,12 +290,12 @@
 <svelte:boundary onerror={(e) => console.error('Score render failed:', e)}>
 	{#snippet failed(error, reset)}
 		<div
-			class="[padding:28px_30px_36px] h-fit w-full max-w-[1080px] rounded-md border border-border bg-paper shadow-[var(--shadow-1),var(--shadow-2)]"
+			class="p-[28px_30px_36px] h-fit w-full max-w-[1080px] rounded-md border border-border bg-paper shadow-[var(--shadow-1),var(--shadow-2)]"
 		>
 			<h2 class="m-0 [font-family:var(--serif)] text-[20px] font-semibold text-ink">
 				This score could not be displayed
 			</h2>
-			<p class="[margin:8px_0_0] text-sm text-text-muted">
+			<p class="m-[8px_0_0] text-sm text-text-muted">
 				The document contains data the renderer can't handle. You can retry, or open a different
 				file from the File menu.
 			</p>
@@ -345,7 +345,7 @@
 						{/each}
 					</div>
 					<div
-						class="pointer-events-none absolute inset-x-0 bottom-[24px] text-center text-[11px] text-text-muted"
+						class="pointer-events-none absolute inset-x-0 bottom-6 text-center text-[11px] text-text-muted"
 					>
 						{pi + 1} / {pages.length}
 					</div>
@@ -355,7 +355,7 @@
 	{:else}
 		<!-- ═══ Continuous view: one tall sheet ═══ -->
 		<div
-			class="[padding:28px_30px_36px] h-fit w-full max-w-[1080px] rounded-md border border-border bg-paper shadow-[var(--shadow-1),var(--shadow-2)] max-[720px]:[padding:18px_12px_26px] lg:min-w-[860px] print:max-w-none print:min-w-0 print:border-none print:shadow-none"
+			class="p-[28px_30px_36px] h-fit w-full max-w-[1080px] rounded-md border border-border bg-paper shadow-[var(--shadow-1),var(--shadow-2)] max-[720px]:p-[18px_12px_26px] lg:min-w-[860px] print:max-w-none print:min-w-0 print:border-none print:shadow-none"
 		>
 			{@render scoreHeader()}
 
