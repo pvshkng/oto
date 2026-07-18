@@ -41,8 +41,37 @@
 		});
 	}
 
-	// Pixels per measure in the timeline (zoomed via TimelineHeader's control).
+	// Pixels per measure in the timeline (zoomed via TimelineHeader's control, or
+	// Ctrl/⌘+wheel over the panel below). Bounds mirror TimelineHeader's buttons.
+	const MIN_CELL = 16;
+	const MAX_CELL = 96;
 	let cell = $state(30);
+
+	// Ctrl/⌘+wheel anywhere over the panel body zooms the timeline, anchoring the
+	// bar under the cursor so it stays put (like a DAW). preventDefault stops the
+	// browser's own page zoom. Wired imperatively so the listener is non-passive.
+	let scrollBody: HTMLDivElement | null = $state(null);
+	$effect(() => {
+		const el = scrollBody;
+		if (!el) return;
+		function onWheel(e: WheelEvent) {
+			if (!e.ctrlKey && !e.metaKey) return;
+			e.preventDefault();
+			const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+			const next = Math.max(MIN_CELL, Math.min(MAX_CELL, Math.round(cell * factor)));
+			if (next === cell) return;
+			// Keep the bar under the cursor fixed by adjusting scrollLeft. Content-x
+			// of the cursor = scrollLeft + (clientX - left); the timeline begins at
+			// `lead` within that content, so the bar there is unchanged by the zoom.
+			const rect = el!.getBoundingClientRect();
+			const contentX = el!.scrollLeft + (e.clientX - rect.left);
+			const bar = (contentX - lead) / cell;
+			cell = next;
+			el!.scrollLeft = Math.max(0, lead + bar * next - (e.clientX - rect.left));
+		}
+		el.addEventListener('wheel', onWheel, { passive: false });
+		return () => el.removeEventListener('wheel', onWheel);
+	});
 
 	const tracks = $derived(store.score.tracks);
 	const measureCount = $derived(Math.max(1, ...tracks.map((t) => t.measures.length)));
@@ -172,7 +201,7 @@
 	<!-- Scrollable mixer body, both axes. Left column is sticky; timeline scrolls
 	     under it. Header removed — close via the menubar Tracks button. Capped at
 	     300px (desktop), scrolls vertically beyond that. -->
-	<div class="min-h-0 flex-1 overflow-auto overscroll-contain">
+	<div bind:this={scrollBody} class="min-h-0 flex-1 overflow-auto overscroll-contain">
 		<div class="relative w-max min-w-full text-sm">
 			<!-- Playback/cursor position. Sits above track content but below the
 				     frozen controls column (z-10) so it tucks away when scrolled. -->
