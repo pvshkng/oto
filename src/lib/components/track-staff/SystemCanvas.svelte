@@ -41,10 +41,12 @@
 	const cssHeight = $derived(system.height);
 
 	// The paper is scaled by CSS zoom (see ScoreArea); the canvas's on-screen
-	// size is its CSS box × that factor, so the backing store must scale with it
-	// too or the browser upscales a 1× raster into blur. Pinned to 1 while
-	// printing — pages print at true scale regardless of the on-screen zoom.
-	const zoom = $derived(scoreViewport.printing ? 1 : store.scoreZoom);
+	// size is its CSS box × that factor (user zoom × the page view's fixed
+	// notation scale), so the backing store must scale with it too or the
+	// browser upscales a 1× raster into blur. Pinned to 1 while printing —
+	// pages print at true scale regardless of the on-screen zoom (and the 1×
+	// raster oversamples the page view's shrunken notation, never blurs it).
+	const zoom = $derived(scoreViewport.printing ? 1 : store.effectiveScoreZoom);
 
 	/** Size a canvas's backing store to the current CSS box × devicePixelRatio ×
 	 *  zoom, reset the transform to draw in CSS px, and clear it. */
@@ -85,7 +87,7 @@
 			editingSectionId,
 			fontReady: bravuraFont.ready,
 			printing: scoreViewport.printing,
-			zoom: store.scoreZoom
+			zoom: store.effectiveScoreZoom
 		})
 	);
 	let drawnSig = '';

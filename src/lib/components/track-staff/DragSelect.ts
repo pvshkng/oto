@@ -37,7 +37,7 @@ export function createDragSelect(opts: DragSelectOptions) {
 		const layout = opts.layout();
 		// Rects are in real px, layout in local px — the paper's CSS zoom
 		// (ScoreArea) is the factor between them.
-		const zoom = store.scoreZoom;
+		const zoom = store.effectiveScoreZoom;
 		const svgEls = container.querySelectorAll<HTMLElement>('.system');
 		for (const svgEl of svgEls) {
 			const rect = svgEl.getBoundingClientRect();
@@ -71,7 +71,7 @@ export function createDragSelect(opts: DragSelectOptions) {
 		const layout = opts.layout();
 		if (!container || !layout.bands.tab) return null;
 		const track = opts.track();
-		const zoom = store.scoreZoom;
+		const zoom = store.effectiveScoreZoom;
 		const svgEls = container.querySelectorAll<HTMLElement>('.system');
 		for (const svgEl of svgEls) {
 			const rect = svgEl.getBoundingClientRect();

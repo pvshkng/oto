@@ -57,8 +57,9 @@
 
 	// The paper is scaled by CSS zoom (ScoreArea). Layout geometry stays in
 	// local (unzoomed) px, but getBoundingClientRect() and client coordinates
-	// are in real px — every conversion between the two needs this factor.
-	const zoom = $derived(scoreViewport.printing ? 1 : store.scoreZoom);
+	// are in real px — every conversion between the two needs this factor
+	// (user zoom × the page view's fixed notation scale).
+	const zoom = $derived(scoreViewport.printing ? 1 : store.effectiveScoreZoom);
 
 	let containerWidth = $state(800);
 	let container: HTMLDivElement;

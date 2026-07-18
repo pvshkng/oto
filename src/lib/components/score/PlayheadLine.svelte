@@ -146,8 +146,9 @@
 		}
 		const clip = clipEl?.getBoundingClientRect();
 		// Layout coordinates (xInMeasure, segment extents) are local px; rects
-		// are real px — the paper's CSS zoom (ScoreArea) is the factor between.
-		const zoom = store.scoreZoom;
+		// are real px — the paper's CSS zoom (ScoreArea, user zoom × page-view
+		// notation scale) is the factor between.
+		const zoom = store.effectiveScoreZoom;
 		for (let i = 0; i < lineEls.length; i++) {
 			const el = lineEls[i];
 			if (!el) continue;

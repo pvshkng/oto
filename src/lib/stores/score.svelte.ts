@@ -51,6 +51,12 @@ function clamp(v: number, lo: number, hi: number): number {
 	return Math.max(lo, Math.min(hi, v));
 }
 
+/** Fixed scale page view applies to notation inside each A4 sheet (CSS zoom on
+ *  the page's content, see ScoreArea). The layout engine sees the page width
+ *  divided by this, so systems pack more bars per row and more rows per page
+ *  while the sheet itself stays true A4. Also in effect when printing. */
+export const PAGE_NOTATION_SCALE = 0.65;
+
 // Panel types re-exported so existing `$lib/stores/score.svelte` imports keep
 // working; the definitions (and the docking logic) live in panels.svelte.ts.
 export type { Dock, PanelId };
@@ -458,6 +464,13 @@ export class ScoreStore {
 	 *  zoom on the paper, so only the score scales — never the panels/chrome. */
 	get scoreZoom(): number {
 		return this.#prefs.scoreZoom;
+	}
+	/** The zoom factor actually in effect over notation content: the user's
+	 *  score zoom times the fixed page-view notation scale (page view draws
+	 *  notation smaller so more music fits on each A4 sheet). Every conversion
+	 *  between layout-local px and real client px must use this, not scoreZoom. */
+	get effectiveScoreZoom(): number {
+		return this.scoreZoom * (this.pageView ? PAGE_NOTATION_SCALE : 1);
 	}
 	set scoreZoom(v: number) {
 		this.#prefs.scoreZoom = v;

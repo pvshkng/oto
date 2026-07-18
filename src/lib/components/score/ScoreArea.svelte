@@ -11,7 +11,7 @@
 	//    longer fits — and each page shows a "current/total" footer. PDF export
 	//    prints these pages one per sheet.
 	import { untrack } from 'svelte';
-	import { store } from '$lib/stores/score.svelte';
+	import { store, PAGE_NOTATION_SCALE } from '$lib/stores/score.svelte';
 	import { scoreViewport } from '$lib/stores/viewport.svelte';
 	import { observeWidth } from '$lib/resize';
 	import {
@@ -45,8 +45,13 @@
 	const PAGE_PAD_TOP = 40;
 	// Taller than the top pad: the bottom band also hosts the page-number footer.
 	const PAGE_PAD_BOTTOM = 64;
-	const PAGE_CONTENT_W = PAGE_W - 2 * PAGE_PAD_X;
-	const PAGE_CONTENT_H = PAGE_H - PAGE_PAD_TOP - PAGE_PAD_BOTTOM;
+	// Content area in the page's LOCAL px: the notation inside each sheet is
+	// scaled down by PAGE_NOTATION_SCALE (CSS zoom on the content div below), so
+	// the layout engine works against a proportionally wider/taller logical box
+	// and packs more bars per row and more rows per page. Real on-screen size is
+	// still the true A4 content area.
+	const PAGE_CONTENT_W = (PAGE_W - 2 * PAGE_PAD_X) / PAGE_NOTATION_SCALE;
+	const PAGE_CONTENT_H = (PAGE_H - PAGE_PAD_TOP - PAGE_PAD_BOTTOM) / PAGE_NOTATION_SCALE;
 	// Width of the vertical track-name label column TrackStaff renders beside
 	// each row in the interleaved multi-track view. Must be subtracted from the
 	// width given to the layout engine or the staff's right edge gets clipped.
@@ -333,8 +338,10 @@
 					style="width:{PAGE_W}px; height:{PAGE_H}px; padding:{PAGE_PAD_TOP}px {PAGE_PAD_X}px {PAGE_PAD_BOTTOM}px"
 				>
 					<!-- overflow-hidden guarantees nothing ever bleeds past the page's
-				     content area, even if a measurement is momentarily stale. -->
-					<div class="h-full overflow-hidden">
+				     content area, even if a measurement is momentarily stale.
+				     The zoom shrinks the notation to PAGE_NOTATION_SCALE — kept while
+				     printing (unlike the user zoom above): pagination counted on it. -->
+					<div class="h-full overflow-hidden" style:zoom={PAGE_NOTATION_SCALE}>
 						{#if pi === 0}
 							<!-- flow-root so the header's child margins are contained in the
 						     measured height that pagination subtracts from page 1. -->
