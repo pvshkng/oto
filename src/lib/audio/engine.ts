@@ -87,6 +87,13 @@ export class AudioEngine {
 	private harmonicChannels = new Map<string, number>();
 	private beatTicks: CompiledSong['beatTicks'] = [];
 	private lastBeatIndex = -1;
+	/** Tick playback was told to start from. Position reports before this are the
+	 *  count-in / pre-roll and must not move the playhead (they'd report bar 0). */
+	private playStartTick = 0;
+	/** Cleared on each play(), set once a position report reaches playStartTick.
+	 *  While false, pre-roll ticks are ignored so the playhead/auto-scroll don't
+	 *  jump to the top of the piece before real playback reaches the start. */
+	private armed = false;
 	private totalTicks = 0;
 	/** Last playback position reported by the worker (~every 50ms). The playhead
 	 *  line quantizes this to the sounding beat's onset — deliberately no
@@ -164,6 +171,14 @@ export class AudioEngine {
 
 		synth.positionChanged.on((e) => {
 			if (!this.playing) return;
+			// Skip count-in / pre-roll ticks that report a position before where
+			// playback was told to begin. Left un-skipped they resolve to bar 0,
+			// which yanks the playhead — and the auto-scroll that follows it — to
+			// the top of the piece until real playback reaches the start tick.
+			if (!this.armed) {
+				if (e.currentTick < this.playStartTick) return;
+				this.armed = true;
+			}
 			this.clockTick = e.currentTick;
 			this.emitBeatMarker(e.currentTick);
 			this.onPosition?.(e.currentTime);
@@ -452,6 +467,8 @@ export class AudioEngine {
 		this.lastBeatIndex = -1;
 		this.totalTicks = compiled.totalTicks;
 		this.clockTick = opts.startTick;
+		this.playStartTick = opts.startTick;
+		this.armed = false;
 		this.onBeatMarker = opts.onBeatMarker;
 		this.onPosition = opts.onPosition ?? null;
 		this.onStopCb = opts.onStop;
