@@ -35,11 +35,14 @@ export function createDragSelect(opts: DragSelectOptions) {
 		const container = opts.container();
 		if (!container) return null;
 		const layout = opts.layout();
+		// Rects are in real px, layout in local px — the paper's CSS zoom
+		// (ScoreArea) is the factor between them.
+		const zoom = store.scoreZoom;
 		const svgEls = container.querySelectorAll<HTMLElement>('.system');
 		for (const svgEl of svgEls) {
 			const rect = svgEl.getBoundingClientRect();
 			if (clientY < rect.top || clientY > rect.bottom) continue;
-			const svgX = clientX - rect.left;
+			const svgX = (clientX - rect.left) / zoom;
 			const firstIdx = Number(svgEl.dataset.firstMeasure ?? -1);
 			const sys = layout.systems.find((s) => s.measures[0]?.index === firstIdx);
 			if (!sys || !sys.measures.length) continue;
@@ -68,12 +71,13 @@ export function createDragSelect(opts: DragSelectOptions) {
 		const layout = opts.layout();
 		if (!container || !layout.bands.tab) return null;
 		const track = opts.track();
+		const zoom = store.scoreZoom;
 		const svgEls = container.querySelectorAll<HTMLElement>('.system');
 		for (const svgEl of svgEls) {
 			const rect = svgEl.getBoundingClientRect();
 			if (clientY < rect.top || clientY > rect.bottom) continue;
-			const tabOffsetY = rect.top + layout.bands.tab.offsetY + layout.tabTop;
-			const localY = clientY - tabOffsetY;
+			const tabOffsetY = rect.top + (layout.bands.tab.offsetY + layout.tabTop) * zoom;
+			const localY = (clientY - tabOffsetY) / zoom;
 			const string = Math.round(localY / METRICS.tabLineGap);
 			return Math.max(0, Math.min(track.tuning.length - 1, string));
 		}

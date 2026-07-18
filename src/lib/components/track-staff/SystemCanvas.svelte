@@ -40,17 +40,24 @@
 	const cssWidth = $derived(Math.max(system.width, containerWidth));
 	const cssHeight = $derived(system.height);
 
-	/** Size a canvas's backing store to the current CSS box × devicePixelRatio,
-	 *  reset the transform to draw in CSS px, and clear it. */
+	// The paper is scaled by CSS zoom (see ScoreArea); the canvas's on-screen
+	// size is its CSS box × that factor, so the backing store must scale with it
+	// too or the browser upscales a 1× raster into blur. Pinned to 1 while
+	// printing — pages print at true scale regardless of the on-screen zoom.
+	const zoom = $derived(scoreViewport.printing ? 1 : store.scoreZoom);
+
+	/** Size a canvas's backing store to the current CSS box × devicePixelRatio ×
+	 *  zoom, reset the transform to draw in CSS px, and clear it. */
 	function prepare(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
 		const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-		const bw = Math.max(1, Math.round(cssWidth * dpr));
-		const bh = Math.max(1, Math.round(cssHeight * dpr));
+		const scale = dpr * zoom;
+		const bw = Math.max(1, Math.round(cssWidth * scale));
+		const bh = Math.max(1, Math.round(cssHeight * scale));
 		if (canvas.width !== bw) canvas.width = bw;
 		if (canvas.height !== bh) canvas.height = bh;
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return null;
-		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		ctx.setTransform(scale, 0, 0, scale, 0, 0);
 		ctx.clearRect(0, 0, cssWidth, cssHeight);
 		return ctx;
 	}
@@ -77,7 +84,8 @@
 			lastMeasureIndex,
 			editingSectionId,
 			fontReady: bravuraFont.ready,
-			printing: scoreViewport.printing
+			printing: scoreViewport.printing,
+			zoom: store.scoreZoom
 		})
 	);
 	let drawnSig = '';

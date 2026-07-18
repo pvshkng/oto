@@ -62,6 +62,24 @@ export function handleGlobalKeydown(e: KeyboardEvent) {
 		else store.insertMeasureAt(store.cursor.measure + 1);
 		return;
 	}
+	// Score zoom. '=' is what Ctrl-'+' actually reports on most layouts
+	// (unshifted key), '+' covers numpad and shifted variants. preventDefault
+	// keeps the browser's whole-page zoom out of it.
+	if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
+		e.preventDefault();
+		store.zoomIn();
+		return;
+	}
+	if ((e.ctrlKey || e.metaKey) && (e.key === '-' || e.key === '_')) {
+		e.preventDefault();
+		store.zoomOut();
+		return;
+	}
+	if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+		e.preventDefault();
+		store.resetZoom();
+		return;
+	}
 	if (store.isPlaying) return;
 
 	if (/^[0-9]$/.test(e.key)) {

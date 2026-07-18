@@ -12,6 +12,12 @@ const PREFS_KEY = 'oto.prefs';
 
 const METRONOME_SOUNDS: MetronomeSound[] = ['click', 'beep', 'wood', 'bell'];
 
+/** Discrete score-zoom steps (1 = 100%). Ctrl+wheel / Ctrl+± walk this ladder
+ *  so repeated zooms land on round sizes instead of drifting continuously. */
+const ZOOM_LEVELS = [0.5, 0.625, 0.75, 0.875, 1, 1.125, 1.25, 1.5, 1.75, 2];
+export const MIN_ZOOM = ZOOM_LEVELS[0];
+export const MAX_ZOOM = ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
+
 /** Persisted user-preference shape (a subset of the store's session fields). */
 interface StoredPrefs {
 	metronomeOn?: boolean;
@@ -25,6 +31,7 @@ interface StoredPrefs {
 	bottomSplitSwap?: boolean;
 	pageView?: boolean;
 	soundFontQuality?: SoundFontQuality;
+	scoreZoom?: number;
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -41,6 +48,7 @@ export class PrefsController {
 	#playbackSpeed = $state(1);
 	#pageView = $state(false);
 	#soundFontQuality = $state<SoundFontQuality>('standard');
+	#scoreZoom = $state(1);
 
 	#panels: PanelController;
 
@@ -120,6 +128,21 @@ export class PrefsController {
 		this.#soundFontQuality = v;
 		this.persist();
 	}
+	/** Score-view zoom factor (0.5..2). Applied as CSS zoom on the score paper
+	 *  only — the surrounding panels and chrome keep their UI scale. */
+	get scoreZoom(): number {
+		return this.#scoreZoom;
+	}
+	set scoreZoom(v: number) {
+		this.#scoreZoom = clamp(v, MIN_ZOOM, MAX_ZOOM);
+		this.persist();
+	}
+	zoomIn() {
+		this.scoreZoom = ZOOM_LEVELS.find((z) => z > this.#scoreZoom) ?? MAX_ZOOM;
+	}
+	zoomOut() {
+		this.scoreZoom = ZOOM_LEVELS.findLast((z) => z < this.#scoreZoom) ?? MIN_ZOOM;
+	}
 
 	/** Restore persisted user preferences. Safe to call once on startup; missing
 	 *  or malformed values keep their defaults. */
@@ -144,6 +167,7 @@ export class PrefsController {
 			if (typeof p.pageView === 'boolean') this.#pageView = p.pageView;
 			if (p.soundFontQuality === 'standard' || p.soundFontQuality === 'high')
 				this.#soundFontQuality = p.soundFontQuality;
+			if (typeof p.scoreZoom === 'number') this.#scoreZoom = clamp(p.scoreZoom, MIN_ZOOM, MAX_ZOOM);
 		} catch {
 			/* keep defaults */
 		}
@@ -163,7 +187,8 @@ export class PrefsController {
 				panelLayout: $state.snapshot(this.#panels.panelLayout),
 				bottomSplitSwap: this.#panels.bottomSplitSwap,
 				pageView: this.#pageView,
-				soundFontQuality: this.#soundFontQuality
+				soundFontQuality: this.#soundFontQuality,
+				scoreZoom: this.#scoreZoom
 			};
 			localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
 		} catch {

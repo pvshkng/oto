@@ -12,6 +12,7 @@
 	//    prints these pages one per sheet.
 	import { untrack } from 'svelte';
 	import { store } from '$lib/stores/score.svelte';
+	import { scoreViewport } from '$lib/stores/viewport.svelte';
 	import { observeWidth } from '$lib/resize';
 	import {
 		computeSharedSystemsCached,
@@ -25,6 +26,15 @@
 	import PlayheadLine from '$lib/components/score/PlayheadLine.svelte';
 
 	let { onHeaderClick }: { onHeaderClick: () => void } = $props();
+
+	// Score-only zoom, applied as CSS zoom on the paper roots below. CSS zoom
+	// reflows: the width observers inside the zoomed subtree report local
+	// (unzoomed) px, so the layout engine re-wraps systems to the narrower
+	// logical width automatically and nothing ever scrolls sideways that didn't
+	// before. Canvas crispness is restored in SystemCanvas (its backing store
+	// scales by the same factor). Forced to 1 while printing — pages must land
+	// on true A4, whatever the on-screen zoom.
+	const zoom = $derived(scoreViewport.printing ? 1 : store.scoreZoom);
 
 	// A4 geometry at CSS 96dpi: 210mm × 297mm ≈ 794 × 1123 px. The print
 	// stylesheet (layout.css) maps .a4-page back to true millimetres, so what
@@ -316,7 +326,7 @@
 
 	{#if store.pageView && pages}
 		<!-- ═══ Page view: the score split into A4 sheets ═══ -->
-		<div class="print-pages flex flex-col items-center gap-6">
+		<div class="print-pages flex flex-col items-center gap-6" style:zoom>
 			{#each pages as page, pi (pi)}
 				<div
 					class="a4-page relative shrink-0 rounded-md border border-border bg-paper shadow-[var(--shadow-1),var(--shadow-2)]"
@@ -353,9 +363,15 @@
 			{/each}
 		</div>
 	{:else}
-		<!-- ═══ Continuous view: one tall sheet ═══ -->
+		<!-- ═══ Continuous view: one tall sheet ═══
+		     min-w is divided by the zoom: it guards against a too-cramped staff in
+		     REAL pixels, but inside the zoomed paper lengths are local px — left at
+		     860 it would balloon to 860×zoom on screen and force sideways scroll,
+		     exactly what re-wrapping on zoom is meant to prevent. -->
 		<div
-			class="p-[28px_30px_36px] h-fit w-full max-w-[1080px] rounded-md border border-border bg-paper shadow-[var(--shadow-1),var(--shadow-2)] max-[720px]:p-[18px_12px_26px] lg:min-w-[860px] print:max-w-none print:min-w-0 print:border-none print:shadow-none"
+			class="p-[28px_30px_36px] h-fit w-full max-w-[1080px] rounded-md border border-border bg-paper shadow-[var(--shadow-1),var(--shadow-2)] max-[720px]:p-[18px_12px_26px] lg:min-w-[calc(860px/var(--score-zoom,1))] print:max-w-none print:min-w-0 print:border-none print:shadow-none"
+			style:zoom
+			style:--score-zoom={zoom}
 		>
 			{@render scoreHeader()}
 

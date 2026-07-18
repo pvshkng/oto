@@ -153,6 +153,30 @@
 		});
 	}
 
+	// Ctrl+wheel (and trackpad pinch, which browsers report as ctrl+wheel) zooms
+	// the score. Attached manually because it must be non-passive: without
+	// preventDefault the browser zooms the whole page. Scoped to the score
+	// scroll container, so wheel over panels/toolbars keeps its default meaning.
+	// Deltas are accumulated to one discrete zoom step per threshold, so a
+	// high-resolution trackpad pinch doesn't fly through the whole range.
+	$effect(() => {
+		const el = scoreAreaEl;
+		if (!el) return;
+		let acc = 0;
+		const onWheel = (e: WheelEvent) => {
+			if (!e.ctrlKey && !e.metaKey) return;
+			e.preventDefault();
+			// Line-based deltas (some mice/browsers) are ~16× smaller than pixels.
+			acc += e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+			if (Math.abs(acc) < 40) return;
+			if (acc < 0) store.zoomIn();
+			else store.zoomOut();
+			acc = 0;
+		};
+		el.addEventListener('wheel', onWheel, { passive: false });
+		return () => el.removeEventListener('wheel', onWheel);
+	});
+
 	// Keep the published geometry in step with the container: initial measurement
 	// plus any size change (panels opening, window resize, the desktop⇄mobile
 	// swap that rebinds scoreAreaEl). The effect re-runs when scoreAreaEl changes.

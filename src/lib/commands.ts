@@ -5,6 +5,7 @@
 
 import type { Component } from 'svelte';
 import { store, type PanelId, type Dock } from '$lib/stores/score.svelte';
+import { MIN_ZOOM, MAX_ZOOM } from '$lib/stores/prefs.svelte';
 import { togglePlayback, stopPlayback } from '$lib/audio/playback';
 import { DURATION_ORDER } from '$lib/oto/duration';
 import {
@@ -40,6 +41,9 @@ import SquareHalfBottom from 'phosphor-svelte/lib/SquareHalfBottom';
 import ArrowSquareOut from 'phosphor-svelte/lib/ArrowSquareOut';
 import Copy from 'phosphor-svelte/lib/Copy';
 import Eraser from 'phosphor-svelte/lib/Eraser';
+import MagnifyingGlassPlus from 'phosphor-svelte/lib/MagnifyingGlassPlus';
+import MagnifyingGlassMinus from 'phosphor-svelte/lib/MagnifyingGlassMinus';
+import MagnifyingGlass from 'phosphor-svelte/lib/MagnifyingGlass';
 import MusicNote from 'phosphor-svelte/lib/MusicNote';
 import Sparkle from 'phosphor-svelte/lib/Sparkle';
 import Clock from 'phosphor-svelte/lib/Clock';
@@ -486,6 +490,36 @@ export function editCommands(): Cmd[] {
 	];
 }
 
+/** Score-view zoom — mirrors Ctrl+= / Ctrl+- / Ctrl+0 and Ctrl+wheel. */
+export function viewCommands(): Cmd[] {
+	return [
+		{
+			id: 'zoom-in',
+			label: 'Zoom in',
+			icon: MagnifyingGlassPlus,
+			keywords: 'zoom magnify scale bigger larger enlarge view score',
+			disabled: store.scoreZoom >= MAX_ZOOM,
+			run: () => store.zoomIn()
+		},
+		{
+			id: 'zoom-out',
+			label: 'Zoom out',
+			icon: MagnifyingGlassMinus,
+			keywords: 'zoom scale smaller shrink reduce view score',
+			disabled: store.scoreZoom <= MIN_ZOOM,
+			run: () => store.zoomOut()
+		},
+		{
+			id: 'zoom-reset',
+			label: `Reset zoom (${Math.round(store.scoreZoom * 100)}%)`,
+			icon: MagnifyingGlass,
+			keywords: 'zoom reset default 100 actual size view score',
+			disabled: store.scoreZoom === 1,
+			run: () => store.resetZoom()
+		}
+	];
+}
+
 export function transportCommands(): Cmd[] {
 	return [
 		{
@@ -573,6 +607,7 @@ export function allCommandGroups(): CmdGroup[] {
 	groups.push({ heading: 'File', items: fileCommands() });
 	groups.push({ heading: 'Transport', items: transportCommands() });
 	groups.push({ heading: 'Edit', items: editCommands() });
+	groups.push({ heading: 'View', items: viewCommands() });
 	// Note actions stay listed without a note under the cursor (with their own
 	// disabled flags) — a tie is applied on an EMPTY beat after an earlier note,
 	// so it must be reachable exactly then. Effects still need a note.

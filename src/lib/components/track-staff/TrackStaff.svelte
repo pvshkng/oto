@@ -55,6 +55,11 @@
 
 	const ctxNote = $derived(store.currentNote);
 
+	// The paper is scaled by CSS zoom (ScoreArea). Layout geometry stays in
+	// local (unzoomed) px, but getBoundingClientRect() and client coordinates
+	// are in real px — every conversion between the two needs this factor.
+	const zoom = $derived(scoreViewport.printing ? 1 : store.scoreZoom);
+
 	let containerWidth = $state(800);
 	let container: HTMLDivElement;
 
@@ -160,6 +165,9 @@
 		void scoreViewport.version;
 		void geometrySig;
 		if (!layoutReady) return;
+		// Rect reads below are in real px; system y/height are local px — scale
+		// them up by the zoom. Reading it here also re-runs visibility on zoom.
+		const z = zoom;
 		const systems = untrack(() => systemsToRender);
 		if (!virtualize || !container || !systems.length) {
 			visFrom = 0;
@@ -198,8 +206,8 @@
 		let from = systems.length;
 		let to = 0;
 		for (let i = 0; i < systems.length; i++) {
-			const y0 = systems[i].y;
-			if (y0 + systems[i].height >= lo && y0 <= hi) {
+			const y0 = systems[i].y * z;
+			if (y0 + systems[i].height * z >= lo && y0 <= hi) {
 				if (i < from) from = i;
 				to = i + 1;
 			}
@@ -236,8 +244,9 @@
 	): { measure: LaidMeasure; band: Band | null; px: number; py: number } | null {
 		const el = e.currentTarget as HTMLElement;
 		const rect = el.getBoundingClientRect();
-		const px = e.clientX - rect.left;
-		const py = e.clientY - rect.top;
+		// rect is in real (zoomed) px; divide back into the layout's local space.
+		const px = (e.clientX - rect.left) / zoom;
+		const py = (e.clientY - rect.top) / zoom;
 		if (!system.measures.length) return null;
 		let measure = system.measures[0];
 		for (const m of system.measures) if (px >= m.x) measure = m;

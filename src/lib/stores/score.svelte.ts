@@ -11,6 +11,7 @@
 
 import { SvelteSet } from 'svelte/reactivity';
 import { toast } from 'svelte-sonner';
+import { showZoomToast } from '$lib/components/score/zoom-toast';
 import { PanelController, type Dock, type PanelId } from './panels.svelte';
 import { PrefsController } from './prefs.svelte';
 import { ScoreHistory } from './history.svelte';
@@ -452,6 +453,26 @@ export class ScoreStore {
 	}
 	set soundFontQuality(v: SoundFontQuality) {
 		this.#prefs.soundFontQuality = v;
+	}
+	/** Score-view zoom factor (0.5..2, 1 = 100%). ScoreArea applies it as CSS
+	 *  zoom on the paper, so only the score scales — never the panels/chrome. */
+	get scoreZoom(): number {
+		return this.#prefs.scoreZoom;
+	}
+	set scoreZoom(v: number) {
+		this.#prefs.scoreZoom = v;
+	}
+	zoomIn() {
+		this.#prefs.zoomIn();
+		showZoomToast();
+	}
+	zoomOut() {
+		this.#prefs.zoomOut();
+		showZoomToast();
+	}
+	resetZoom() {
+		this.#prefs.scoreZoom = 1;
+		showZoomToast();
 	}
 	/** Set when the audio engine failed to start (e.g. blocked autoplay), so the
 	 *  UI can surface a clear, actionable message instead of silent no-sound. */

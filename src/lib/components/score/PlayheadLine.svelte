@@ -145,6 +145,9 @@
 			segMeasure = pos.measure;
 		}
 		const clip = clipEl?.getBoundingClientRect();
+		// Layout coordinates (xInMeasure, segment extents) are local px; rects
+		// are real px — the paper's CSS zoom (ScoreArea) is the factor between.
+		const zoom = store.scoreZoom;
 		for (let i = 0; i < lineEls.length; i++) {
 			const el = lineEls[i];
 			if (!el) continue;
@@ -154,9 +157,9 @@
 				continue;
 			}
 			const rect = seg.systemEl.getBoundingClientRect();
-			const x = rect.left + xInMeasure(seg.measure, pos.tickIn, pos.measureTicks);
-			let top = rect.top + seg.top;
-			let bottom = rect.top + seg.bottom;
+			const x = rect.left + xInMeasure(seg.measure, pos.tickIn, pos.measureTicks) * zoom;
+			let top = rect.top + seg.top * zoom;
+			let bottom = rect.top + seg.bottom * zoom;
 			if (clip) {
 				top = Math.max(top, clip.top);
 				bottom = Math.min(bottom, clip.bottom);
